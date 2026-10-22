@@ -14,7 +14,8 @@ $run = @($runs | Where-Object { $_.headSha -eq $head })[0]
 if (-not $run) { throw "No successful Linux build of ${head}: push it, run the workflow, then try again." }
 $dist = Join-Path $root 'target/dist'
 New-Item -ItemType Directory -Force $dist | Out-Null
-Get-ChildItem -LiteralPath $dist -Filter '*-linux-*.tar.gz' | Remove-Item
+# The previous archive and its hash give way: gh refuses to overwrite a file.
+Get-ChildItem -LiteralPath $dist -File | Where-Object { $_.Name -like '*-linux-*.tar.gz' -or $_.Name -eq 'SHA256-linux.txt' } | Remove-Item
 gh run download $run.databaseId -R $repo -n linux-x86_64 -D $dist
 if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
 foreach ($line in [IO.File]::ReadAllLines((Join-Path $dist 'SHA256-linux.txt'))) {
