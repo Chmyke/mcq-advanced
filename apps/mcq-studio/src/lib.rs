@@ -6,7 +6,10 @@
 
 pub mod actions;
 pub mod app;
+pub mod correct;
+pub mod correction;
 pub mod editor;
+pub mod identity;
 pub mod platform;
 pub mod preview;
 pub mod publish;

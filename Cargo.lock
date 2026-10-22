@@ -3152,6 +3152,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcq-analysis"
+version = "0.1.0"
+dependencies = [
+ "mcq-grade",
+ "mcq-model",
+]
+
+[[package]]
 name = "mcq-cli"
 version = "0.1.0"
 dependencies = [
@@ -3265,10 +3273,12 @@ dependencies = [
  "dioxus",
  "dioxus-ssr",
  "getrandom 0.4.3",
+ "mcq-analysis",
  "mcq-crypto",
  "mcq-edit",
  "mcq-engine",
  "mcq-format",
+ "mcq-grade",
  "mcq-highlight",
  "mcq-model",
  "mcq-player",

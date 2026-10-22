@@ -7,7 +7,8 @@ the results tell the class what to revisit, topic by topic.
 **Status: early development.** There is no usable release yet. The core works from the command
 line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
 encrypted packages, answer key apart, copies sealed for the teacher). The student player and the
-teacher's Studio run in the browser and on the desktop. Grading and analysis come next. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
+teacher's Studio (writing, publishing, correcting and class analysis) run in the browser and on
+the desktop. Imports from other tools come next. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
 encryption, export and cohort analysis are carried over.
 
 ## Principles
@@ -109,6 +110,18 @@ and out as one `.qcmz` file.
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -App studio
 cargo run -p mcq-studio --features desktop
 ```
+
+## Correcting and analysing
+
+In the Studio's Correct space, the teacher drops the package and the students' copies, which
+open with the teacher's identity only. Every copy is graded again from the answer key, then the
+class's diagnosis reads as sentences, in the order a teacher acts on it: the themes to teach
+again, the shared confusions (a distractor chosen beyond chance), the questions to review (a key
+the strongest students avoid, questions too hard or too easy, dead distractors), the copies worth
+a question (identical answers, many window exits, overtime), and the marks last. Small classes
+are told their figures are trends. Each student gets a printable revision sheet; `notes.csv`,
+`themes.csv` and `questions.csv` open in any spreadsheet. The rules are in
+[class analysis](docs/analysis.md).
 
 ## Building and checking
 

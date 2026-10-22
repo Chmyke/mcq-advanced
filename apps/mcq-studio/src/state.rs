@@ -9,12 +9,13 @@ use mcq_model::{Block, CodeBlock, Issue, Location, Media, MediaKind, Paper, Ques
 use mcq_player::b64;
 use mcq_player::render::mime;
 
-/// The three spaces of the Studio.
+/// The spaces of the Studio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Space {
     Write,
     Settings,
     Publish,
+    Correct,
 }
 
 /// How the paper is edited in the Write space.

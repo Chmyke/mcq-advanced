@@ -47,7 +47,7 @@ fn Harness() -> Element {
     match space {
         Space::Write => editor::write_space(studio, &EN, recording, notice, phone, dark),
         Space::Settings => settings::settings_space(studio, &FR),
-        Space::Publish => rsx! {},
+        Space::Publish | Space::Correct => rsx! {},
     }
 }
 

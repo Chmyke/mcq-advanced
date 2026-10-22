@@ -9,6 +9,8 @@ use mcq_edit::{Project, qcmz};
 use mcq_player::b64;
 
 use crate::actions;
+use crate::correct::CorrectSpace;
+use crate::correction::{Correction, is_correction_file};
 use crate::editor::write_space;
 use crate::platform::{self, DROP_AND_PASTE_SCRIPT};
 use crate::publish::{Done, PublishSpace};
@@ -33,6 +35,7 @@ pub fn App() -> Element {
     let preview_dark = use_signal(|| false);
     let identity = use_signal(|| None::<Rc<Identity>>);
     let done = use_signal(|| None::<Rc<Done>>);
+    let mut correction = use_signal(Correction::default);
 
     // Restores the draft, then saves it whenever it changed.
     use_future(move || async move {
@@ -90,6 +93,13 @@ pub fn App() -> Element {
                 actions::open_paper(studio, notice, t, bytes).await;
                 continue;
             }
+            // Packages and copies go to the Correct space.
+            if is_correction_file(&name) {
+                let id = identity.read().clone();
+                correction.write().add_file(&name, bytes, id.as_deref());
+                studio.write().space = Space::Correct;
+                continue;
+            }
             let selected = studio.read().selected.clone();
             match selected {
                 Some(id) => actions::add_media(studio, notice, t, &id, &name, bytes),
@@ -110,6 +120,7 @@ pub fn App() -> Element {
         (Space::Write, t.space_write),
         (Space::Settings, t.space_settings),
         (Space::Publish, t.space_publish),
+        (Space::Correct, t.space_correct),
     ];
     rsx! {
         style { {STYLE} }
@@ -170,6 +181,7 @@ pub fn App() -> Element {
                         Space::Write => write_space(studio, t, recording, notice, phone, preview_dark),
                         Space::Settings => settings_space(studio, t),
                         Space::Publish => rsx! { PublishSpace { studio, identity, done, t } },
+                        Space::Correct => rsx! { CorrectSpace { correction, identity, done, lang: lang(), t } },
                     }
                 }
             }

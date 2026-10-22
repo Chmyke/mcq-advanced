@@ -96,6 +96,18 @@ button.recording { background: var(--ko); color: #fff; border-color: var(--ko); 
 .room-sheet .facts dt { text-transform: none; }
 .room-sheet dd.big { font-size: 2em; letter-spacing: .08em; }
 
+/* Correct. */
+.correct { max-width: 60rem; margin: 0 auto; }
+.big-line { font-size: 1.1em; font-weight: 600; }
+.finding-group ul { padding-left: 1.2em; }
+.finding-group li { margin: .3rem 0; }
+.table-scroll { overflow-x: auto; }
+table.marks { border-collapse: collapse; width: 100%; font-size: .95em; }
+table.marks th, table.marks td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--border); }
+table.marks td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mistake { border-top: 1px solid var(--border); padding-top: .6rem; margin-top: .8rem; }
+.chosen-answer + .chosen-answer::before { content: ", "; }
+
 body.dropping .studio-main { outline: 3px dashed var(--accent); outline-offset: -6px; }
 
 @media (max-width: 900px) {
@@ -105,9 +117,10 @@ body.dropping .studio-main { outline: 3px dashed var(--accent); outline-offset: 
   .theme-row, .two-columns, .code-meta { grid-template-columns: 1fr; }
 }
 
-/* Printing gives the room sheet alone, black on white. */
+/* Printing gives the sheet on screen alone (room or revision), black on white. */
 @media print {
   body * { visibility: hidden; }
-  .room-sheet, .room-sheet * { visibility: visible; color: #000 !important; }
-  .room-sheet { position: absolute; left: 0; top: 0; width: 100%; border: none; background: #fff; font-size: 14pt; }
+  .printable, .printable * { visibility: visible; color: #000 !important; }
+  .printable { position: absolute; left: 0; top: 0; width: 100%; border: none; background: #fff !important; font-size: 12pt; }
+  .printable .code, .printable .rule { background: #f2f2f2 !important; }
 }

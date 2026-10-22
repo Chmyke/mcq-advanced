@@ -19,6 +19,8 @@ mcq-engine.workspace = true
 mcq-highlight.workspace = true
 mcq-edit.workspace = true
 mcq-publish.workspace = true
+mcq-analysis.workspace = true
+mcq-grade.workspace = true
 # The student look, reused as is for the preview: same rendering, same stylesheet.
 mcq-player = { path = "../mcq-player" }
 dioxus = { version = "0.7", default-features = false, features = ["launch", "html", "signals", "hooks", "macro", "document"] }
