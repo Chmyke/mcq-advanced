@@ -92,7 +92,7 @@ the first line of input. See [security](SECURITY.md) for what is guaranteed and 
 The player opens a `.mcqpack` file, or a link such as `index.html?paper=exam.mcqpack`. It shows the
 teacher's fingerprint, asks for the student's name and the opening code, then runs the exam:
 coloured code, images, sound and video, single and multiple answers (announced before reading),
-flags for review, an overview grid, keyboard keys, light and dark themes, larger text, and a save
+flags for review, a clickable bar of the questions, keyboard keys, light and dark themes, larger text, and a save
 after every click so a closed tab loses nothing. At the end it seals the copy and shows a receipt
 code; practice papers, or the teacher's end code, show the correction.
 

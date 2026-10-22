@@ -415,20 +415,26 @@ pub fn App() -> Element {
                         }
                     }
                     {question_element}
-                    div { class: "nav",
-                        button { disabled: current == 0, onclick: move |_| go(Session::previous), "← {t.previous}" }
-                        if flagged > 0 {
-                            button { onclick: move |_| go(|s| { s.next_flagged(); }), "{t.next_flagged}" }
+                    // Fixed to the bottom of the window: the buttons never move with the question's length.
+                    div { class: "exam-nav",
+                        div { class: "exam-nav-inner",
+                            button { disabled: current == 0, "aria-label": "{t.previous}", title: "{t.previous}", onclick: move |_| go(Session::previous),
+                                "← " span { class: "nav-label", "{t.previous}" }
+                            }
+                            div { class: "exam-nav-middle",
+                                if flagged > 0 {
+                                    button { class: "jump", "aria-label": "{t.next_flagged}", title: "{t.next_flagged}", onclick: move |_| go(|s| { s.next_flagged(); }),
+                                        span { class: "nav-icon", "aria-hidden": "true", "⚑ " } span { class: "nav-label", "{t.next_flagged}" }
+                                    }
+                                }
+                                button { class: if current + 1 == total { "end primary" } else { "end" },
+                                    onclick: move |_| open_confirm(stage), "{t.finish}"
+                                }
+                            }
+                            button { class: "primary", disabled: current + 1 == total, "aria-label": "{t.next}", title: "{t.next}", onclick: move |_| go(Session::next),
+                                span { class: "nav-label", "{t.next}" } " →"
+                            }
                         }
-                        if current + 1 < total {
-                            button { class: "primary", onclick: move |_| go(Session::next), "{t.next} →" }
-                        } else {
-                            button { class: "primary", onclick: move |_| open_confirm(stage), "{t.finish}" }
-                        }
-                    }
-                    {render::grid(&s, t, EventHandler::new(move |i: usize| go_to(session, i)))}
-                    if current + 1 < total {
-                        button { class: "finish", onclick: move |_| open_confirm(stage), "{t.finish}" }
                     }
                 }
             }

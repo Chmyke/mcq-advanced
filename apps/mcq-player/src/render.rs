@@ -392,40 +392,6 @@ pub fn pace_view(gauge: &PaceGauge, left: Option<(usize, i64)>, t: &'static Text
     }
 }
 
-pub fn grid(session: &Session, t: &'static Texts, on_go: EventHandler<usize>) -> Element {
-    let cells: Vec<(usize, &'static str)> = session
-        .items
-        .iter()
-        .enumerate()
-        .map(|(i, item)| {
-            let class = match (
-                i == session.current,
-                item.flagged,
-                !item.selected.is_empty(),
-            ) {
-                (true, _, _) => "cell current",
-                (_, true, _) => "cell flagged",
-                (_, _, true) => "cell answered",
-                _ => "cell",
-            };
-            (i, class)
-        })
-        .collect();
-    rsx! {
-        nav { class: "grid", "aria-label": "{t.overview}",
-            for (i, class) in cells {
-                button {
-                    key: "{i}",
-                    class: "{class}",
-                    "aria-current": if i == session.current { "step" } else { "false" },
-                    onclick: move |_| on_go.call(i),
-                    "{i + 1}"
-                }
-            }
-        }
-    }
-}
-
 pub fn clock(status: &TimeStatus, elapsed: u32, t: &'static Texts) -> Element {
     let (label, value, class) = if status.limit_seconds == 0 {
         (t.elapsed, format_duration(elapsed), "clock")

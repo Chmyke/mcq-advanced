@@ -233,11 +233,17 @@ fn overview_marks_current_answered_and_flagged() {
         session.next();
         session.toggle_flag();
         session.next();
-        render::grid(&session, Lang::En.texts(), EventHandler::new(|_: usize| {}))
+        render::segments(
+            &session,
+            None,
+            Lang::En.texts(),
+            EventHandler::new(|_: usize| {}),
+        )
     });
-    assert!(html.contains("cell answered"), "{html}");
-    assert!(html.contains("cell flagged"), "{html}");
-    assert!(html.contains("cell current"), "{html}");
+    assert!(html.contains("segment answered"), "{html}");
+    assert!(html.contains("segment flagged"), "{html}");
+    assert!(html.contains("segment current"), "{html}");
+    assert!(html.contains("aria-label=\"Question 3\""), "{html}");
 }
 
 #[test]
