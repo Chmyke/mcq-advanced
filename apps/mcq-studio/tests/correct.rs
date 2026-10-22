@@ -157,6 +157,11 @@ fn synthetic() -> (mcq_model::Paper, Vec<Copy>) {
     (paper, copies)
 }
 
+/// An option as a report sentence quotes it, already rendered.
+fn quoted(html: &str) -> String {
+    format!("«<span class=\"quoted\">{html}</span>»")
+}
+
 fn render(view: fn() -> Element) -> String {
     let mut dom = VirtualDom::new(view);
     dom.rebuild_in_place();
@@ -189,11 +194,15 @@ fn the_diagnosis_reads_as_sentences_in_the_teachers_order() {
     ];
     assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
     assert!(html.contains("Pointers : "), "theme to reteach: {html}");
-    assert!(html.contains("ont choisi «Choice 3 of arrays-2»"), "{html}");
     assert!(
-        html.contains(
-            "loops-3 · corrigé ou énoncé à vérifier : les meilleurs préfèrent «Choice 2 of loops-3»"
-        ),
+        html.contains(&format!("ont choisi {}", quoted("Choice 3 of arrays-2"))),
+        "{html}"
+    );
+    assert!(
+        html.contains(&format!(
+            "loops-3 · corrigé ou énoncé à vérifier : les meilleurs préfèrent {}",
+            quoted("Choice 2 of loops-3")
+        )),
         "{html}"
     );
     assert!(
@@ -277,15 +286,18 @@ fn a_doubtful_key_is_settled_in_one_click_and_undone_in_another() {
 
     let (before, html) = view(&correction);
     assert!(html.contains(">Neutraliser</button>"), "{html}");
-    let first = html.find("Accepter «Choice 2 of loops-3»");
-    let other = html.find("Accepter «Choice 3 of loops-3»");
+    let first = html.find(&format!("Accepter {}", quoted("Choice 2 of loops-3")));
+    let other = html.find(&format!("Accepter {}", quoted("Choice 3 of loops-3")));
     assert!(first.is_some() && first < other, "the rival first: {html}");
 
     correction.decide(Adjustment::rekey("loops-3", &["loops-3-o2"]));
     let (rekeyed, html) = view(&correction);
     assert!(rekeyed.mean_mark > before.mean_mark);
     assert!(
-        html.contains("loops-3 : corrigé rectifié, bonne réponse «Choice 2 of loops-3»"),
+        html.contains(&format!(
+            "loops-3 : corrigé rectifié, bonne réponse {}",
+            quoted("Choice 2 of loops-3")
+        )),
         "{html}"
     );
     assert!(
@@ -309,6 +321,61 @@ fn a_doubtful_key_is_settled_in_one_click_and_undone_in_another() {
     correction.undo("loops-3");
     let (undone, _) = view(&correction);
     assert_eq!(undone, before);
+}
+
+/// The synthetic cohort with the rival on the doubtful key written as a formula and the trap as
+/// code: the analysis goes by option ids, so the texts can change after the copies are made.
+fn synthetic_with_formula_and_code() -> (mcq_model::Paper, Vec<Copy>) {
+    let (mut paper, copies) = synthetic();
+    let mut set = |question: &str, option: &str, text: &str| {
+        let q = paper
+            .questions
+            .iter_mut()
+            .find(|q| q.id == question)
+            .expect("question");
+        let o = q
+            .options
+            .iter_mut()
+            .find(|o| o.id == option)
+            .expect("option");
+        o.text = text.into();
+    };
+    set("loops-3", "loops-3-o2", r"$\frac{5}{6}$");
+    set("arrays-2", "arrays-2-o3", "`7` <b>");
+    (paper, copies)
+}
+
+#[test]
+fn quoted_options_show_their_formulas_and_code() {
+    let html = render(|| {
+        let (paper, copies) = synthetic_with_formula_and_code();
+        let report = analyse(&paper, synth::PAPER_ID, &copies);
+        report_view(
+            &report,
+            &paper,
+            &FR,
+            Lang::Fr,
+            EventHandler::new(|_: ReportAction| {}),
+        )
+    });
+    let fraction = "<mfrac><mn>5</mn><mn>6</mn></mfrac>";
+    let accept = html
+        .find("Accepter «<span class=\"quoted\"><math")
+        .unwrap_or_else(|| panic!("formula in the button: {html}"));
+    assert!(html[accept..].contains(fraction), "{html}");
+    assert!(
+        html.contains("les meilleurs préfèrent «<span class=\"quoted\"><math"),
+        "{html}"
+    );
+    // The shared confusion: code rendered, raw HTML from the paper shown as text.
+    assert!(
+        html.contains(&format!(
+            "ont choisi {}",
+            quoted("<code>7</code> &lt;b&gt;")
+        )),
+        "{html}"
+    );
+    assert!(!html.contains(r"\frac") && !html.contains("`7`"), "{html}");
 }
 
 #[test]
