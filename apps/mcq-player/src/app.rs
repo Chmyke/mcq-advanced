@@ -11,6 +11,7 @@ use mcq_model::Paper;
 
 use crate::platform::{self, EVENTS_SCRIPT};
 use crate::render::{self, Opened};
+use crate::review::{ReviewAction, ReviewState};
 use crate::texts::{Lang, Texts};
 use crate::{STYLE, b64};
 
@@ -62,6 +63,18 @@ pub fn App() -> Element {
     let mut code = use_signal(String::new);
     let mut end_code = use_signal(String::new);
     let mut away = use_signal(|| None::<u32>);
+    let mut review = use_signal(ReviewState::default);
+    // The question just left, for the pace view.
+    let mut left = use_signal(|| None::<usize>);
+    let mut last_current = use_signal(|| 0_usize);
+    use_effect(move || {
+        let current = session.read().as_ref().map_or(0, |s| s.current);
+        let before = *last_current.peek();
+        if current != before {
+            left.set(Some(before));
+            last_current.set(current);
+        }
+    });
 
     use_future(move || async move {
         lang.set(Lang::from_tag(&platform::browser_language().await));
@@ -84,6 +97,22 @@ pub fn App() -> Element {
     use_future(move || async move {
         let mut events = document::eval(EVENTS_SCRIPT);
         while let Ok(message) = events.recv::<String>().await {
+            if stage() == Stage::Review {
+                let key = message.trim_start_matches("k:");
+                let action = match key {
+                    "ArrowLeft" | "PageUp" => Some(ReviewAction::Previous),
+                    "ArrowRight" | "PageDown" | "Enter" => Some(ReviewAction::Next),
+                    " " => Some(ReviewAction::Understood),
+                    _ => None,
+                };
+                let graded_now = graded.read().as_ref().map(Rc::clone);
+                let session_now = session.read().clone();
+                if let (Some(action), Some(g), Some(s)) = (action, graded_now, session_now) {
+                    review.write().apply(action, &s, &g.result);
+                    keep_review_in_view();
+                }
+                continue;
+            }
             // Outside the exam, events change nothing (and must not re-render every second).
             if !matches!(stage(), Stage::Exam | Stage::Confirm) {
                 continue;
@@ -122,11 +151,20 @@ pub fn App() -> Element {
                 key if stage() == Stage::Exam => {
                     let key = key.trim_start_matches("k:");
                     match key {
-                        "ArrowRight" => s.next(),
-                        "ArrowLeft" => s.previous(),
-                        "f" | "F" => s.toggle_flag(),
-                        digit => {
-                            let index = digit.parse::<usize>().ok().and_then(|n| n.checked_sub(1));
+                        "ArrowRight" | "PageDown" | "Enter" => s.next(),
+                        "ArrowLeft" | "PageUp" => s.previous(),
+                        "m" | "M" | " " => s.toggle_flag(),
+                        other => {
+                            // A to Z as printed next to the options, or their numbers.
+                            let letter = match other.as_bytes() {
+                                [c] if c.is_ascii_alphabetic() => {
+                                    Some(usize::from(c.to_ascii_uppercase() - b'A'))
+                                }
+                                _ => None,
+                            };
+                            let index = letter.or_else(|| {
+                                other.parse::<usize>().ok().and_then(|n| n.checked_sub(1))
+                            });
                             let option = index.and_then(|i| {
                                 s.current_item()
                                     .and_then(|item| item.option_order.get(i).cloned())
@@ -281,6 +319,8 @@ pub fn App() -> Element {
                 return rsx! {};
             };
             let status = s.time_status(&o.paper);
+            let gauge = s.pace(&o.paper);
+            let left_delta = left().and_then(|i| s.share_delta(&o.paper, i).map(|d| (i, d)));
             let total = s.items.len();
             let answered = s.answered_count();
             let unanswered = total - answered;
@@ -322,6 +362,8 @@ pub fn App() -> Element {
                         {render::clock(&status, s.elapsed_seconds, t)}
                         span { class: "progress", "{answered} / {total} {t.answered}" }
                     }
+                    {render::segments(&s, gauge.map(|g| g.time_fraction), t, EventHandler::new(move |i: usize| go_to(session, i)))}
+                    if let Some(gauge) = gauge { {render::pace_view(&gauge, left_delta, t)} }
                     if status.overtime_seconds > 0 {
                         p { class: "notice warn", role: "status", "{t.time_up}" }
                     } else if status.final_warning {
@@ -421,6 +463,7 @@ pub fn App() -> Element {
                     .collect();
                 let result = mcq_grade::grade(&full, &copy_answers, s.elapsed_seconds);
                 error.set(None);
+                review.set(ReviewState::default());
                 let formulas = opened
                     .read()
                     .as_ref()
@@ -476,7 +519,30 @@ pub fn App() -> Element {
                 formulas: &g.formulas,
                 ..o.content()
             };
-            render::review_view(&g.full, &s, &g.result, t, content)
+            let state = review.read().clone();
+            let on = {
+                let g = Rc::clone(&g);
+                let s = s.clone();
+                EventHandler::new(move |action: ReviewAction| match action {
+                    ReviewAction::DownloadSheet => {
+                        let sheet = crate::review::revision_markdown(
+                            &g.full,
+                            &s,
+                            &g.result,
+                            lang().texts(),
+                        );
+                        let name =
+                            format!("{} - {}.md", s.student_name, lang().texts().sheet_title);
+                        platform::download(&name, &b64::encode(sheet.as_bytes()));
+                    }
+                    ReviewAction::Print => platform::print(),
+                    other => {
+                        review.write().apply(other, &s, &g.result);
+                        keep_review_in_view();
+                    }
+                })
+            };
+            crate::review::review_screen(&g.full, &s, &g.result, &state, t, content, on)
         }
     };
 
@@ -510,6 +576,14 @@ fn go_to(mut session: Signal<Option<Session>>, index: usize) {
         s.go_to(index);
         save(s);
     }
+}
+
+/// After moving in the correction, brings the question back up if the student had scrolled
+/// past its start.
+fn keep_review_in_view() {
+    let _ = document::eval(
+        "setTimeout(() => { const g = document.querySelector('.review-guide');          if (g && g.getBoundingClientRect().top < 0) g.scrollIntoView(); }, 0);",
+    );
 }
 
 /// Shows the hand-in question at the top of the page, with the focus on it.

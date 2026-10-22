@@ -186,6 +186,16 @@ pub fn cohort(seed: u64, students: usize) -> (Paper, Vec<Submission>, Planted) {
         if name == planted.distracted {
             copy.focus_losses = 9;
             copy.seconds_away = 240;
+            // Nine exits spread over the exam, 240 s away in all, as the player journals them.
+            let step = copy.elapsed_seconds / 10;
+            for k in 0..9_u32 {
+                let left = step * (k + 1);
+                let away = if k == 8 { 240 - 26 * 8 } else { 26 };
+                copy.log
+                    .push(LogEntry::new(left, LogKind::FocusLost, "", ""));
+                copy.log
+                    .push(LogEntry::new(left + away, LogKind::FocusBack, "", ""));
+            }
         }
         if name == planted.late {
             copy.elapsed_seconds = DURATION_MINUTES * 60 + 420;

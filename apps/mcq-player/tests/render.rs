@@ -204,7 +204,15 @@ fn practice_and_correction_show_the_answers_after_hand_in() {
         session.toggle(&opened.paper, "fruit-banana-colour-o1");
         let copy = session.submit();
         let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
-        render::review_view(&full, &session, &result, Lang::En.texts(), opened.content())
+        mcq_player::review::review_screen(
+            &full,
+            &session,
+            &result,
+            &Default::default(),
+            Lang::En.texts(),
+            opened.content(),
+            EventHandler::new(|_| {}),
+        )
     });
     assert!(html.contains("6.67 / 20"), "one of three right: {html}");
     assert!(
@@ -303,10 +311,25 @@ fn formulas_show_as_native_mathml_and_explanations_after_hand_in() {
             formulas: &formulas,
             ..opened.content()
         };
-        let review = render::review_view(&full, &session, &result, Lang::En.texts(), content);
+        let review = mcq_player::review::review_screen(
+            &full,
+            &session,
+            &result,
+            &Default::default(),
+            Lang::En.texts(),
+            content,
+            EventHandler::new(|_| {}),
+        );
         // Before the correction, the explanation's formula is not in the student's table.
-        let early =
-            render::review_view(&full, &session, &result, Lang::En.texts(), opened.content());
+        let early = mcq_player::review::review_screen(
+            &full,
+            &session,
+            &result,
+            &Default::default(),
+            Lang::En.texts(),
+            opened.content(),
+            EventHandler::new(|_| {}),
+        );
         rsx! { div { id: "exam", {exam} } div { id: "review", {review} } div { id: "early", {early} } }
     });
     let part = |id: &str| {
@@ -327,5 +350,122 @@ fn formulas_show_as_native_mathml_and_explanations_after_hand_in() {
     assert!(
         early.contains(r#"<code class="formula-source">$$\sum_i p_i$$</code>"#),
         "{early}"
+    );
+}
+
+#[test]
+fn the_correction_opens_on_the_mistakes_one_at_a_time() {
+    let html = render(|| {
+        let bytes = package(true);
+        let opened = Opened::from_package(&bytes, "").expect("open");
+        let full =
+            mcq_crypto::open_answer_key(&bytes, mcq_crypto::KeyUnlock::Practice).expect("key");
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        let banana = session
+            .items
+            .iter()
+            .position(|i| i.question_id == "fruit-banana-colour")
+            .expect("q");
+        session.go_to(banana);
+        session.toggle(&opened.paper, "fruit-banana-colour-o1");
+        session.tick(3);
+        let copy = session.submit();
+        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
+        let state = mcq_player::review::ReviewState::default();
+        let first = state.current(&session, &result).expect("a mistake");
+        assert_ne!(first, banana, "the right answer is not shown first");
+        mcq_player::review::review_screen(
+            &full,
+            &session,
+            &result,
+            &state,
+            Lang::Fr.texts(),
+            opened.content(),
+            EventHandler::new(|_| {}),
+        )
+    });
+    let guide =
+        &html[html.find("review-guide").expect("guide")..html.find("print-only").expect("print")];
+    assert!(html.contains("6,67 / 20"), "{html}");
+    assert!(html.contains("À reprendre"), "the word on the mark: {html}");
+    assert!(html.contains("1 Juste"), "{html}");
+    assert!(
+        guide.contains("aria-pressed=\"true\">Mes erreurs"),
+        "{guide}"
+    );
+    assert!(
+        guide.contains("1 / 2"),
+        "two mistakes, the first shown: {guide}"
+    );
+    assert_eq!(
+        guide.matches("class=\"review-item").count(),
+        1,
+        "one at a time"
+    );
+    assert!(guide.contains("Votre réponse"), "{guide}");
+    assert!(guide.contains("La bonne réponse"), "{guide}");
+    assert!(
+        guide.contains("prévues"),
+        "time spent against expected: {guide}"
+    );
+    assert!(guide.contains("J&#39;ai compris"), "{guide}");
+    assert_eq!(guide.matches("class=\"segment ").count(), 3, "{guide}");
+    // Printed: the whole correction.
+    let printed = &html[html.find("print-only").expect("print")..];
+    assert_eq!(printed.matches("class=\"review-item").count(), 3);
+}
+
+#[test]
+fn the_revision_sheet_downloads_as_markdown() {
+    let bytes = package(true);
+    let opened = Opened::from_package(&bytes, "").expect("open");
+    let full = mcq_crypto::open_answer_key(&bytes, mcq_crypto::KeyUnlock::Practice).expect("key");
+    let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+    let copy = session.submit();
+    let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
+    let sheet = mcq_player::review::revision_markdown(&full, &session, &result, Lang::Fr.texts());
+    assert!(sheet.starts_with("# Fiche de révision : "), "{sheet}");
+    assert!(sheet.contains("| Thème | Réussite | État |"), "{sheet}");
+    assert!(sheet.contains("## Mes erreurs (3)"), "{sheet}");
+    assert!(
+        sheet.contains("**Votre réponse** Pas de réponse."),
+        "{sheet}"
+    );
+    assert!(sheet.contains("**La bonne réponse**"), "{sheet}");
+    assert!(sheet.contains("```cs"), "code stays code: {sheet}");
+}
+
+#[test]
+fn the_exam_shows_segments_and_a_calm_pace_gauge_with_letter_keys() {
+    let html = render(|| {
+        let opened = opened();
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        session.tick(150);
+        let gauge = session.pace(&opened.paper).expect("ten minutes");
+        let item = session.current_item().expect("item").clone();
+        let question = opened.paper.question(&item.question_id).expect("q");
+        rsx! {
+            {render::segments(&session, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
+            {render::pace_view(&gauge, Some((0, -30)), Lang::Fr.texts())}
+            {render::question_view(question, &item, 0, 3, opened.content(), Lang::Fr.texts(), EventHandler::new(|_: String| {}), EventHandler::new(|()| {}))}
+        }
+    });
+    assert_eq!(html.matches("class=\"segment ").count(), 3, "{html}");
+    assert!(
+        html.contains("time-cursor\" aria-hidden=\"true\" style=\"left: 25.00%"),
+        "{html}"
+    );
+    assert!(
+        html.contains("Cette question : 2 min 30 s sur 3 min 20 s"),
+        "{html}"
+    );
+    assert!(html.contains("de retard"), "{html}");
+    assert!(
+        html.contains("Question 1 : 30 s de plus que sa part"),
+        "{html}"
+    );
+    assert!(
+        html.contains(">A</span>"),
+        "options keyed by letter: {html}"
     );
 }

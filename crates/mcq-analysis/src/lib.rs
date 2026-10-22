@@ -13,6 +13,7 @@ pub mod decision;
 pub mod sheet;
 pub mod stats;
 pub mod synth;
+pub mod timeline;
 
 use mcq_grade::{GradeResult, Mastery, Status};
 use mcq_model::{Answer, LogKind, Paper, Submission};

@@ -2,6 +2,7 @@
 //! opened with the teacher's identity, files waiting for that identity, and files refused.
 
 use mcq_analysis::sheet::{RevisionSheet, revision_sheet};
+use mcq_analysis::timeline::{Timeline, timeline};
 use mcq_analysis::{Adjustment, Copy, Report, analyse_with};
 use mcq_crypto::{Error, Identity, KeyUnlock};
 use mcq_model::Paper;
@@ -128,6 +129,17 @@ impl Correction {
         let student = report.students.iter().find(|s| s.receipt == receipt)?;
         let copy = self.copies.iter().find(|c| c.receipt == receipt)?;
         Some(revision_sheet(&package.key, report, student, copy))
+    }
+
+    /// The timeline of the copy with this receipt, judged with the key in force.
+    pub fn timeline(&self, report: &Report, receipt: &str) -> Option<(String, Timeline)> {
+        let package = self.package.as_ref()?;
+        let copy = self.copies.iter().find(|c| c.receipt == receipt)?;
+        let (key, _) = mcq_analysis::decision::apply(&package.key, &report.adjustments);
+        Some((
+            copy.submission.student_name.clone(),
+            timeline(&key, &copy.submission),
+        ))
     }
 }
 

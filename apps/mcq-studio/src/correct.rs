@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use mcq_analysis::sheet::RevisionSheet;
+use mcq_analysis::timeline::{Change, Event, Timeline};
 use mcq_analysis::{Adjustment, Anomaly, Decision, Finding, Report, csv};
 use mcq_crypto::Identity;
 use mcq_grade::Mastery;
@@ -315,6 +316,7 @@ fn decision_lines(report: &Report, paper: &Paper, c: &CorrectTexts) -> Vec<(Stri
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReportAction {
     Sheet(String),
+    Timeline(String),
     Decide(Adjustment),
     Undo(String),
 }
@@ -466,9 +468,136 @@ pub fn report_view(
                                 td { class: "num", "{blank}" }
                                 td { class: "num", "{mins}" }
                                 td { class: "mono", "{receipt}" }
-                                td { button { class: "small", onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Sheet(receipt.clone())) }, "{c.open_sheet}" } }
+                                td { class: "row-actions",
+                                    button { class: "small", onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Sheet(receipt.clone())) }, "{c.open_sheet}" }
+                                    button { class: "small", onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Timeline(receipt.clone())) }, "{c.open_timeline}" }
+                                }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn clock(seconds: u32) -> String {
+    format!("{:02}:{:02}", seconds / 60, seconds % 60)
+}
+
+/// One copy's timeline: a summary, a strip along the exam's duration, then each moment.
+pub fn timeline_view(
+    name: &str,
+    timeline: &Timeline,
+    paper: &Paper,
+    t: &'static Texts,
+    lang: Lang,
+) -> Element {
+    let c = t.correction;
+    let summary = fill(
+        c.timeline_summary,
+        &[
+            ("changes", timeline.changes().to_string()),
+            ("rw", timeline.right_to_wrong.to_string()),
+            ("wr", timeline.wrong_to_right.to_string()),
+            ("ww", timeline.wrong_to_wrong.to_string()),
+            ("away", timeline.away_count.to_string()),
+            (
+                "minutes",
+                decimal(f64::from(timeline.away_seconds) / 60.0, 1, lang),
+            ),
+        ],
+    );
+    let span = f64::from(timeline.elapsed_seconds.max(1));
+    let at = |seconds: u32| (f64::from(seconds) / span * 100.0).min(100.0);
+    // Marks on the strip: left %, width %, class.
+    let mut marks: Vec<(String, String, &'static str)> = Vec::new();
+    let mut rows: Vec<(String, String, &'static str)> = Vec::new();
+    for moment in &timeline.moments {
+        let (line, class) = match &moment.event {
+            Event::Answer {
+                question,
+                question_id,
+                selected,
+                right,
+                change,
+            } => {
+                let options: Vec<String> = selected
+                    .iter()
+                    .map(|o| option_text(paper, question_id, o))
+                    .collect();
+                let mut line = fill(
+                    c.tl_answer,
+                    &[
+                        ("q", question.to_string()),
+                        ("options", options.join("», «")),
+                    ],
+                );
+                line.push_str(&format!(
+                    " ({})",
+                    if *right { c.tl_right } else { c.tl_wrong }
+                ));
+                let class = match change {
+                    Some(change) => {
+                        let k = match change {
+                            Change::RightToWrong => 0,
+                            Change::WrongToRight => 1,
+                            Change::WrongToWrong => 2,
+                        };
+                        line.push_str(&format!(" · {}", c.tl_changes[k]));
+                        match change {
+                            Change::RightToWrong => "tl-change bad",
+                            Change::WrongToRight => "tl-change good",
+                            Change::WrongToWrong => "tl-change",
+                        }
+                    }
+                    None if *right => "tl-answer good",
+                    None => "tl-answer bad",
+                };
+                (line, class)
+            }
+            Event::Cleared { question, .. } => (
+                fill(c.tl_cleared, &[("q", question.to_string())]),
+                "tl-answer",
+            ),
+            Event::Away { seconds: 0 } => (c.tl_away_open.to_string(), "tl-away"),
+            Event::Away { seconds } => (
+                fill(
+                    c.tl_away,
+                    &[("duration", mcq_engine::format_duration(*seconds))],
+                ),
+                "tl-away",
+            ),
+            Event::Submitted => (c.tl_submitted.to_string(), "tl-submit"),
+        };
+        let width = match moment.event {
+            Event::Away { seconds: 0 } => 100.0 - at(moment.seconds),
+            Event::Away { seconds } => at(seconds),
+            _ => 0.0,
+        };
+        marks.push((
+            format!("{:.2}", at(moment.seconds)),
+            format!("{width:.2}"),
+            class,
+        ));
+        rows.push((clock(moment.seconds), line, class));
+    }
+    let total = clock(timeline.elapsed_seconds);
+    rsx! {
+        section { class: "card printable timeline",
+            h1 { "{c.timeline_title}" }
+            p { strong { "{name}" } " · {total}" }
+            p { class: "muted", "{c.timeline_hint}" }
+            p { "{summary}" }
+            if rows.is_empty() { p { "{c.timeline_empty}" } } else {
+                div { class: "timeline-strip", "aria-hidden": "true",
+                    for (k, (left, width, class)) in marks.into_iter().enumerate() {
+                        span { key: "{k}", class: "mark {class}", style: "left: {left}%; width: {width}%" }
+                    }
+                }
+                ol { class: "timeline-list",
+                    for (k, (time, line, class)) in rows.into_iter().enumerate() {
+                        li { key: "{k}", class: "{class}", span { class: "mono time", "{time}" } " {line}" }
                     }
                 }
             }
@@ -612,6 +741,7 @@ pub fn CorrectSpace(
 ) -> Element {
     let c = t.correction;
     let mut sheet_for = use_signal(|| None::<String>);
+    let mut timeline_for = use_signal(|| None::<String>);
 
     // Files that arrived before the identity open as soon as it is unlocked.
     use_effect(move || {
@@ -637,6 +767,10 @@ pub fn CorrectSpace(
         .map(|p| fill(c.package_ready, &[("title", p.title.clone())]));
     let sheet = match (&report, sheet_for()) {
         (Some(report), Some(receipt)) => state.sheet(report, &receipt),
+        _ => None,
+    };
+    let timeline = match (&report, timeline_for()) {
+        (Some(report), Some(receipt)) => state.timeline(report, &receipt),
         _ => None,
     };
     let published = done.read().clone();
@@ -681,7 +815,7 @@ pub fn CorrectSpace(
                             },
                         }
                     }
-                    button { onclick: move |_| { correction.set(Correction::default()); sheet_for.set(None); }, "{c.clear}" }
+                    button { onclick: move |_| { correction.set(Correction::default()); sheet_for.set(None); timeline_for.set(None); }, "{c.clear}" }
                 }
                 p { class: "muted", "{c.drop_hint}" }
                 if let Some(line) = package_line { p { strong { "{line}" } } }
@@ -698,6 +832,12 @@ pub fn CorrectSpace(
                     button { onclick: move |_| sheet_for.set(None), "{c.close_sheet}" }
                 }
                 {sheet_view(&sheet, t, lang)}
+            } else if let (Some((name, timeline)), Some(paper)) = (timeline, paper.as_ref()) {
+                div { class: "actions",
+                    button { class: "primary", onclick: move |_| platform::print(), "{c.print_student_sheet}" }
+                    button { onclick: move |_| timeline_for.set(None), "{c.close_sheet}" }
+                }
+                {timeline_view(&name, &timeline, paper, t, lang)}
             } else if let (Some(report), Some(paper)) = (report, paper) {
                 div { class: "actions",
                     button { onclick: { let (r, p) = (report.clone(), paper.clone()); move |_| download_text("notes.csv", &csv::notes(&p, &r, labels)) }, "{c.export_notes}" }
@@ -706,6 +846,7 @@ pub fn CorrectSpace(
                 }
                 {report_view(&report, &paper, t, lang, EventHandler::new(move |action: ReportAction| match action {
                     ReportAction::Sheet(receipt) => sheet_for.set(Some(receipt)),
+                    ReportAction::Timeline(receipt) => timeline_for.set(Some(receipt)),
                     ReportAction::Decide(adjustment) => correction.write().decide(adjustment),
                     ReportAction::Undo(question) => correction.write().undo(&question),
                 }))}

@@ -490,3 +490,62 @@ fn a_corrected_key_marks_every_copy_again() {
     );
     assert!(neutral.reliability.unwrap_or(0.0) >= before.reliability.unwrap_or(1.0));
 }
+
+#[test]
+fn a_timeline_replays_answers_changes_and_absences() {
+    use mcq_analysis::timeline::{Change, Event, timeline};
+    use mcq_model::{LogEntry, LogKind};
+    let p = paper(3, 1);
+    let mut c = copy(&p, "Alex", &[Some(1), Some(0), None], 600);
+    let e = |s, k, q: &str, o: &str| LogEntry::new(s, k, q, o);
+    c.submission.log = vec![
+        e(10, LogKind::Tick, "q0", "q0-o1"),
+        // Right, then wrong: one click unticks and ticks in the same second.
+        e(40, LogKind::Untick, "q0", "q0-o1"),
+        e(40, LogKind::Tick, "q0", "q0-o2"),
+        e(50, LogKind::FocusLost, "", ""),
+        e(110, LogKind::FocusBack, "", ""),
+        e(120, LogKind::Tick, "q1", "q1-o3"),
+        e(130, LogKind::Untick, "q1", "q1-o3"),
+        e(130, LogKind::Tick, "q1", "q1-o1"),
+        e(140, LogKind::Tick, "q2", "q2-o2"),
+        e(150, LogKind::Untick, "q2", "q2-o2"),
+        e(590, LogKind::FocusLost, "", ""),
+        e(600, LogKind::Submit, "", ""),
+    ];
+    let t = timeline(&p, &c.submission);
+    assert_eq!(
+        (t.right_to_wrong, t.wrong_to_right, t.wrong_to_wrong),
+        (1, 1, 0)
+    );
+    assert_eq!((t.away_count, t.away_seconds), (2, 60));
+    let kinds: Vec<String> = t
+        .moments
+        .iter()
+        .map(|m| match &m.event {
+            Event::Answer {
+                question,
+                right,
+                change,
+                ..
+            } => format!("{}:Q{question}:{right}:{change:?}", m.seconds),
+            Event::Cleared { question, .. } => format!("{}:Q{question}:cleared", m.seconds),
+            Event::Away { seconds } => format!("{}:away {seconds}", m.seconds),
+            Event::Submitted => format!("{}:submit", m.seconds),
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        vec![
+            "10:Q1:true:None",
+            format!("40:Q1:false:{:?}", Some(Change::RightToWrong)).as_str(),
+            "50:away 60",
+            "120:Q2:false:None",
+            format!("130:Q2:true:{:?}", Some(Change::WrongToRight)).as_str(),
+            "140:Q3:false:None",
+            "150:Q3:cleared",
+            "590:away 0",
+            "600:submit",
+        ]
+    );
+}

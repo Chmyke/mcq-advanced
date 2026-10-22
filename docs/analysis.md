@@ -78,6 +78,14 @@ question with its key again. Decisions are shown above the questions to review, 
 `questions.csv` (the alert column says `NEUTRALIZED` or `KEY CORRECTED`, the right rows show the
 key used) and on the revision sheets, which show the key the copies were marked with.
 
+## Timeline of a copy
+
+The player journals every tick, every change of answer, each exit from the exam window and the
+hand-in, with the exam time. Each copy's timeline lists them in order on a strip along the
+exam's duration, and counts the answer changes by kind (right to wrong, wrong to right, wrong to
+wrong) with the key in force, and the time spent away. These are facts to talk about with the
+student, never a verdict.
+
 ## Revision sheets
 
 Each student's sheet lists where they stand per theme, each mistake with the right answer, its

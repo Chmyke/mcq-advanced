@@ -128,3 +128,19 @@ body.dropping .studio-main { outline: 3px dashed var(--accent); outline-offset: 
   .printable { position: absolute; left: 0; top: 0; width: 100%; border: none; background: #fff !important; font-size: 12pt; }
   .printable .code, .printable .rule { background: #f2f2f2 !important; }
 }
+
+/* A copy's timeline: the strip spans the exam, each moment a mark. */
+.row-actions { display: flex; gap: .35rem; flex-wrap: wrap; }
+.timeline-strip { position: relative; height: 22px; margin: .75rem 0; border-radius: 6px; background: var(--code-bg); overflow: hidden; }
+.timeline-strip .mark { position: absolute; top: 0; bottom: 0; min-width: 3px; margin-left: -1px; background: var(--muted); }
+.timeline-strip .good { background: var(--ok); }
+.timeline-strip .bad { background: var(--ko); }
+.timeline-strip .tl-change { top: -2px; bottom: -2px; min-width: 4px; }
+.timeline-strip .tl-away { background: var(--warn-bg); border-left: 2px solid var(--warn); opacity: .9; }
+.timeline-strip .tl-submit { background: var(--accent); min-width: 4px; }
+.timeline-list { list-style: none; padding: 0; margin: 0; }
+.timeline-list li { padding: .25rem 0; border-bottom: 1px solid var(--border); }
+.timeline-list .time { color: var(--muted); margin-right: .5rem; }
+.timeline-list .tl-change.bad { color: var(--ko); }
+.timeline-list .tl-away { color: var(--warn); }
+.timeline-list .tl-change.good { color: var(--ok); }

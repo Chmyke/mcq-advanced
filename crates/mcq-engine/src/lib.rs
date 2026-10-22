@@ -10,7 +10,7 @@ mod time;
 
 pub use save::{decode_session, encode_session};
 pub use time::{
-    PACE_ALERT_BUDGETS, PACE_REARM_BUDGETS, TimeStatus, WARNING_SECONDS, format_duration,
+    PACE_ALERT_BUDGETS, PACE_REARM_BUDGETS, PaceGauge, TimeStatus, WARNING_SECONDS, format_duration,
 };
 
 use mcq_model::{Answer, LogEntry, LogKind, Paper, Submission};

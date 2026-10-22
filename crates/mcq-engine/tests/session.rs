@@ -255,3 +255,34 @@ fn helpers() {
     assert_eq!(format_duration(185), "3 min 05 s");
     assert_eq!(normalize_name("  Alex \t Example "), "Alex Example");
 }
+
+#[test]
+fn the_pace_gauge_shares_the_time_evenly_and_goes_away_past_the_limit() {
+    let mut p = paper(10, 2);
+    p.duration_minutes = 10;
+    let mut s = Session::new(&p, [7; 16], "Alex Example");
+    let gauge = s.pace(&p).expect("a limit");
+    assert_eq!(gauge.share_seconds, 60);
+    s.tick(20);
+    let first = s.items[0].option_order[0].clone();
+    s.toggle(&p, &first);
+    s.next();
+    s.tick(90);
+    let gauge = s.pace(&p).expect("gauge");
+    assert_eq!(gauge.current_seconds, 90);
+    // One answer is worth 60 s of the pace; 110 s have gone.
+    assert_eq!(gauge.lead_seconds, -50);
+    assert!((gauge.time_fraction - 110.0 / 600.0).abs() < 1e-9);
+    assert_eq!(
+        s.share_delta(&p, 0),
+        Some(40),
+        "the first question saved 40 s"
+    );
+    assert_eq!(s.share_delta(&p, 1), Some(-30));
+    assert_eq!(s.share_delta(&p, 5), None, "never visited");
+    s.tick(600);
+    assert_eq!(s.pace(&p), None, "past the limit");
+    let mut free = paper(3, 1);
+    free.duration_minutes = 0;
+    assert_eq!(Session::new(&free, [7; 16], "A").pace(&free), None);
+}

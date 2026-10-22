@@ -70,6 +70,11 @@ pub fn download(file_name: &str, base64: &str) {
     ));
 }
 
+/// Prints the page; the print stylesheet keeps the correction only.
+pub fn print() {
+    let _ = document::eval("window.print();");
+}
+
 /// True when the system asks for a dark theme.
 pub async fn prefers_dark() -> bool {
     document::eval("return window.matchMedia('(prefers-color-scheme: dark)').matches;")
@@ -121,6 +126,9 @@ document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'password')))) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  // A focused button or box answers Space and Enter itself.
+  if ((e.key === ' ' || e.key === 'Enter') && t && ['BUTTON', 'INPUT', 'SELECT', 'A', 'SUMMARY'].includes(t.tagName)) return;
+  if (e.key === ' ') e.preventDefault();
   if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && t && t.type === 'radio') e.preventDefault();
   dioxus.send('k:' + e.key);
 });

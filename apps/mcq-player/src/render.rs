@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 
 use dioxus::prelude::*;
 use mcq_crypto::{OpeningKind, PackageHeader};
-use mcq_engine::{Session, SessionItem, TimeStatus, format_duration};
-use mcq_grade::{GradeResult, GuessAdvice, Mastery, Status};
+use mcq_engine::{PaceGauge, Session, SessionItem, TimeStatus, format_duration};
+use mcq_grade::GuessAdvice;
 use mcq_model::{Block, CodeBlock, CodeTokens, MediaKind, Paper, Question, Scoring};
 
 use mcq_format::binary::{CODE_TOKENS_FILE, decode_code_tokens};
@@ -272,7 +272,7 @@ pub fn question_view(
                                 move |_| on_toggle.call(id.clone())
                             },
                         }
-                        span { class: "key", "aria-hidden": "true", "{k + 1}" }
+                        span { class: "key", "aria-hidden": "true", "{option_key(k)}" }
                         span { class: "option-text", dangerous_inner_html: "{html}" }
                     }
                 }
@@ -283,6 +283,111 @@ pub fn question_view(
                 onclick: move |_| on_flag.call(()),
                 if item.flagged { "{t.unflag}" } else { "{t.flag}" }
             }
+        }
+    }
+}
+
+/// The letter of an option: A, B, C... as on paper; past Z, its number.
+pub fn option_key(k: usize) -> String {
+    u8::try_from(k)
+        .ok()
+        .filter(|k| *k < 26)
+        .map_or_else(|| (k + 1).to_string(), |k| char::from(b'A' + k).to_string())
+}
+
+fn cell_class(session: &Session, i: usize, item: &SessionItem) -> &'static str {
+    match (
+        i == session.current,
+        item.flagged,
+        !item.selected.is_empty(),
+    ) {
+        (true, _, _) => "current",
+        (_, true, _) => "flagged",
+        (_, _, true) => "answered",
+        _ => "",
+    }
+}
+
+/// One segment per question, coloured by state, and a cursor where the time stands.
+pub fn segments(
+    session: &Session,
+    time_fraction: Option<f64>,
+    t: &'static Texts,
+    on_go: EventHandler<usize>,
+) -> Element {
+    let parts: Vec<(usize, &'static str)> = session
+        .items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| (i, cell_class(session, i, item)))
+        .collect();
+    let cursor = time_fraction.map(|f| format!("{:.2}", (f * 100.0).clamp(0.0, 100.0)));
+    rsx! {
+        nav { class: "segments exam-segments", "aria-label": "{t.overview}",
+            for (i, class) in parts {
+                button {
+                    key: "{i}",
+                    class: "segment {class}",
+                    "aria-current": if i == session.current { "step" } else { "false" },
+                    "aria-label": "{t.question} {i + 1}",
+                    title: "{t.question} {i + 1}",
+                    onclick: move |_| on_go.call(i),
+                }
+            }
+            if let Some(left) = cursor { span { class: "time-cursor", "aria-hidden": "true", style: "left: {left}%" } }
+        }
+    }
+}
+
+/// The pace, calmly: the share of the question on screen, the lead or lag, and what the
+/// question just left saved or cost. No red, no green: time informs, it never judges.
+pub fn pace_view(gauge: &PaceGauge, left: Option<(usize, i64)>, t: &'static Texts) -> Element {
+    let fill = |template: &str, values: &[(&str, String)]| crate::texts::fill(template, values);
+    let used = if gauge.share_seconds == 0 {
+        0.0
+    } else {
+        f64::from(gauge.current_seconds) / f64::from(gauge.share_seconds) * 100.0
+    };
+    let width = format!("{:.0}", used.min(100.0));
+    let question = fill(
+        t.pace_question,
+        &[
+            ("spent", format_duration(gauge.current_seconds)),
+            ("budget", format_duration(gauge.share_seconds)),
+        ],
+    );
+    let lead = gauge.lead_seconds;
+    let half = i64::from(gauge.share_seconds / 2);
+    let overall = if lead.abs() < half.max(1) {
+        t.pace_even.to_string()
+    } else if lead > 0 {
+        fill(
+            t.pace_ahead,
+            &[("d", format_duration(lead.unsigned_abs() as u32))],
+        )
+    } else {
+        fill(
+            t.pace_behind,
+            &[("d", format_duration(lead.unsigned_abs() as u32))],
+        )
+    };
+    let left_line = left.map(|(i, delta)| {
+        let d = format_duration(delta.unsigned_abs() as u32);
+        let template = if delta >= 0 {
+            t.pace_left_saved
+        } else {
+            t.pace_left_over
+        };
+        fill(template, &[("n", (i + 1).to_string()), ("d", d)])
+    });
+    rsx! {
+        div { class: "pace", role: "status", "aria-live": "off",
+            span { class: if used > 100.0 { "pace-gauge over" } else { "pace-gauge" },
+                span { class: "pace-fill", style: "width: {width}%" }
+            }
+            span { class: "pace-text", "{question}" }
+            span { class: "pace-text", "{overall}" }
+            if let Some(line) = left_line { span { class: "pace-text muted", "{line}" } }
         }
     }
 }
@@ -412,98 +517,6 @@ pub fn intro(
             p { class: "muted", "{t.keyboard_hint}" }
             button { class: "primary", autofocus: true, onclick: move |_| on_start.call(()),
                 if resumed { "{t.resume}" } else { "{t.start}" }
-            }
-        }
-    }
-}
-
-pub fn review_view(
-    full: &Paper,
-    session: &Session,
-    result: &GradeResult,
-    t: &'static Texts,
-    content: Content<'_>,
-) -> Element {
-    let mark = format!("{:.2}", result.mark(20.0)).replace('.', t.decimal);
-    let themes: Vec<(String, u32, &'static str)> = result
-        .themes
-        .iter()
-        .filter(|th| th.total > 0)
-        .map(|th| {
-            let title = full
-                .theme(&th.theme_id)
-                .map_or(th.theme_id.clone(), |x| x.title.clone());
-            let label = match th.mastery() {
-                Mastery::Acquired => t.acquired,
-                Mastery::Fragile => t.fragile,
-                Mastery::ToRelearn | Mastery::NotAssessed => t.to_relearn,
-            };
-            (title, (th.rate() * 100.0).round() as u32, label)
-        })
-        .collect();
-    let items: Vec<Element> = session
-        .items
-        .iter()
-        .enumerate()
-        .filter_map(|(i, item)| {
-            let question = full.question(&item.question_id)?;
-            let outcome = result.outcomes.iter().find(|o| o.question_id == item.question_id)?;
-            let (status, class) = match outcome.status {
-                Status::Correct => (t.correct, "ok"),
-                Status::Partial => (t.partial, "part"),
-                Status::Wrong => (t.wrong, "ko"),
-                Status::Unanswered => (t.unanswered, "blank"),
-            };
-            let options: Vec<(String, String, String, bool, bool)> = item
-                .option_order
-                .iter()
-                .filter_map(|id| {
-                    let o = question.option(id)?;
-                    Some((
-                        id.clone(),
-                        markdown::inline(&o.text, content.formulas),
-                        markdown::block(&o.explanation, content.formulas),
-                        o.is_correct,
-                        item.selected.contains(id),
-                    ))
-                })
-                .collect();
-            let rule = question.rule.clone();
-            let course = question.course_ref.clone();
-            Some(rsx! {
-                article { class: "review-item {class}",
-                    h3 { "{t.question} {i + 1}" span { class: "status", "{status}" } }
-                    {body(question, content)}
-                    ul { class: "review-options",
-                        for (id, text, explanation, correct, chosen) in options {
-                            li { key: "{id}", class: if correct { "right" } else { "" },
-                                span { class: "mark", if correct { "✓" } else { "·" } }
-                                span { dangerous_inner_html: "{text}" }
-                                if chosen { em { class: "chosen", " ({t.your_answer})" } }
-                                if !explanation.is_empty() { div { class: "explanation", dangerous_inner_html: "{explanation}" } }
-                            }
-                        }
-                    }
-                    if !rule.is_empty() { p { class: "rule", strong { "{t.rule}" } " {rule}" } }
-                    if !course.is_empty() { p { class: "muted", strong { "{t.review}" } " {course}" } }
-                }
-            })
-        })
-        .collect();
-    rsx! {
-        section { class: "review",
-            div { class: "card score",
-                h2 { "{t.score}" }
-                p { class: "big", "{mark} / 20" }
-                h3 { "{t.mastery}" }
-                ul { class: "themes",
-                    for (k, (title, rate, label)) in themes.into_iter().enumerate() {
-                        li { key: "{k}", strong { "{title}" } " {rate} % ({label})" }
-                    }
-                }
-            }
-            for (k, element) in items.into_iter().enumerate() {
-                div { key: "{k}", {element} }
             }
         }
     }

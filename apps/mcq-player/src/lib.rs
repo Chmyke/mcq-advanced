@@ -8,6 +8,7 @@ pub mod b64;
 pub mod markdown;
 pub mod platform;
 pub mod render;
+pub mod review;
 pub mod texts;
 
 pub use app::App;

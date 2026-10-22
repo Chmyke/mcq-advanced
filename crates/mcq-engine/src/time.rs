@@ -71,3 +71,40 @@ pub fn format_duration(seconds: u32) -> String {
         format!("{} min {:02} s", seconds / 60, seconds % 60)
     }
 }
+
+/// Where the student stands against an even share of the time per question.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PaceGauge {
+    /// Each question's share of the time.
+    pub share_seconds: u32,
+    /// Time spent so far on the question on screen.
+    pub current_seconds: u32,
+    /// Ahead (positive) or behind (negative) the even pace.
+    pub lead_seconds: i64,
+    /// Share of the time limit gone, from 0 to 1.
+    pub time_fraction: f64,
+}
+
+impl Session {
+    /// The pace gauge, while it means something: a time limit, not handed in, not past the limit.
+    pub fn pace(&self, paper: &Paper) -> Option<PaceGauge> {
+        let status = TimeStatus::compute(paper, self, true);
+        if status.limit_seconds == 0 || status.remaining_seconds == 0 || self.submitted {
+            return None;
+        }
+        let share = status.limit_seconds / self.items.len().max(1) as u32;
+        Some(PaceGauge {
+            share_seconds: share,
+            current_seconds: self.current_item().map_or(0, |i| i.seconds_spent),
+            lead_seconds: status.lead_seconds,
+            time_fraction: f64::from(self.elapsed_seconds) / f64::from(status.limit_seconds),
+        })
+    }
+
+    /// Seconds a question saved (positive) or took beyond its share (negative), once visited.
+    pub fn share_delta(&self, paper: &Paper, index: usize) -> Option<i64> {
+        let gauge = self.pace(paper)?;
+        let spent = self.items.get(index)?.seconds_spent;
+        (spent > 0).then(|| i64::from(gauge.share_seconds) - i64::from(spent))
+    }
+}

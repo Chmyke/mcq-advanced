@@ -310,3 +310,34 @@ fn a_doubtful_key_is_settled_in_one_click_and_undone_in_another() {
     let (undone, _) = view(&correction);
     assert_eq!(undone, before);
 }
+
+#[test]
+fn a_copy_timeline_tells_changes_and_absences_in_order() {
+    let html = render(|| {
+        let (paper, copies) = synthetic();
+        let report = analyse(&paper, synth::PAPER_ID, &copies);
+        // The distracted student left the window many times.
+        let copy = copies
+            .iter()
+            .max_by_key(|c| c.submission.focus_losses)
+            .expect("copy");
+        let timeline = mcq_analysis::timeline::timeline(&paper, &copy.submission);
+        assert!(timeline.away_count >= 5, "{timeline:?}");
+        let _ = report;
+        mcq_studio::correct::timeline_view(
+            &copy.submission.student_name,
+            &timeline,
+            &paper,
+            &FR,
+            Lang::Fr,
+        )
+    });
+    assert!(html.contains("Chronologie de la copie"), "{html}");
+    assert!(
+        html.contains("sortie(s) de la fenêtre d&#39;épreuve"),
+        "{html}"
+    );
+    assert!(html.contains("quitte la fenêtre d&#39;épreuve ("), "{html}");
+    assert!(html.contains("rend sa copie"), "{html}");
+    assert!(html.contains("timeline-strip"), "{html}");
+}
