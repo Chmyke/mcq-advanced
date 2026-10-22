@@ -44,6 +44,15 @@ pub struct Studio {
     media_urls: BTreeMap<String, String>,
     /// Grows with every change: the autosave watches it.
     pub revision: u64,
+    /// The question being dragged in the list, and the theme it is over.
+    pub drag: Option<Drag>,
+}
+
+/// A question dragged from the list towards another place.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Drag {
+    pub question: String,
+    pub over: Option<String>,
 }
 
 impl Studio {
@@ -63,6 +72,7 @@ impl Studio {
             multiple: BTreeSet::new(),
             media_urls: BTreeMap::new(),
             revision: 0,
+            drag: None,
         };
         studio.refresh_media_urls();
         if studio.reader_has_errors() {
@@ -183,6 +193,37 @@ impl Studio {
         if added.is_some() {
             self.selected = added;
         }
+    }
+
+    pub fn start_drag(&mut self, id: &str) {
+        self.drag = Some(Drag {
+            question: id.to_string(),
+            over: None,
+        });
+    }
+
+    /// Only redraws when the theme under the pointer changes.
+    pub fn drag_over(&mut self, theme_id: &str) {
+        if let Some(drag) = &mut self.drag
+            && drag.over.as_deref() != Some(theme_id)
+        {
+            drag.over = Some(theme_id.to_string());
+        }
+    }
+
+    pub fn end_drag(&mut self) {
+        self.drag = None;
+    }
+
+    /// Drops the dragged question into a theme, before `before` or at its end, and keeps it open.
+    pub fn drop_question(&mut self, theme_id: &str, before: Option<&str>) {
+        let Some(drag) = self.drag.take() else {
+            return;
+        };
+        self.edit_paper(|paper| {
+            ops::move_question_to(paper, &drag.question, theme_id, before);
+        });
+        self.selected = Some(drag.question);
     }
 
     pub fn duplicate_question(&mut self, id: &str) {

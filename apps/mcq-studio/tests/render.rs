@@ -72,6 +72,33 @@ fn the_list_groups_questions_by_theme_with_their_state() {
 }
 
 #[test]
+fn a_question_dragged_onto_another_theme_changes_theme_and_stays_open() {
+    let html = render(|s| {
+        s.start_drag("fruit-banana-colour");
+        s.drag_over("loops");
+    });
+    assert!(html.contains("draggable=\"true\""), "{html}");
+    assert!(html.contains("theme-group drop-target"), "{html}");
+
+    let html = render(|s| {
+        s.start_drag("fruit-banana-colour");
+        s.drop_question("loops", Some("code-sum-of-squares"));
+        assert!(s.drag.is_none());
+        let paper = &s.project.paper;
+        let banana = paper.question("fruit-banana-colour").expect("kept");
+        assert_eq!(banana.theme_id, "loops");
+        assert_eq!(
+            paper.questions[0].id, "fruit-banana-colour",
+            "before the target"
+        );
+        assert_eq!(s.selected.as_deref(), Some("fruit-banana-colour"));
+    });
+    assert!(!html.contains("drop-target"), "{html}");
+    // The editor's theme menu follows.
+    assert!(html.contains("value=\"loops\" selected"), "{html}");
+}
+
+#[test]
 fn a_multiple_answer_question_edits_with_checkboxes_and_previews_as_students_see_it() {
     let html = render(|s| s.select("code-sum-of-squares"));
     let editor = &html[..html.find("class=\"preview\"").expect("preview")];

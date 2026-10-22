@@ -30,6 +30,7 @@ pub struct Texts {
 
     pub questions: &'static str,
     pub add_question: &'static str,
+    pub drag_question: &'static str,
     pub no_statement: &'static str,
     pub state_error: &'static str,
     pub state_warning: &'static str,
@@ -196,6 +197,7 @@ pub static EN: Texts = Texts {
 
     questions: "Questions",
     add_question: "+ Question",
+    drag_question: "Drag onto another theme to move it there.",
     no_statement: "(no statement yet)",
     state_error: "error",
     state_warning: "to check",
@@ -366,6 +368,7 @@ pub static FR: Texts = Texts {
 
     questions: "Questions",
     add_question: "+ Question",
+    drag_question: "Glissez sur un autre thème pour l'y déplacer.",
     no_statement: "(pas encore d'énoncé)",
     state_error: "erreur",
     state_warning: "à revoir",

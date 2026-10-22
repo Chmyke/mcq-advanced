@@ -37,6 +37,9 @@ button.recording { background: var(--ko); color: #fff; border-color: var(--ko); 
 .write { display: grid; grid-template-columns: 19rem minmax(0, 1fr); gap: 1rem; align-items: start; }
 .question-list { position: sticky; top: 4.2rem; max-height: calc(100vh - 5rem); overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .5rem; }
 .theme-group + .theme-group { border-top: 1px solid var(--border); margin-top: .4rem; padding-top: .4rem; }
+.theme-group { border-radius: 8px; }
+.theme-group.drop-target { background: var(--accent-soft); outline: 2px dashed var(--accent); outline-offset: -2px; }
+.q-item[draggable="true"] { cursor: grab; }
 .theme-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .2rem .3rem; }
 .theme-head h2 { font-size: .95em; }
 .question-list ol { list-style: none; margin: 0; padding: 0; }

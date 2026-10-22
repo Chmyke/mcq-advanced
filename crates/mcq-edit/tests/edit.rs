@@ -108,6 +108,60 @@ fn questions_are_added_moved_and_removed_inside_their_theme() {
 }
 
 #[test]
+fn a_dragged_question_lands_in_its_new_theme_and_keeps_its_id() {
+    let mut paper = sample();
+    let theme = paper.themes[0].id.clone();
+    let other = paper.themes[1].id.clone();
+    let moved = paper.questions[0].id.clone();
+    let target = paper
+        .questions
+        .iter()
+        .find(|q| q.theme_id == other)
+        .map(|q| q.id.clone())
+        .expect("a question in the second theme");
+    let ids = |p: &Paper| p.questions.iter().map(|q| q.id.clone()).collect::<Vec<_>>();
+
+    assert!(ops::move_question_to(
+        &mut paper,
+        &moved,
+        &other,
+        Some(&target)
+    ));
+    let at = paper
+        .questions
+        .iter()
+        .position(|q| q.id == moved)
+        .expect("kept");
+    assert_eq!(paper.questions[at].theme_id, other);
+    assert_eq!(
+        paper.questions[at + 1].id,
+        target,
+        "dropped right before it"
+    );
+
+    assert!(ops::move_question_to(&mut paper, &moved, &theme, None));
+    let last_of_theme = paper.questions.iter().rposition(|q| q.theme_id == theme);
+    assert_eq!(
+        last_of_theme.map(|k| paper.questions[k].id.as_str()),
+        Some(moved.as_str())
+    );
+
+    let before = ids(&paper);
+    assert!(
+        !ops::move_question_to(&mut paper, &moved, &theme, Some(&moved)),
+        "onto itself"
+    );
+    assert!(
+        !ops::move_question_to(&mut paper, &moved, &theme, None),
+        "already last there"
+    );
+    assert!(!ops::move_question_to(&mut paper, &moved, "nowhere", None));
+    assert!(!ops::move_question_to(&mut paper, "ghost", &theme, None));
+    assert_eq!(ids(&paper), before);
+    assert_lossless(&paper);
+}
+
+#[test]
 fn options_keep_positional_ids() {
     let mut paper = sample();
     let q = &mut paper.questions[0];

@@ -151,10 +151,31 @@ fn question_list(
             (id, title, items)
         })
         .collect();
+    let over = s.drag.as_ref().and_then(|d| d.over.clone());
     rsx! {
         nav { class: "question-list", "aria-label": "{t.questions}",
             for (theme_id, title, items) in groups {
-                section { key: "{theme_id}", class: "theme-group",
+                section {
+                    key: "{theme_id}",
+                    class: if over.as_deref() == Some(theme_id.as_str()) { "theme-group drop-target" } else { "theme-group" },
+                    // A question dropped on the group goes to the end of its theme; the
+                    // questions themselves catch the drops that land on them.
+                    ondragover: {
+                        let theme_id = theme_id.clone();
+                        move |e: DragEvent| {
+                            if editable && !theme_id.is_empty() && studio.peek().drag.is_some() {
+                                e.prevent_default();
+                                studio.write().drag_over(&theme_id);
+                            }
+                        }
+                    },
+                    ondrop: {
+                        let theme_id = theme_id.clone();
+                        move |e: DragEvent| {
+                            e.prevent_default();
+                            studio.write().drop_question(&theme_id, None);
+                        }
+                    },
                     div { class: "theme-head",
                         h2 { "{title}" }
                         if editable && !theme_id.is_empty() {
@@ -170,10 +191,33 @@ fn question_list(
                     }
                     ol {
                         for ListItem { n, id, text, class, label } in items {
-                            li { key: "{id}",
+                            li {
+                                key: "{id}",
+                                ondrop: {
+                                    let (theme_id, id) = (theme_id.clone(), id.clone());
+                                    move |e: DragEvent| {
+                                        e.prevent_default();
+                                        e.stop_propagation();
+                                        studio.write().drop_question(&theme_id, Some(&id));
+                                    }
+                                },
                                 button {
                                     class: if id == selected { "q-item current" } else { "q-item" },
                                     "aria-current": if id == selected { "true" } else { "false" },
+                                    draggable: if editable { "true" } else { "false" },
+                                    title: if editable { t.drag_question } else { "" },
+                                    ondragstart: {
+                                        let id = id.clone();
+                                        move |e: DragEvent| {
+                                            // Firefox only starts a drag that carries data; a
+                                            // private type keeps text fields from taking it.
+                                            let data = e.data_transfer();
+                                            let _ = data.set_data("application/x-mcq-question", &id);
+                                            data.set_effect_allowed("move");
+                                            studio.write().start_drag(&id);
+                                        }
+                                    },
+                                    ondragend: move |_| studio.write().end_drag(),
                                     onclick: {
                                         let id = id.clone();
                                         move |_| studio.write().select(&id)

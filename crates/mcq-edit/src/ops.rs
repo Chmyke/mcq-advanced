@@ -218,12 +218,55 @@ pub fn set_question_theme(paper: &mut Paper, id: &str, theme_id: &str) -> bool {
     true
 }
 
+/// Moves a question into a theme, right before `before` when it is a question of that theme,
+/// else at the end of the theme. Its id stays: results and codes refer to it.
+pub fn move_question_to(paper: &mut Paper, id: &str, theme_id: &str, before: Option<&str>) -> bool {
+    if paper.theme(theme_id).is_none() || before == Some(id) {
+        return false;
+    }
+    let Some(index) = paper.questions.iter().position(|q| q.id == id) else {
+        return false;
+    };
+    let old = (index, paper.questions[index].theme_id.clone());
+    let mut question = paper.questions.remove(index);
+    question.theme_id = theme_id.to_string();
+    let at = before.and_then(|b| {
+        paper
+            .questions
+            .iter()
+            .position(|q| q.id == b && q.theme_id == theme_id)
+    });
+    match at {
+        Some(at) => paper.questions.insert(at, question),
+        None => insert_in_theme(paper, question),
+    }
+    paper.questions[old.0].id != id || old.1 != theme_id
+}
+
+/// After the last question of its theme; in an empty theme, before the questions of the themes
+/// that follow it, since the file lists questions under their themes in theme order.
 fn insert_in_theme(paper: &mut Paper, question: Question) {
-    let at = paper
+    let at = match paper
         .questions
         .iter()
         .rposition(|q| q.theme_id == question.theme_id)
-        .map_or(paper.questions.len(), |k| k + 1);
+    {
+        Some(k) => k + 1,
+        None => {
+            let later: Vec<&str> = paper
+                .themes
+                .iter()
+                .skip_while(|th| th.id != question.theme_id)
+                .skip(1)
+                .map(|th| th.id.as_str())
+                .collect();
+            paper
+                .questions
+                .iter()
+                .position(|q| later.contains(&q.theme_id.as_str()))
+                .unwrap_or(paper.questions.len())
+        }
+    };
     paper.questions.insert(at, question);
 }
 
