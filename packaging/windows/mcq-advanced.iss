@@ -17,6 +17,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
+SetupIconFile=..\icons\mcq-advanced.ico
 UninstallDisplayIcon={app}\mcq-studio.exe
 Compression=lzma2
 SolidCompression=yes

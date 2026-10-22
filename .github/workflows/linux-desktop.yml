@@ -38,6 +38,9 @@ jobs:
           cp target/release/mcq-studio target/release/mcq-player "dist/$name/"
           cp packaging/linux/install.sh packaging/linux/uninstall.sh packaging/linux/README.txt packaging/linux/THIRD-PARTY-NOTICES.txt "dist/$name/"
           cp LICENSE "dist/$name/LICENSE.txt"
+          mkdir "dist/$name/icons"
+          cp packaging/icons/mcq-advanced-256.png "dist/$name/icons/mcq-advanced.png"
+          cp packaging/icons/mcq-advanced.svg "dist/$name/icons/mcq-advanced.svg"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
           (cd dist && sha256sum "$name.tar.gz" | awk '{ print toupper($1) "  " $2 }' > SHA256-linux.txt)
           cat dist/SHA256-linux.txt

@@ -25,6 +25,10 @@ pulldown-cmark = { version = "0.13", default-features = false, features = ["html
 # feature; Cargo unifies features, so enabling it here lets dioxus-web compile.
 web-sys = { version = "0.3", optional = true, default-features = false, features = ["Location"] }
 
+[build-dependencies]
+# The icon and name of the Windows program (build.rs); nothing of it ships in the program.
+winresource = "0.1"
+
 [dev-dependencies]
 dioxus-ssr = "0.7"
 mcq-highlight.workspace = true

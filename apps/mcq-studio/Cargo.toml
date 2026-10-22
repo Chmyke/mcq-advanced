@@ -32,6 +32,10 @@ getrandom = { version = "0.4", default-features = false, features = ["sys_rng"] 
 # PITFALL: see apps/mcq-player/Cargo.toml (dioxus-web 0.7.10 needs web-sys's `Location`).
 web-sys = { version = "0.3", optional = true, default-features = false, features = ["Location"] }
 
+[build-dependencies]
+# The icon and name of the Windows program (build.rs); nothing of it ships in the program.
+winresource = "0.1"
+
 [dev-dependencies]
 dioxus-ssr = "0.7"
 

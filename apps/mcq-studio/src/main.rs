@@ -10,6 +10,14 @@ fn main() {
             .with_window(window)
             .with_menu(None)
             .with_disable_drag_drop_handler(true);
+        // On Windows the window takes its icon from the program's resource (build.rs).
+        #[cfg(not(windows))]
+        let config = match dioxus::desktop::icon_from_memory::<dioxus::desktop::tao::window::Icon>(
+            include_bytes!("../../../packaging/icons/mcq-advanced-256.png"),
+        ) {
+            Ok(icon) => config.with_icon(icon),
+            Err(_) => config,
+        };
         dioxus::LaunchBuilder::desktop()
             .with_cfg(config)
             .launch(mcq_studio::App);

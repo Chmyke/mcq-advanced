@@ -178,6 +178,10 @@ The Linux archive is built and started on Ubuntu 22.04 by the `Linux desktop` wo
 hand from the Actions tab; `tools/fetch-linux.ps1` then downloads it into `target/dist` and checks
 its hash. Neither is signed yet.
 
+Both programs carry the website's icon, `packaging/icons/mcq-advanced.svg`: `tools/icons.ps1`
+renders it into the PNG used by the Linux windows and menus and the ICO embedded in the Windows
+programs (`build.rs`) and installer.
+
 ## Building and checking
 
 The core crates (`mcq-model`, `mcq-format`, `mcq-grade`, `mcq-lint`) have no dependency;
