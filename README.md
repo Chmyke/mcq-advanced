@@ -4,8 +4,8 @@ Multiple-choice quizzes that teach, not only grade. A teacher writes a quiz, the
 badly written questions as they are typed, students take it on any device without an account, and
 the results tell the class what to revisit, topic by topic.
 
-**Status: early development.** There is no usable release yet. The core works from the command
-line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
+**Status: early development.** Early desktop builds for Windows and Linux can be downloaded from
+[the website](https://mickaelmancini.com/mcq-advanced/). The core works from the command line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
 encrypted packages, answer key apart, copies sealed for the teacher). The student player and the
 teacher's Studio (writing, publishing, correcting and class analysis) run in the browser and on
 the desktop. It imports GIFT, Moodle XML, Aiken and CSV banks and exports to Moodle. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
@@ -161,6 +161,22 @@ a question (identical answers, many window exits, overtime), and the marks last.
 are told their figures are trends. Each student gets a printable revision sheet; `notes.csv`,
 `themes.csv` and `questions.csv` open in any spreadsheet. The rules are in
 [class analysis](docs/analysis.md).
+
+## Desktop downloads
+
+The website offers both desktop programs, the Studio and the player, for Windows and Linux (x64).
+Each build lists the licenses of the crates it links in its own notices:
+`packaging/windows/THIRD-PARTY-NOTICES.txt` and `packaging/linux/THIRD-PARTY-NOTICES.txt`, kept
+current by `tools/notices.ps1` like the web one.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/package-windows.ps1
+```
+
+builds `target/dist/MCQ-Advanced-Setup-<version>.exe`, a per-user installer made with Inno Setup 6.
+The Linux archive is built and started on Ubuntu 22.04 by the `Linux desktop` workflow, run by
+hand from the Actions tab; `tools/fetch-linux.ps1` then downloads it into `target/dist` and checks
+its hash. Neither is signed yet.
 
 ## Building and checking
 

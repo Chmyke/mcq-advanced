@@ -1,0 +1,50 @@
+# Builds the Linux desktop programs (Studio and player), checks that both start, and packs them
+# into mcq-advanced-<version>-linux-x86_64.tar.gz with its SHA-256 line. Run by hand from the
+# Actions tab; tools/fetch-linux.ps1 downloads the result for the website.
+name: Linux desktop
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # The oldest supported runner: its glibc and WebKitGTK set the oldest systems the archive runs on.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev xvfb
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --release --locked -p mcq-player -p mcq-studio --features desktop
+      - name: Both programs start
+        run: |
+          for app in mcq-player mcq-studio; do
+            status=0
+            timeout 15 xvfb-run -a "target/release/$app" || status=$?
+            # 124: still running when stopped, as a window should be.
+            if [ "$status" -ne 124 ]; then echo "$app exited with $status"; exit 1; fi
+          done
+      - name: Pack
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          name="mcq-advanced-$version-linux-x86_64"
+          mkdir -p "dist/$name"
+          cp target/release/mcq-studio target/release/mcq-player "dist/$name/"
+          cp packaging/linux/install.sh packaging/linux/uninstall.sh packaging/linux/README.txt packaging/linux/THIRD-PARTY-NOTICES.txt "dist/$name/"
+          cp LICENSE "dist/$name/LICENSE.txt"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && sha256sum "$name.tar.gz" | awk '{ print toupper($1) "  " $2 }' > SHA256-linux.txt)
+          cat dist/SHA256-linux.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: |
+            dist/*.tar.gz
+            dist/SHA256-linux.txt
+          retention-days: 30

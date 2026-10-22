@@ -1,15 +1,15 @@
-# Builds THIRD-PARTY-NOTICES.txt from what the two web builds (player and Studio) embed: every
-# crate linked into either program for wasm32-unknown-unknown with the `web` feature, the
-# workspace's own crates aside. With -Check, writes nothing and fails when the committed file is
+# Builds the third-party notices of every published build of the two programs (player and
+# Studio): THIRD-PARTY-NOTICES.txt for the web builds (wasm32-unknown-unknown, `web` feature),
+# packaging/windows/ and packaging/linux/THIRD-PARTY-NOTICES.txt for the desktop builds (x64,
+# `desktop` feature). Each lists every crate linked into either program for that target, the
+# workspace's own crates aside. With -Check, writes nothing and fails when a committed file is
 # out of date.
 # Run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/notices.ps1 [-Check]
 # Adapted from the same script in Asciitect. Keep this file pure ASCII.
 param([switch]$Check)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$target = Join-Path $root 'THIRD-PARTY-NOTICES.txt'
 $utf8 = New-Object Text.UTF8Encoding($false)
-$platform = 'wasm32-unknown-unknown'
 $apps = @('mcq-player', 'mcq-studio')
 # Words the text of each license always contains. A license missing here is never relied on:
 # someone has to read it before it ships.
@@ -26,6 +26,9 @@ $markers = [ordered]@{
     'CC0-1.0'      = 'CC0 1.0 Universal'
     'MIT-0'        = 'MIT No Attribution'
     '0BSD'         = 'Permission to use, copy, modify'
+    # File-level copyleft, compatible with the GPL: the crates under it are used unmodified and
+    # their published sources stay at the address printed with their license.
+    'MPL-2.0'      = 'Mozilla Public License Version 2.0'
 }
 # Crates that ship no license text of their own (their repository holds it at the workspace
 # root), with the copyright notice taken from their Cargo.toml authors: their published sources
@@ -36,10 +39,12 @@ $markers = [ordered]@{
 # cannot rot.
 $copyright = [ordered]@{
     'dioxus'                      = @('Copyright (c) Jonathan Kelley, Dioxus Labs, ealmloff')
+    'dioxus-asset-resolver'       = @('Copyright (c) Jonathan Kelley, Dioxus Labs')
     'dioxus-cli-config'           = @('Copyright (c) Jonathan Kelley, Evan Almloff')
     'dioxus-config-macros'        = @('Copyright (c) Dioxus Labs')
     'dioxus-core'                 = @('Copyright (c) Jonathan Kelley')
     'dioxus-core-types'           = @('Copyright (c) Jonathan Kelley, Evan Almloff')
+    'dioxus-desktop'              = @('Copyright (c) Jonathan Kelley')
     'dioxus-devtools'             = @('Copyright (c) Jonathan Kelley, Evan Almloff')
     'dioxus-devtools-types'       = @('Copyright (c) Jonathan Kelley, Evan Almloff')
     'dioxus-document'             = @('Copyright (c) Jonathan Kelley, Evan Almloff')
@@ -50,14 +55,23 @@ $copyright = [ordered]@{
     'dioxus-signals'              = @('Copyright (c) Jonathan Kelley, Evan Almloff')
     'dioxus-stores'               = @('Copyright (c) Jonathan Kelley, Evan Almloff')
     'dioxus-web'                  = @('Copyright (c) Jonathan Kelley')
+    'dlopen2'                     = @('Copyright (c) 2017 Szymon Wieloch', 'Copyright (C) 2019 Ahmed Masud <ahmed.masud@saf.ai>', 'Copyright (C) 2022 OpenByte <development.openbyte@gmail.com>')
     'generational-box'            = @('Copyright (c) Evan Almloff')
+    'libappindicator-sys'         = @('Copyright (c) 2017-2021 qDot', 'Copyright (c) 2021 Tauri Apps Contributors')
     'math-core'                   = @('Copyright (c) Hiromu Sugiura, Thomas MK')
     'math-core-renderer-internal' = @('Copyright (c) Hiromu Sugiura, Thomas MK')
+    'profiling'                   = @('Copyright (c) 2020 Philip Degarmo and other contributors')
+    'pulp-wasm-simd-flag'         = @('Copyright (c) 2021 sarah')
     'sledgehammer_bindgen'        = @('Copyright (c) Evan Almloff')
     'sledgehammer_utils'          = @('Copyright (c) Evan Almloff')
     'subsecond'                   = @('Copyright (c) Jonathan Kelley')
     'subsecond-types'             = @('Copyright (c) Jonathan Kelley')
     'warnings'                    = @('Copyright (c) Evan Almloff')
+    'webview2-com'                = @('Copyright (c) 2021 Bill Avery')
+    'webview2-com-sys'            = @('Copyright (c) 2021 Bill Avery')
+    'zune-core'                   = @('Copyright (c) zune-image developers')
+    'zune-inflate'                = @('Copyright (c) zune-image developers')
+    'zune-jpeg'                   = @('Copyright (c) zune-image developers')
 }
 $textless = @($copyright.Keys)
 # Whether $script:haystack holds the texts a license expression asks for: every term of an AND,
@@ -155,9 +169,20 @@ foreach ($case in $cases) {
         throw "Self-test failed: '$($case[0])' should give $($case[2])"
     }
 }
-Push-Location $root
-try {
-    # The graph with every feature on, so that the `web` features of both apps are in it; what is
+# One notices file per published build: what each one links differs (the desktop builds carry
+# the webview and the window toolkit of their system).
+$builds = @(
+    @{ Platform = 'wasm32-unknown-unknown'; Feature = 'web'; Out = 'THIRD-PARTY-NOTICES.txt'
+       What = 'Its web builds (the player and the Studio)'; Title = 'for the browser' },
+    @{ Platform = 'x86_64-pc-windows-msvc'; Feature = 'desktop'; Out = 'packaging/windows/THIRD-PARTY-NOTICES.txt'
+       What = 'Its Windows desktop builds (the player and the Studio)'; Title = 'for Windows' },
+    @{ Platform = 'x86_64-unknown-linux-gnu'; Feature = 'desktop'; Out = 'packaging/linux/THIRD-PARTY-NOTICES.txt'
+       What = 'Its Linux desktop builds (the player and the Studio)'; Title = 'for Linux' }
+)
+# The text of one build's notices; adds the text-less crates it met to $script:textlessFound.
+function Get-Notices($build) {
+    $platform = $build.Platform
+    # The graph with every feature on, so that the features of both apps are in it; what is
     # actually built is narrowed below.
     $metadata = cargo metadata --locked --format-version 1 --all-features --filter-platform $platform | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect dependency licenses' }
@@ -168,10 +193,10 @@ try {
     # One list for the two programs that are published: a crate built into either is credited.
     $visited = New-Object 'System.Collections.Generic.HashSet[string]'
     foreach ($appName in $apps) {
-        # What cargo links into this program: its own web build, normal dependencies only. Build
+        # What cargo links into this program: its own build, normal dependencies only. Build
         # scripts and proc macros run on the build machine and are not shipped; the tests are not
         # either. cargo metadata alone is not enough: it counts every feature and edge kind.
-        $tree = cargo tree --locked -p $appName --features web -e normal,no-proc-macro --target $platform --prefix none --format '{p}'
+        $tree = cargo tree --locked -p $appName --features $build.Feature -e normal,no-proc-macro --target $platform --prefix none --format '{p}'
         if ($LASTEXITCODE -ne 0) { throw "Cannot list the crates built into $appName" }
         $built = New-Object 'System.Collections.Generic.HashSet[string]'
         foreach ($line in $tree) {
@@ -197,9 +222,9 @@ try {
     $text = New-Object Text.StringBuilder
     [void]$text.Append("MCQ Advanced - third-party notices`n`n")
     [void]$text.Append("MCQ Advanced is free software under the GNU General Public License, version 3 (see LICENSE).`n")
-    [void]$text.Append("Its web builds (the player and the Studio) include the Rust crates below, each under its`n")
+    [void]$text.Append("$($build.What) include the Rust crates below, each under its`n")
     [void]$text.Append("own license, reproduced here with its copyright notices.`n`n")
-    [void]$text.Append("Rust crates built into the player or the Studio for the browser`n")
+    [void]$text.Append("Rust crates built into the player or the Studio $($build.Title)`n")
     # Ordinal order, so the file does not depend on the culture of the machine. Workspace crates
     # have no registry source and are not third-party.
     $byKey = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([StringComparer]::Ordinal)
@@ -234,33 +259,46 @@ try {
         }
         $crateTexts[$p.id] = $own.ToString()
     }
-    $script:notices = $text.ToString()
+    $notices = $text.ToString()
     # Each crate answers for itself, except the pinned text-less ones.
-    $textlessFound = @($ordered | Where-Object { $crateTexts[$_.id].Length -eq 0 } | ForEach-Object { $_.name } | Sort-Object -Unique)
     foreach ($p in $ordered) {
-        if ($crateTexts[$p.id].Length -eq 0 -and $textless -cnotcontains $p.name) {
-            throw ('Crate ships no license text: ' + $p.name + ' ' + $p.version + ' - ' + $p.license +
-                '. Read its license, find its copyright holders, then add ''' + $p.name + ''' to $copyright in tools/notices.ps1.')
-        }
-    }
-    foreach ($entry in $textless) {
-        if ($textlessFound -cnotcontains $entry) {
-            throw ('Stale entry in $copyright: ''' + $entry + ''' is not in the dependency tree or now ships a license text. Remove it from tools/notices.ps1.')
+        if ($crateTexts[$p.id].Length -eq 0) {
+            [void]$script:textlessFound.Add($p.name)
+            if ($textless -cnotcontains $p.name) {
+                throw ('Crate ships no license text: ' + $p.name + ' ' + $p.version + ' - ' + $p.license +
+                    '. Read its license, find its copyright holders, then add ''' + $p.name + ''' to $copyright in tools/notices.ps1.')
+            }
         }
     }
     foreach ($p in $ordered) {
-        $searched = if ($crateTexts[$p.id].Length -eq 0) { $script:notices } else { $crateTexts[$p.id] }
+        $searched = if ($crateTexts[$p.id].Length -eq 0) { $notices } else { $crateTexts[$p.id] }
         if (-not (Test-License $p.license $searched)) {
             throw "License text missing or license to review: $($p.name) $($p.version) - $($p.license)"
         }
     }
-    if ($Check) {
-        if (-not (Test-Path -LiteralPath $target) -or [IO.File]::ReadAllText($target) -cne $script:notices) {
-            throw 'THIRD-PARTY-NOTICES.txt is out of date: run tools/notices.ps1 and commit the result.'
+    [pscustomobject]@{ Text = $notices; Count = @($ordered).Count }
+}
+Push-Location $root
+try {
+    $script:textlessFound = New-Object 'System.Collections.Generic.HashSet[string]'
+    $results = @($builds | ForEach-Object { Get-Notices $_ })
+    # An entry no build needs any more is stale.
+    foreach ($entry in $textless) {
+        if (-not $script:textlessFound.Contains($entry)) {
+            throw ('Stale entry in $copyright: ''' + $entry + ''' is not in any dependency tree or now ships a license text. Remove it from tools/notices.ps1.')
         }
-        Write-Output "Third-party notices are current: $(@($ordered).Count) crates"
-    } else {
-        [IO.File]::WriteAllText($target, $script:notices, $utf8)
-        Write-Output "Third-party notices written: $(@($ordered).Count) crates"
+    }
+    for ($i = 0; $i -lt $builds.Count; $i++) {
+        $target = Join-Path $root $builds[$i].Out
+        $notices = $results[$i].Text
+        if ($Check) {
+            if (-not (Test-Path -LiteralPath $target) -or [IO.File]::ReadAllText($target) -cne $notices) {
+                throw "$($builds[$i].Out) is out of date: run tools/notices.ps1 and commit the result."
+            }
+            Write-Output "Third-party notices are current: $($builds[$i].Out), $($results[$i].Count) crates"
+        } else {
+            [IO.File]::WriteAllText($target, $notices, $utf8)
+            Write-Output "Third-party notices written: $($builds[$i].Out), $($results[$i].Count) crates"
+        }
     }
 } finally { Pop-Location }
