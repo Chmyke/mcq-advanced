@@ -38,10 +38,12 @@ pub fn teacher(lang: Lang) -> Result<(Project, Correction), String> {
     Ok((class.project, correction))
 }
 
-/// True when the draft is a teacher demo paper, in any language, as the demo opened it.
+/// True when the draft is a demo paper, student or teacher, in any language, as it was opened: a
+/// visitor who tried the student demo first loses nothing.
 pub fn is_untouched_demo(draft: &Project) -> bool {
-    mcq_demo::TEACHER
+    mcq_demo::SOURCES
         .iter()
+        .chain(&mcq_demo::TEACHER)
         .any(|s| mcq_demo::project(s) == *draft)
 }
 

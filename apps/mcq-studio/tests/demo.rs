@@ -34,6 +34,12 @@ fn every_copy_opens_and_the_doubtful_key_shows() {
 fn only_an_untouched_demo_is_replaced_without_asking() {
     let (french, _) = teacher(Lang::Fr).expect("demo");
     assert!(is_untouched_demo(&french));
+    // The student demo, as the player's "open in the editor" link imports it.
+    for source in &mcq_demo::SOURCES {
+        let built = mcq_demo::build(source).expect("student demo");
+        let (student, _) = mcq_edit::qcmz::import(&built.qcmz).expect("import");
+        assert!(is_untouched_demo(&student), "{}", source.lang);
+    }
     let mut edited = french.clone();
     edited.paper.title.push('!');
     assert!(!is_untouched_demo(&edited));
