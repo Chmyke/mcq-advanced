@@ -13,7 +13,7 @@ pub const PACE_REARM_BUDGETS: u32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TimeStatus {
-    /// 0 when the paper has no limit.
+    /// The student's limit, extension included; 0 without a limit.
     pub limit_seconds: u32,
     /// Seconds left, 0 once the time is up or without a limit.
     pub remaining_seconds: u32,
@@ -30,7 +30,7 @@ pub struct TimeStatus {
 
 impl TimeStatus {
     pub(crate) fn compute(paper: &Paper, session: &Session, alerted: bool) -> Self {
-        let limit = paper.duration_minutes.saturating_mul(60);
+        let limit = session.limit_seconds(paper);
         let elapsed = session.elapsed_seconds;
         let mut status = TimeStatus {
             limit_seconds: limit,

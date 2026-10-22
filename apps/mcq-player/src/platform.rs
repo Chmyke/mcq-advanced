@@ -129,7 +129,7 @@ return [q.get('name') || '', q.get('lang') || '', source];
 }
 
 /// Sends `tick` every second, `away` and `back` on focus changes, and `k:<key>` on key presses
-/// outside text fields.
+/// outside text fields. Single-character keys are dropped while the student turned shortcuts off.
 pub const EVENTS_SCRIPT: &str = r#"
 setInterval(() => dioxus.send('tick'), 1000);
 let away = false;
@@ -142,6 +142,8 @@ document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'password')))) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const app = document.querySelector('.app');
+  if (e.key.length === 1 && app && app.dataset.shortcuts === 'off') return;
   // A focused button or box answers Space and Enter itself.
   if ((e.key === ' ' || e.key === 'Enter') && t && ['BUTTON', 'INPUT', 'SELECT', 'A', 'SUMMARY'].includes(t.tagName)) return;
   if (e.key === ' ') e.preventDefault();

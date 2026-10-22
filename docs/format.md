@@ -132,3 +132,6 @@ Papers written for the earlier tool keep working: `COURS:` (as `COURSE:`), `REVO
 - Net score = earned points, minus `penalty` per wrong question (no credit at all), minus
   `unansweredPenalty` per blank. The mark is the net score over the question count, never below
   0, times the scale (20, 100...). Time never changes the mark: overtime is only recorded.
+- Extra time: before starting, a student entitled to an arrangement can declare one third more,
+  half as much again, double time or no time limit. Their clock, pace and overtime follow it; the
+  copy carries the declaration for the teacher to check.

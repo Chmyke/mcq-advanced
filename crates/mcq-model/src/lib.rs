@@ -427,6 +427,70 @@ pub struct Submission {
     pub seconds_away: u32,
     /// Every answer change and focus event, in order.
     pub log: Vec<LogEntry>,
+    /// Extra time declared by the student, shown to the teacher.
+    pub extension: TimeExtension,
+}
+
+/// Extra time a student is entitled to (French "tiers-temps" and wider arrangements). The
+/// student declares it; the teacher sees it on the copy and checks it against their own list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimeExtension {
+    #[default]
+    None,
+    /// One third more.
+    Third,
+    /// Half as much again.
+    Half,
+    /// Twice the time.
+    Double,
+    /// No time limit, no pace alerts (WCAG 2.2.1 "turn off").
+    Untimed,
+}
+
+impl TimeExtension {
+    pub const ALL: [TimeExtension; 5] = [
+        TimeExtension::None,
+        TimeExtension::Third,
+        TimeExtension::Half,
+        TimeExtension::Double,
+        TimeExtension::Untimed,
+    ];
+
+    /// The student's limit from the paper's; 0 means no limit.
+    pub fn apply(self, limit_seconds: u32) -> u32 {
+        match self {
+            TimeExtension::None => limit_seconds,
+            TimeExtension::Third => limit_seconds.saturating_add(limit_seconds / 3),
+            TimeExtension::Half => limit_seconds.saturating_add(limit_seconds / 2),
+            TimeExtension::Double => limit_seconds.saturating_mul(2),
+            TimeExtension::Untimed => 0,
+        }
+    }
+
+    /// Short label for reports and CSV files, the same in every language.
+    pub fn label(self) -> &'static str {
+        match self {
+            TimeExtension::None => "",
+            TimeExtension::Third => "+1/3",
+            TimeExtension::Half => "+1/2",
+            TimeExtension::Double => "x2",
+            TimeExtension::Untimed => "untimed",
+        }
+    }
+
+    pub fn code(self) -> u8 {
+        match self {
+            TimeExtension::None => 0,
+            TimeExtension::Third => 1,
+            TimeExtension::Half => 2,
+            TimeExtension::Double => 3,
+            TimeExtension::Untimed => 4,
+        }
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|e| e.code() == code)
+    }
 }
 
 /// What happened, for the teacher's anomaly report.

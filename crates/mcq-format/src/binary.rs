@@ -3,7 +3,9 @@
 //! Little-endian integers, `u32` length prefixes. Decoding never panics and never trusts a
 //! length: every read is bounded by the bytes actually present.
 
-use mcq_model::{Answer, CodeTokens, LogEntry, LogKind, Submission, TokenKind, TokenRun};
+use mcq_model::{
+    Answer, CodeTokens, LogEntry, LogKind, Submission, TimeExtension, TokenKind, TokenRun,
+};
 
 /// Why bytes could not be decoded.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,7 +178,8 @@ const TOKENS_VERSION: u8 = 1;
 
 /// Name of the highlighted code inside package archives.
 pub const CODE_TOKENS_FILE: &str = "code.tokens";
-const SUBMISSION_VERSION: u8 = 1;
+/// Version 2 adds the declared time extension; version 1 copies still open, without one.
+const SUBMISSION_VERSION: u8 = 2;
 
 /// Encodes files in the given order.
 pub fn encode_archive(entries: &[Entry]) -> Vec<u8> {
@@ -233,6 +236,7 @@ pub fn encode_submission(s: &Submission) -> Vec<u8> {
         .u32(s.elapsed_seconds)
         .u32(s.focus_losses)
         .u32(s.seconds_away)
+        .u8(s.extension.code())
         .u32(u32::try_from(s.answers.len()).expect("fewer than 4 billion answers"));
     for answer in &s.answers {
         w.str(&answer.question_id)
@@ -255,7 +259,7 @@ pub fn encode_submission(s: &Submission) -> Vec<u8> {
 pub fn decode_submission(data: &[u8]) -> Result<Submission, DecodeError> {
     let mut r = ByteReader::new(data);
     let version = r.u8()?;
-    if version != SUBMISSION_VERSION {
+    if !(1..=SUBMISSION_VERSION).contains(&version) {
         return Err(DecodeError::UnsupportedVersion(version));
     }
     let paper_id = r.fixed()?;
@@ -263,6 +267,11 @@ pub fn decode_submission(data: &[u8]) -> Result<Submission, DecodeError> {
     let elapsed_seconds = r.u32()?;
     let focus_losses = r.u32()?;
     let seconds_away = r.u32()?;
+    let extension = if version >= 2 {
+        TimeExtension::from_code(r.u8()?).ok_or(DecodeError::Invalid("unknown time extension"))?
+    } else {
+        TimeExtension::None
+    };
     let count = r.count(12)?;
     let mut answers = Vec::with_capacity(count);
     for _ in 0..count {
@@ -300,6 +309,7 @@ pub fn decode_submission(data: &[u8]) -> Result<Submission, DecodeError> {
         focus_losses,
         seconds_away,
         log,
+        extension,
     })
 }
 
@@ -384,6 +394,7 @@ mod tests {
                 LogEntry::new(10, LogKind::Tick, "q1", "q1-o2"),
                 LogEntry::new(40, LogKind::FocusLost, "", ""),
             ],
+            extension: TimeExtension::Third,
         }
     }
 
@@ -417,6 +428,29 @@ mod tests {
     fn submission_round_trips() {
         let s = sample_submission();
         assert_eq!(decode_submission(&encode_submission(&s)), Ok(s));
+    }
+
+    #[test]
+    fn version_1_copies_still_open_without_extension() {
+        let s = sample_submission();
+        let mut bytes = encode_submission(&s);
+        // A version 1 copy is the same bytes without the extension, right after seconds_away.
+        let at = 1 + 16 + 4 + s.student_name.len() + 4 + 4 + 4;
+        bytes.remove(at);
+        bytes[0] = 1;
+        let old = decode_submission(&bytes).expect("version 1");
+        assert_eq!(old.extension, TimeExtension::None);
+        assert_eq!(old.answers, s.answers);
+        assert_eq!(old.log, s.log);
+    }
+
+    #[test]
+    fn unknown_extension_is_refused() {
+        let s = sample_submission();
+        let mut bytes = encode_submission(&s);
+        let at = 1 + 16 + 4 + s.student_name.len() + 4 + 4 + 4;
+        bytes[at] = 9;
+        assert!(decode_submission(&bytes).is_err());
     }
 
     #[test]

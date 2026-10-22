@@ -1,7 +1,7 @@
 //! Exam scenarios on fictional papers.
 
 use mcq_engine::{Session, decode_session, encode_session, format_duration, normalize_name};
-use mcq_model::{AnswerOption, Block, LogKind, Paper, Question, Theme};
+use mcq_model::{AnswerOption, Block, LogKind, Paper, Question, Theme, TimeExtension};
 
 const ID: [u8; 16] = [3; 16];
 
@@ -285,4 +285,73 @@ fn the_pace_gauge_shares_the_time_evenly_and_goes_away_past_the_limit() {
     let mut free = paper(3, 1);
     free.duration_minutes = 0;
     assert_eq!(Session::new(&free, [7; 16], "A").pace(&free), None);
+}
+
+#[test]
+fn extra_time_stretches_the_limit_the_pace_and_the_overtime() {
+    let (mut p, mut s) = ordered(10);
+    p.duration_minutes = 30;
+    assert!(s.set_extension(TimeExtension::Third));
+    let t = s.time_status(&p);
+    assert_eq!((t.limit_seconds, t.remaining_seconds), (2400, 2400));
+    assert_eq!(s.pace(&p).map(|g| g.share_seconds), Some(240));
+    s.tick(1900);
+    assert!(
+        !s.time_status(&p).final_warning,
+        "warned on the student's own limit"
+    );
+    s.tick(600);
+    assert_eq!(s.time_status(&p).overtime_seconds, 100);
+    assert_eq!(s.submit().extension, TimeExtension::Third);
+
+    for (extension, limit) in [
+        (TimeExtension::None, 1800),
+        (TimeExtension::Half, 2700),
+        (TimeExtension::Double, 3600),
+        (TimeExtension::Untimed, 0),
+    ] {
+        let (_, mut s) = ordered(10);
+        s.set_extension(extension);
+        assert_eq!(s.limit_seconds(&p), limit, "{extension:?}");
+    }
+}
+
+#[test]
+fn untimed_shows_no_clock_pace_or_alert() {
+    let (mut p, mut s) = ordered(4);
+    p.duration_minutes = 10;
+    s.set_extension(TimeExtension::Untimed);
+    s.tick(5000);
+    let t = s.time_status(&p);
+    assert_eq!((t.limit_seconds, t.overtime_seconds), (0, 0));
+    assert!(!t.show_pace_alert && !t.final_warning);
+    assert!(s.pace(&p).is_none());
+}
+
+#[test]
+fn extra_time_is_declared_before_the_start_only() {
+    let (_, mut s) = ordered(2);
+    s.tick(1);
+    assert!(!s.set_extension(TimeExtension::Double));
+    assert_eq!(s.extension, TimeExtension::None);
+    let (_, mut s) = ordered(2);
+    s.submit();
+    assert!(!s.set_extension(TimeExtension::Double));
+}
+
+#[test]
+fn autosave_keeps_the_extension_and_old_saves_resume_without_one() {
+    let (_, mut s) = ordered(2);
+    s.set_extension(TimeExtension::Half);
+    let bytes = encode_session(&s);
+    assert_eq!(decode_session(&bytes), Ok(s.clone()));
+
+    // A version 1 save: no extension byte after the pace flag.
+    let mut old = bytes.clone();
+    let at = 4 + 1 + 16 + 4 + s.student_name.len() + 4 + 4 + 1 + 4 + 4 + 1;
+    old.remove(at);
+    old[4] = 1;
+    let resumed = decode_session(&old).expect("version 1");
+    assert_eq!(resumed.extension, TimeExtension::None);
+    assert_eq!(resumed.items, s.items);
 }

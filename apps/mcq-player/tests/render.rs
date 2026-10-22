@@ -8,6 +8,7 @@ use mcq_crypto::rand_core::{TryCryptoRng, TryRng};
 use mcq_crypto::{Identity, KdfParams, Opening, PublishOptions};
 use mcq_engine::Session;
 use mcq_format::binary::{CODE_TOKENS_FILE, Entry, encode_code_tokens};
+use mcq_model::TimeExtension;
 use mcq_player::render::{self, Opened};
 use mcq_player::texts::Lang;
 
@@ -177,6 +178,7 @@ fn intro_explains_time_scoring_and_guessing() {
             Lang::Fr.texts(),
             EventHandler::new(|()| {}),
             false,
+            no_extra_time(),
         )
     });
     assert!(html.contains("10 min"), "{html}");
@@ -203,7 +205,7 @@ fn practice_and_correction_show_the_answers_after_hand_in() {
         session.go_to(banana);
         session.toggle(&opened.paper, "fruit-banana-colour-o1");
         let copy = session.submit();
-        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
+        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds, copy.extension);
         mcq_player::review::review_screen(
             &full,
             &session,
@@ -243,7 +245,19 @@ fn overview_marks_current_answered_and_flagged() {
     assert!(html.contains("segment answered"), "{html}");
     assert!(html.contains("segment flagged"), "{html}");
     assert!(html.contains("segment current"), "{html}");
-    assert!(html.contains("aria-label=\"Question 3\""), "{html}");
+    // The state is spoken, not only coloured (WCAG 1.4.1).
+    assert!(
+        html.contains("aria-label=\"Question 1, answered\""),
+        "{html}"
+    );
+    assert!(
+        html.contains("aria-label=\"Question 2, not answered, flagged for review\""),
+        "{html}"
+    );
+    assert!(
+        html.contains("aria-label=\"Question 3, not answered\""),
+        "{html}"
+    );
 }
 
 #[test]
@@ -311,7 +325,7 @@ fn formulas_show_as_native_mathml_and_explanations_after_hand_in() {
             EventHandler::new(|()| {}),
         );
         let copy = session.submit();
-        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
+        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds, copy.extension);
         let formulas = render::correction_formulas(&opened.formulas, &key_files);
         let content = render::Content {
             formulas: &formulas,
@@ -376,7 +390,7 @@ fn the_correction_opens_on_the_mistakes_one_at_a_time() {
         session.toggle(&opened.paper, "fruit-banana-colour-o1");
         session.tick(3);
         let copy = session.submit();
-        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
+        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds, copy.extension);
         let state = mcq_player::review::ReviewState::default();
         let first = state.current(&session, &result).expect("a mistake");
         assert_ne!(first, banana, "the right answer is not shown first");
@@ -428,7 +442,7 @@ fn the_revision_sheet_downloads_as_markdown() {
     let full = mcq_crypto::open_answer_key(&bytes, mcq_crypto::KeyUnlock::Practice).expect("key");
     let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
     let copy = session.submit();
-    let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
+    let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds, copy.extension);
     let sheet = mcq_player::review::revision_markdown(&full, &session, &result, Lang::Fr.texts());
     assert!(sheet.starts_with("# Fiche de révision : "), "{sheet}");
     assert!(sheet.contains("| Thème | Réussite | État |"), "{sheet}");
@@ -491,4 +505,58 @@ fn a_demo_link_leads_to_the_editor_in_a_new_tab() {
         let html = render(move || render::editor_link(source, Lang::En.texts()));
         assert!(!html.contains("href"), "{html}");
     }
+}
+
+fn no_extra_time() -> render::ExtraTime {
+    render::ExtraTime {
+        chosen: TimeExtension::None,
+        locked: false,
+        on_change: EventHandler::new(|_| {}),
+    }
+}
+
+#[test]
+fn intro_offers_extra_time_and_shows_the_stretched_duration() {
+    let html = render(|| {
+        let opened = opened();
+        render::intro(
+            &opened.paper,
+            &opened.formulas,
+            &opened.header,
+            Lang::Fr.texts(),
+            EventHandler::new(|()| {}),
+            false,
+            render::ExtraTime {
+                chosen: TimeExtension::Third,
+                ..no_extra_time()
+            },
+        )
+    });
+    assert!(html.contains("<legend>Temps majoré</legend>"), "{html}");
+    assert!(html.contains("13 min 20 s · Tiers-temps (+1/3)"), "{html}");
+    assert_eq!(html.matches("type=\"radio\"").count(), 5, "{html}");
+    assert!(!html.contains("disabled"), "{html}");
+}
+
+#[test]
+fn started_exam_shows_extra_time_locked() {
+    let html = render(|| {
+        let opened = opened();
+        render::intro(
+            &opened.paper,
+            &opened.formulas,
+            &opened.header,
+            Lang::En.texts(),
+            EventHandler::new(|()| {}),
+            true,
+            render::ExtraTime {
+                chosen: TimeExtension::Untimed,
+                locked: true,
+                ..no_extra_time()
+            },
+        )
+    });
+    assert!(html.contains("no time limit"), "{html}");
+    assert!(html.contains("it can no longer change"), "{html}");
+    assert_eq!(html.matches("disabled").count(), 5, "{html}");
 }

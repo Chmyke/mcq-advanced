@@ -366,6 +366,7 @@ fn submission(paper_id: [u8; 16]) -> Submission {
         focus_losses: 0,
         seconds_away: 0,
         log: Vec::new(),
+        ..Submission::default()
     }
 }
 

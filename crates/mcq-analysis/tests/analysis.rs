@@ -4,7 +4,7 @@
 use mcq_analysis::{
     Adjustment, Anomaly, Copy, Finding, Report, analyse, analyse_with, csv, sheet, synth,
 };
-use mcq_model::{Answer, AnswerOption, Level, Paper, Question, Submission, Theme};
+use mcq_model::{Answer, AnswerOption, Level, Paper, Question, Submission, Theme, TimeExtension};
 
 const ID: [u8; 16] = [1; 16];
 
@@ -548,4 +548,40 @@ fn a_timeline_replays_answers_changes_and_absences() {
             "600:submit",
         ]
     );
+}
+
+#[test]
+fn declared_extra_time_is_shown_and_moves_the_overtime() {
+    let mut p = paper(4, 1);
+    p.duration_minutes = 30;
+    let mut third = copy(&p, "Alex Example", &[Some(0); 4], 2300);
+    third.submission.extension = TimeExtension::Third;
+    let mut late_third = copy(&p, "Sam Example", &[Some(0); 4], 2500);
+    late_third.submission.extension = TimeExtension::Third;
+    let plain = copy(&p, "Kim Example", &[Some(0); 4], 2300);
+    let report = analyse(&p, ID, &[third, late_third, plain]);
+
+    let overtime: Vec<(&str, u32)> = report
+        .anomalies
+        .iter()
+        .filter_map(|a| match a {
+            Anomaly::Overtime { name, seconds } => Some((name.as_str(), *seconds)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(overtime, [("Kim Example", 500), ("Sam Example", 100)]);
+    let declared: Vec<&str> = report
+        .anomalies
+        .iter()
+        .filter_map(|a| match a {
+            Anomaly::ExtraTime { name, .. } => Some(name.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(declared, ["Alex Example", "Sam Example"]);
+    let alex = report.students.iter().find(|s| s.name == "Alex Example");
+    assert_eq!(alex.map(|s| s.extension), Some(TimeExtension::Third));
+
+    let notes = csv::notes(&p, &report, &csv::FR);
+    assert!(notes.contains("temps majoré +1/3"), "{notes}");
 }

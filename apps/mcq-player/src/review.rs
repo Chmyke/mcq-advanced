@@ -379,7 +379,7 @@ pub fn question_review(
     let course = question.course_ref.clone();
     Some(rsx! {
         article { key: "{index}", class: "review-item {class}",
-            h3 { "{t.question} {index + 1}" span { class: "status-badge {class}", "{status_label}" } }
+            h2 { "{t.question} {index + 1}" span { class: "status-badge {class}", "{status_label}" } }
             p { class: "context muted",
                 if !theme.is_empty() { "{theme} · " }
                 if level > 0 { "{t.level} {level} · " }
@@ -399,7 +399,7 @@ pub fn question_review(
                 }
             }
             div { class: "answer-block",
-                h4 { "{t.your_answer_title}" }
+                h3 { "{t.your_answer_title}" }
                 if chosen.is_empty() { p { em { "{t.no_answer}" } } }
                 for (k, (text, why)) in chosen.into_iter().enumerate() {
                     div { key: "{k}", p { span { dangerous_inner_html: "{text}" } }
@@ -408,7 +408,7 @@ pub fn question_review(
                 }
             }
             div { class: "answer-block right",
-                h4 { "{t.right_answer_title}" }
+                h3 { "{t.right_answer_title}" }
                 for (k, (text, why)) in right.into_iter().enumerate() {
                     div { key: "{k}", p { span { dangerous_inner_html: "{text}" } }
                         if !why.is_empty() { div { class: "explanation", dangerous_inner_html: "{why}" } }
@@ -466,13 +466,14 @@ pub fn review_screen(
         .and_then(|c| list.iter().position(|&i| i == c))
         .unwrap_or(0);
     let count = list.len();
-    let segments: Vec<(usize, &'static str, bool)> = session
+    let segments: Vec<(usize, &'static str, bool, String)> = session
         .items
         .iter()
         .enumerate()
         .map(|(i, item)| {
-            let (_, class) = status_text(status(result, &item.question_id), t);
-            (i, class, Some(i) == current)
+            let (word, class) = status_text(status(result, &item.question_id), t);
+            let name = format!("{} {}, {word}", t.question, i + 1);
+            (i, class, Some(i) == current, name)
         })
         .collect();
     let question = current.and_then(|i| question_review(full, session, result, i, t, content));
@@ -487,7 +488,8 @@ pub fn review_screen(
         .filter_map(|i| question_review(full, session, result, i, t, content))
         .collect();
     rsx! {
-        section { class: "review",
+        section { class: "review", lang: (!full.lang.is_empty()).then(|| full.lang.clone()),
+            h1 { class: "sr-only", "{full.title}" }
             div { class: "card score",
                 p { class: "big score-mark", "{mark} / 20" }
                 p { class: "appreciation", "{word}" }
@@ -499,7 +501,7 @@ pub fn review_screen(
                     span { "{minutes}" }
                     if let Some(over) = overtime { " ({over})" }
                 }
-                h3 { "{t.mastery}" }
+                h2 { "{t.mastery}" }
                 ul { class: "theme-bars",
                     for (k, (title, rate, label, class)) in themes.into_iter().enumerate() {
                         li { key: "{k}",
@@ -510,7 +512,7 @@ pub fn review_screen(
                     }
                 }
                 if !weak.is_empty() {
-                    h3 { "{t.to_review_title}" }
+                    h2 { "{t.to_review_title}" }
                     ol { class: "weak-themes",
                         for (k, th) in weak.into_iter().enumerate() {
                             li { key: "{k}", strong { "{th.title}" }
@@ -525,18 +527,18 @@ pub fn review_screen(
                 }
             }
             div { class: "review-guide no-print",
-                div { class: "segmented", role: "group",
+                div { class: "segmented", role: "group", "aria-label": "{t.show}",
                     for (filter, label) in filters {
                         button { key: "{label}", "aria-pressed": "{state.filter == filter}",
                             onclick: move |_| on.call(ReviewAction::Filter(filter)), "{label}" }
                     }
                 }
                 nav { class: "segments", "aria-label": "{t.overview}",
-                    for (i, class, here) in segments {
+                    for (i, class, here, name) in segments {
                         button { key: "{i}", class: if here { "segment {class} current" } else { "segment {class}" },
                             "aria-current": if here { "step" } else { "false" },
-                            title: "{t.question} {i + 1}",
-                            "aria-label": "{t.question} {i + 1}",
+                            title: "{name}",
+                            "aria-label": "{name}",
                             onclick: move |_| on.call(ReviewAction::Go(i)),
                         }
                     }

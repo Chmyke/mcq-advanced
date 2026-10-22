@@ -4,7 +4,7 @@
 //!             time never changes the mark; the success rate is never negative.
 
 pub use mcq_model::Answer;
-use mcq_model::{Paper, Question, Scoring};
+use mcq_model::{Paper, Question, Scoring, TimeExtension};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
@@ -92,7 +92,7 @@ pub struct GradeResult {
     pub total: u32,
     /// Earned credit minus penalties, in question points; may be negative.
     pub net_score: f32,
-    /// 0 when the paper has no time limit.
+    /// The student's limit, extension included; 0 without a limit.
     pub time_limit_seconds: u32,
     pub overtime_seconds: u32,
     /// One per answered-or-blank question that exists in the paper, in session order.
@@ -121,10 +121,16 @@ impl GradeResult {
     }
 }
 
-/// Grades a copy. `answers` holds one entry per question of the student's session.
-pub fn grade(paper: &Paper, answers: &[Answer], elapsed_seconds: u32) -> GradeResult {
+/// Grades a copy. `answers` holds one entry per question of the student's session; the
+/// extension only moves the overtime, never the mark.
+pub fn grade(
+    paper: &Paper,
+    answers: &[Answer],
+    elapsed_seconds: u32,
+    extension: TimeExtension,
+) -> GradeResult {
     let mut result = GradeResult {
-        time_limit_seconds: paper.duration_minutes * 60,
+        time_limit_seconds: extension.apply(paper.duration_minutes.saturating_mul(60)),
         themes: paper
             .themes
             .iter()

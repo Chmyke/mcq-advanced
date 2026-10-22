@@ -6,7 +6,7 @@
 //! cannot draw a formula, and `$\frac{5}{6}$` or `` `7` `` says more than `\frac{5}{6}` or `7`
 //! with its delimiters stripped.
 
-use mcq_model::{Level, Paper};
+use mcq_model::{Level, Paper, TimeExtension};
 
 use crate::{Anomaly, Decision, Finding, Report, TOO_EASY, TOO_HARD};
 
@@ -39,6 +39,9 @@ pub struct Labels {
     pub left_window: &'static str,
     pub overtime: &'static str,
     pub fast: &'static str,
+    /// Followed by the extension, such as "+1/3".
+    pub extra_time: &'static str,
+    pub untimed: &'static str,
 }
 
 pub const EN: Labels = Labels {
@@ -98,6 +101,8 @@ pub const EN: Labels = Labels {
     left_window: "left the window",
     overtime: "overtime",
     fast: "unusually fast",
+    extra_time: "extra time",
+    untimed: "extra time without limit",
 };
 
 pub const FR: Labels = Labels {
@@ -157,6 +162,8 @@ pub const FR: Labels = Labels {
     left_window: "sorties de fenêtre",
     overtime: "temps dépassé",
     fast: "terminé anormalement vite",
+    extra_time: "temps majoré",
+    untimed: "temps majoré sans limite",
 };
 
 /// Text longer than this is cut, with an ellipsis.
@@ -217,6 +224,10 @@ fn anomalies_of(report: &Report, name: &str, labels: &Labels) -> String {
             }
             Anomaly::Overtime { name: n, .. } if n == name => labels.overtime.to_string(),
             Anomaly::Fast { name: n, .. } if n == name => labels.fast.to_string(),
+            Anomaly::ExtraTime { name: n, extension } if n == name => match extension {
+                TimeExtension::Untimed => labels.untimed.to_string(),
+                _ => format!("{} {}", labels.extra_time, extension.label()),
+            },
             _ => continue,
         };
         words.push(word);

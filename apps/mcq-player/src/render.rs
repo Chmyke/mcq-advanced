@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 use mcq_crypto::{OpeningKind, PackageHeader};
 use mcq_engine::{PaceGauge, Session, SessionItem, TimeStatus, format_duration};
 use mcq_grade::GuessAdvice;
-use mcq_model::{Block, CodeBlock, CodeTokens, MediaKind, Paper, Question, Scoring};
+use mcq_model::{Block, CodeBlock, CodeTokens, MediaKind, Paper, Question, Scoring, TimeExtension};
 
 use mcq_format::binary::{CODE_TOKENS_FILE, decode_code_tokens};
 use mcq_math::{FORMULAS_FILE, Formulas};
@@ -254,7 +254,7 @@ pub fn question_view(
     rsx! {
         article { class: "question", "aria-labelledby": "q-title",
             header { class: "question-head",
-                h2 { id: "q-title", "{t.question} {index + 1} {t.of} {total}" }
+                h2 { id: "q-title", tabindex: "-1", "{t.question} {index + 1} {t.of} {total}" }
                 if !theme.is_empty() { span { class: "theme", "{theme}" } }
                 span { class: if multiple { "badge multi" } else { "badge" }, "{badge}" }
             }
@@ -315,22 +315,33 @@ pub fn segments(
     t: &'static Texts,
     on_go: EventHandler<usize>,
 ) -> Element {
-    let parts: Vec<(usize, &'static str)> = session
+    let parts: Vec<(usize, &'static str, String)> = session
         .items
         .iter()
         .enumerate()
-        .map(|(i, item)| (i, cell_class(session, i, item)))
+        .map(|(i, item)| {
+            let answered = if item.selected.is_empty() {
+                t.state_unanswered
+            } else {
+                t.state_answered
+            };
+            let mut name = format!("{} {}, {answered}", t.question, i + 1);
+            if item.flagged {
+                name = format!("{name}, {}", t.state_flagged);
+            }
+            (i, cell_class(session, i, item), name)
+        })
         .collect();
     let cursor = time_fraction.map(|f| format!("{:.2}", (f * 100.0).clamp(0.0, 100.0)));
     rsx! {
         nav { class: "segments exam-segments", "aria-label": "{t.overview}",
-            for (i, class) in parts {
+            for (i, class, name) in parts {
                 button {
                     key: "{i}",
                     class: "segment {class}",
                     "aria-current": if i == session.current { "step" } else { "false" },
-                    "aria-label": "{t.question} {i + 1}",
-                    title: "{t.question} {i + 1}",
+                    "aria-label": "{name}",
+                    title: "{name}",
                     onclick: move |_| on_go.call(i),
                 }
             }
@@ -444,6 +455,15 @@ pub fn points(value: f32, t: &Texts) -> String {
     text.replace('.', t.decimal)
 }
 
+/// The student's declared extra time on the intro screen.
+#[derive(Clone, Copy, PartialEq)]
+pub struct ExtraTime {
+    pub chosen: TimeExtension,
+    /// The exam has started: the choice is shown, no longer offered.
+    pub locked: bool,
+    pub on_change: EventHandler<TimeExtension>,
+}
+
 pub fn intro(
     paper: &Paper,
     formulas: &Formulas,
@@ -451,12 +471,23 @@ pub fn intro(
     t: &'static Texts,
     on_start: EventHandler<()>,
     resumed: bool,
+    extra: ExtraTime,
 ) -> Element {
     let n = paper.questions.len();
-    let duration = if paper.duration_minutes == 0 {
+    let limit = extra
+        .chosen
+        .apply(paper.duration_minutes.saturating_mul(60));
+    let duration = if limit == 0 {
         t.no_limit.to_string()
-    } else {
+    } else if extra.chosen == TimeExtension::None {
         format!("{} {}", paper.duration_minutes, t.minutes)
+    } else {
+        // Shown to the second, as the clock counts it.
+        format!(
+            "{} · {}",
+            format_duration(limit),
+            extension_choice(extra.chosen, t)
+        )
     };
     let scale = 20.0 / n.max(1) as f32;
     let scoring = match paper.scoring {
@@ -493,6 +524,26 @@ pub fn intro(
                 dt { "{t.scoring}" } dd { "{scoring} {costs}" }
             }
             p { "{advice}" }
+            if paper.duration_minutes > 0 {
+                fieldset { class: "extra-time",
+                    legend { "{t.extra_time}" }
+                    for extension in TimeExtension::ALL {
+                        label { class: "choice",
+                            input {
+                                r#type: "radio",
+                                name: "extra-time",
+                                checked: extension == extra.chosen,
+                                disabled: extra.locked,
+                                onchange: move |_| extra.on_change.call(extension),
+                            }
+                            "{extension_choice(extension, t)}"
+                        }
+                    }
+                    p { class: "muted",
+                        if extra.locked { "{t.extra_time_locked}" } else { "{t.extra_time_hint}" }
+                    }
+                }
+            }
             p { class: "muted", "{t.time_never_blocks}" }
             p { class: "muted", "{t.focus_notice}" }
             p { class: "muted", "{t.keyboard_hint}" }
@@ -501,4 +552,12 @@ pub fn intro(
             }
         }
     }
+}
+
+fn extension_choice(extension: TimeExtension, t: &Texts) -> &'static str {
+    let index = TimeExtension::ALL
+        .iter()
+        .position(|e| *e == extension)
+        .unwrap_or(0);
+    t.extra_time_choices[index]
 }

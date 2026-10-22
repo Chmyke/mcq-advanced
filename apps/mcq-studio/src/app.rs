@@ -39,6 +39,11 @@ pub fn App() -> Element {
     let mut correction = use_signal(Correction::default);
     let tour = use_signal(|| false);
 
+    use_effect(move || {
+        let tag = if lang() == Lang::Fr { "fr" } else { "en" };
+        let _ = document::eval(&format!("document.documentElement.lang = '{tag}';"));
+    });
+
     // Restores the draft, then saves it whenever it changed.
     use_future(move || async move {
         let language = Lang::from_tag(&platform::interface_language().await);
@@ -181,10 +186,13 @@ pub fn App() -> Element {
                     }
                 }
             }
-            div { class: "status-line", role: "status", "aria-live": "polite",
-                if let Some(message) = notice() {
-                    span { "{message}" }
-                    button { class: "link", "aria-label": "OK", onclick: move |_| notice.set(None), "✕" }
+            div { class: "status-line",
+                // Only the notices are announced, not the "saved" mark after every keystroke.
+                span { role: "status",
+                    if let Some(message) = notice() {
+                        span { "{message}" }
+                        button { class: "link", "aria-label": "{t.close}", title: "{t.close}", onclick: move |_| notice.set(None), "✕" }
+                    }
                 }
                 if saved() { span { class: "muted saved", "{t.saved_locally}" } }
             }

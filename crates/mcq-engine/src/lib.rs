@@ -13,7 +13,7 @@ pub use time::{
     PACE_ALERT_BUDGETS, PACE_REARM_BUDGETS, PaceGauge, TimeStatus, WARNING_SECONDS, format_duration,
 };
 
-use mcq_model::{Answer, LogEntry, LogKind, Paper, Submission};
+use mcq_model::{Answer, LogEntry, LogKind, Paper, Submission, TimeExtension};
 
 /// One question as this student sees it.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -41,6 +41,8 @@ pub struct Session {
     pub log: Vec<LogEntry>,
     /// The pace alert fired and has not been re-armed yet.
     pub pace_alerted: bool,
+    /// Extra time the student declared before starting.
+    pub extension: TimeExtension,
 }
 
 impl Session {
@@ -69,6 +71,22 @@ impl Session {
             items,
             ..Self::default()
         }
+    }
+
+    /// Declares extra time. Only before the exam starts, so the declaration is not a way out of
+    /// a late finish; returns false once the clock has run or the copy is handed in.
+    pub fn set_extension(&mut self, extension: TimeExtension) -> bool {
+        if self.submitted || self.elapsed_seconds > 0 {
+            return false;
+        }
+        self.extension = extension;
+        true
+    }
+
+    /// This student's time limit in seconds, extension included; 0 means no limit.
+    pub fn limit_seconds(&self, paper: &Paper) -> u32 {
+        self.extension
+            .apply(paper.duration_minutes.saturating_mul(60))
     }
 
     pub fn current_item(&self) -> Option<&SessionItem> {
@@ -215,6 +233,7 @@ impl Session {
             focus_losses: self.focus_losses,
             seconds_away: self.seconds_away,
             log: self.log.clone(),
+            extension: self.extension,
         }
     }
 

@@ -2,12 +2,13 @@
 //! or a closed tab loses nothing. It holds the student's own answers only, never the paper.
 
 use mcq_format::binary::{ByteReader, ByteWriter, DecodeError};
-use mcq_model::{LogEntry, LogKind};
+use mcq_model::{LogEntry, LogKind, TimeExtension};
 
 use crate::{Session, SessionItem};
 
 const MAGIC: &[u8; 4] = b"MCQS";
-const VERSION: u8 = 1;
+/// Version 2 adds the declared time extension; a version 1 save resumes without one.
+const VERSION: u8 = 2;
 
 pub fn encode_session(s: &Session) -> Vec<u8> {
     let mut w = ByteWriter::new();
@@ -21,6 +22,7 @@ pub fn encode_session(s: &Session) -> Vec<u8> {
         .u32(s.focus_losses)
         .u32(s.seconds_away)
         .u8(u8::from(s.pace_alerted))
+        .u8(s.extension.code())
         .u32(index(s.items.len()));
     for item in &s.items {
         w.str(&item.question_id)
@@ -51,7 +53,7 @@ pub fn decode_session(data: &[u8]) -> Result<Session, DecodeError> {
         return Err(DecodeError::Invalid("not a saved session"));
     }
     let version = r.u8()?;
-    if version != VERSION {
+    if !(1..=VERSION).contains(&version) {
         return Err(DecodeError::UnsupportedVersion(version));
     }
     let paper_id = r.fixed()?;
@@ -62,6 +64,11 @@ pub fn decode_session(data: &[u8]) -> Result<Session, DecodeError> {
     let focus_losses = r.u32()?;
     let seconds_away = r.u32()?;
     let pace_alerted = flag(r.u8()?)?;
+    let extension = if version >= 2 {
+        TimeExtension::from_code(r.u8()?).ok_or(DecodeError::Invalid("unknown time extension"))?
+    } else {
+        TimeExtension::None
+    };
     let count = r.count(13)?;
     let mut items = Vec::with_capacity(count);
     for _ in 0..count {
@@ -108,6 +115,7 @@ pub fn decode_session(data: &[u8]) -> Result<Session, DecodeError> {
         seconds_away,
         log,
         pace_alerted,
+        extension,
     })
 }
 

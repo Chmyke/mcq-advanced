@@ -11,7 +11,7 @@ use mcq_analysis::{Adjustment, Anomaly, Decision, Finding, Report, csv};
 use mcq_crypto::Identity;
 use mcq_grade::Mastery;
 use mcq_math::Formulas;
-use mcq_model::{Block, Paper};
+use mcq_model::{Block, Paper, TimeExtension};
 use mcq_player::{b64, markdown, render};
 
 use crate::correction::{Correction, Refusal};
@@ -310,6 +310,17 @@ fn anomaly_line(anomaly: &Anomaly, c: &CorrectTexts) -> String {
                 ("minutes", minutes(*seconds_away)),
             ],
         ),
+        Anomaly::ExtraTime {
+            name,
+            extension: TimeExtension::Untimed,
+        } => fill(c.untimed, &[("name", name.clone())]),
+        Anomaly::ExtraTime { name, extension } => fill(
+            c.extra_time,
+            &[
+                ("name", name.clone()),
+                ("extension", extension.label().to_string()),
+            ],
+        ),
         Anomaly::Overtime { name, seconds } => fill(
             c.overtime,
             &[("name", name.clone()), ("minutes", minutes(*seconds))],
@@ -524,7 +535,7 @@ pub fn report_view(
             h2 { "{c.marks_title}" }
             div { class: "table-scroll",
                 table { class: "marks",
-                    thead { tr { for (k, col) in c.columns.iter().enumerate() { th { key: "{k}", scope: "col", "{col}" } } th {} } }
+                    thead { tr { for (k, col) in c.columns.iter().enumerate() { th { key: "{k}", scope: "col", "{col}" } } td {} } }
                     tbody {
                         for (name, mark, right, wrong, blank, mins, receipt) in rows {
                             tr { key: "{receipt}",

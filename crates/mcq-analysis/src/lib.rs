@@ -16,7 +16,7 @@ pub mod synth;
 pub mod timeline;
 
 use mcq_grade::{GradeResult, Mastery, Status};
-use mcq_model::{Answer, LogKind, Paper, Submission};
+use mcq_model::{Answer, LogKind, Paper, Submission, TimeExtension};
 
 pub use decision::{Adjustment, Decision};
 
@@ -72,6 +72,8 @@ pub struct StudentResult {
     pub elapsed_seconds: u32,
     pub focus_losses: u32,
     pub seconds_away: u32,
+    /// Declared by the student, for the teacher to check.
+    pub extension: TimeExtension,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -188,20 +190,11 @@ pub enum Finding {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Anomaly {
     /// The copy answers another package: left out of the analysis.
-    OtherPaper {
-        name: String,
-        receipt: String,
-    },
+    OtherPaper { name: String, receipt: String },
     /// Several copies under one name: all kept.
-    SameName {
-        name: String,
-        count: u32,
-    },
+    SameName { name: String, count: u32 },
     /// The copy answers questions the answer key does not have.
-    UnknownQuestions {
-        name: String,
-        count: usize,
-    },
+    UnknownQuestions { name: String, count: usize },
     /// Two copies with the same answers, wrong ones included.
     Identical {
         first: String,
@@ -213,15 +206,16 @@ pub enum Anomaly {
         times: u32,
         seconds_away: u32,
     },
-    Overtime {
+    /// Past the student's own limit, extension included.
+    Overtime { name: String, seconds: u32 },
+    /// Extra time declared by the student: not a fault, a point to check against the
+    /// teacher's own list of arrangements.
+    ExtraTime {
         name: String,
-        seconds: u32,
+        extension: TimeExtension,
     },
     /// Very good and very quick.
-    Fast {
-        name: String,
-        elapsed_seconds: u32,
-    },
+    Fast { name: String, elapsed_seconds: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -311,7 +305,7 @@ pub fn analyse_with(
                 .filter(|a| !decision::is_neutralized(&report.adjustments, &a.question_id))
                 .cloned()
                 .collect();
-            let grade = mcq_grade::grade(paper, &answers, s.elapsed_seconds);
+            let grade = mcq_grade::grade(paper, &answers, s.elapsed_seconds, s.extension);
             StudentResult {
                 name: s.student_name.clone(),
                 receipt: copy.receipt.clone(),
@@ -320,6 +314,7 @@ pub fn analyse_with(
                 elapsed_seconds: s.elapsed_seconds,
                 focus_losses: s.focus_losses,
                 seconds_away: s.seconds_away,
+                extension: s.extension,
             }
         })
         .collect();
@@ -723,6 +718,13 @@ fn anomalies(paper: &Paper, kept: &[&Copy], report: &Report) -> Vec<Anomaly> {
                 seconds_away: s.seconds_away,
             });
         }
+        if s.extension != TimeExtension::None {
+            out.push(Anomaly::ExtraTime {
+                name: s.student_name.clone(),
+                extension: s.extension,
+            });
+        }
+        let limit = s.extension.apply(limit);
         if limit > 0 && s.elapsed_seconds > limit {
             out.push(Anomaly::Overtime {
                 name: s.student_name.clone(),

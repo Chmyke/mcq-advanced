@@ -76,7 +76,7 @@ pub fn write_space(
         div { class: "write",
             {question_list(studio, &s, &issues, t)}
             div { class: "workspace",
-                div { class: "view-switch segmented", role: "group",
+                div { class: "view-switch segmented", role: "group", "aria-label": "{t.view_label}",
                     button { "aria-pressed": "{view == View::Visual}", onclick: move |_| studio.write().show_visual(), "{t.view_visual}" }
                     button { "aria-pressed": "{view == View::Source}", onclick: move |_| studio.write().show_source(), "{t.view_source}" }
                 }
@@ -343,7 +343,7 @@ fn question_editor(
                     }
                 }
             }
-            div { class: "segmented kinds", role: "group",
+            div { class: "segmented kinds", role: "group", "aria-label": "{t.kind_label}",
                 for (k, label) in kinds {
                     button {
                         key: "{label}",
@@ -455,7 +455,7 @@ fn question_editor(
                 }
             }
 
-            section { class: "advice", "aria-labelledby": "advice-title", "aria-live": "polite",
+            section { class: "advice", "aria-labelledby": "advice-title",
                 h2 { id: "advice-title", "{t.validator}" }
                 {issue_list(&mine, t, false)}
             }
@@ -550,6 +550,7 @@ fn IdField(
             input {
                 id: "q-id", r#type: "text", class: "mono", value: "{id}",
                 "aria-invalid": if error().is_some() { "true" } else { "false" },
+                "aria-describedby": error().is_some().then_some("q-id-error"),
                 onchange: move |e: FormEvent| {
                     let wanted = e.value().trim().to_string();
                     match studio.write().rename_question(&current, &wanted) {
@@ -560,7 +561,7 @@ fn IdField(
                     }
                 },
             }
-            if let Some(message) = error() { p { class: "error small-text", role: "alert", "{message}" } }
+            if let Some(message) = error() { p { id: "q-id-error", class: "error small-text", role: "alert", "{message}" } }
         }
     }
 }

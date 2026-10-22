@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 use mcq_crypto::{KeyUnlock, OpeningKind, PackageHeader, SealedResult};
 use mcq_engine::{Session, decode_session, encode_session};
 use mcq_grade::GradeResult;
-use mcq_model::Paper;
+use mcq_model::{Paper, TimeExtension};
 
 use crate::platform::{self, EVENTS_SCRIPT};
 use crate::render::{self, Opened};
@@ -59,6 +59,8 @@ pub fn App() -> Element {
     let mut resumed = use_signal(|| false);
     let mut dark = use_signal(|| None::<bool>);
     let mut text_scale = use_signal(|| 100_u32);
+    // Single-key shortcuts can be turned off (WCAG 2.1.4): speech input then ticks nothing by mistake.
+    let mut shortcuts = use_signal(|| true);
     let mut name = use_signal(String::new);
     let mut code = use_signal(String::new);
     let mut end_code = use_signal(String::new);
@@ -75,7 +77,12 @@ pub fn App() -> Element {
         if current != before {
             left.set(Some(before));
             last_current.set(current);
+            focus_question();
         }
+    });
+    use_effect(move || {
+        let tag = lang().tag();
+        let _ = document::eval(&format!("document.documentElement.lang = '{tag}';"));
     });
 
     use_future(move || async move {
@@ -137,6 +144,7 @@ pub fn App() -> Element {
                 continue;
             };
             match message.as_str() {
+                "k:Escape" if stage() == Stage::Confirm => close_confirm(stage),
                 "tick" => {
                     s.tick(1);
                     if let Some(seconds) = away() {
@@ -199,6 +207,12 @@ pub fn App() -> Element {
         Some(false) => "light",
         None => "auto",
     };
+    // The paper's own language, for its text read aloud (WCAG 3.1.2).
+    let paper_lang = opened
+        .read()
+        .as_ref()
+        .map(|o| o.paper.lang.clone())
+        .filter(|l| !l.is_empty());
     let header_title = opened
         .read()
         .as_ref()
@@ -313,6 +327,12 @@ pub fn App() -> Element {
             let Some(o) = opened.read().as_ref().map(Rc::clone) else {
                 return rsx! {};
             };
+            let (chosen, locked) = session
+                .read()
+                .as_ref()
+                .map_or((TimeExtension::None, true), |s| {
+                    (s.extension, s.elapsed_seconds > 0 || s.submitted)
+                });
             render::intro(
                 &o.paper,
                 &o.formulas,
@@ -320,6 +340,18 @@ pub fn App() -> Element {
                 t,
                 EventHandler::new(move |()| stage.set(Stage::Exam)),
                 resumed(),
+                render::ExtraTime {
+                    chosen,
+                    locked,
+                    on_change: EventHandler::new(move |extension| {
+                        let mut slot = session.write();
+                        if let Some(s) = slot.as_mut()
+                            && s.set_extension(extension)
+                        {
+                            save(s);
+                        }
+                    }),
+                },
             )
         }
         Stage::Exam | Stage::Confirm => {
@@ -370,29 +402,33 @@ pub fn App() -> Element {
             };
             rsx! {
                 div { class: "exam",
+                    h1 { class: "sr-only", "{o.paper.title}" }
                     div { class: "status-bar",
                         {render::clock(&status, s.elapsed_seconds, t)}
                         span { class: "progress", "{answered} / {total} {t.answered}" }
                     }
                     {render::segments(&s, gauge.map(|g| g.time_fraction), t, EventHandler::new(move |i: usize| go_to(session, i)))}
                     if let Some(gauge) = gauge { {render::pace_view(&gauge, left_delta, t)} }
-                    if status.overtime_seconds > 0 {
-                        p { class: "notice warn", role: "status", "{t.time_up}" }
-                    } else if status.final_warning {
-                        p { class: "notice warn", role: "status", "{t.final_warning}" }
-                    }
-                    if let Some(message) = notice() {
-                        p { class: "notice", role: "status",
-                            "{message} "
-                            button { class: "link", onclick: move |_| notice.set(None), "×" }
+                    // Always in the page, so screen readers announce what appears inside it.
+                    div { class: "live", role: "status",
+                        if status.overtime_seconds > 0 {
+                            p { class: "notice warn", "{t.time_up}" }
+                        } else if status.final_warning {
+                            p { class: "notice warn", "{t.final_warning}" }
+                        }
+                        if let Some(message) = notice() {
+                            p { class: "notice",
+                                "{message} "
+                                button { class: "link", "aria-label": "{t.close}", title: "{t.close}", onclick: move |_| notice.set(None), "×" }
+                            }
                         }
                     }
                     if stage() == Stage::Confirm {
-                        div { class: "confirm card", role: "dialog", "aria-modal": "true", "aria-labelledby": "confirm-title",
+                        div { class: "confirm card", role: "dialog", "aria-labelledby": "confirm-title",
                             h2 { id: "confirm-title", tabindex: "-1", "{t.confirm_title}" }
                             p { "{unanswered} {t.unanswered_left}, {flagged} {t.flagged_left}." }
                             div { class: "nav",
-                                button { onclick: move |_| stage.set(Stage::Exam), "{t.keep_working}" }
+                                button { onclick: move |_| close_confirm(stage), "{t.keep_working}" }
                                 button { class: "primary",
                                     onclick: move |_| {
                                         let Some(o) = opened.read().as_ref().map(Rc::clone) else { return };
@@ -427,7 +463,7 @@ pub fn App() -> Element {
                                         span { class: "nav-icon", "aria-hidden": "true", "⚑ " } span { class: "nav-label", "{t.next_flagged}" }
                                     }
                                 }
-                                button { class: if current + 1 == total { "end primary" } else { "end" },
+                                button { id: "finish", class: if current + 1 == total { "end primary" } else { "end" },
                                     onclick: move |_| open_confirm(stage), "{t.finish}"
                                 }
                             }
@@ -479,7 +515,7 @@ pub fn App() -> Element {
                         seconds_spent: i.seconds_spent,
                     })
                     .collect();
-                let result = mcq_grade::grade(&full, &copy_answers, s.elapsed_seconds);
+                let result = mcq_grade::grade(&full, &copy_answers, s.elapsed_seconds, s.extension);
                 error.set(None);
                 review.set(ReviewState::default());
                 let formulas = opened
@@ -570,7 +606,8 @@ pub fn App() -> Element {
 
     rsx! {
         style { {STYLE} }
-        div { class: "app", "data-theme": "{theme}", style: "font-size: {text_scale}%",
+        div { class: "app", "data-theme": "{theme}", "data-shortcuts": if shortcuts() { "on" } else { "off" },
+            style: "font-size: {text_scale}%",
             header { class: "top",
                 span { class: "brand", "{header_title}" }
                 div { class: "prefs",
@@ -583,12 +620,17 @@ pub fn App() -> Element {
                         onclick: move |_| text_scale.set(text_scale().saturating_sub(10).max(80)), "A−" }
                     button { "aria-label": "{t.text_larger}", title: "{t.text_larger}",
                         onclick: move |_| text_scale.set((text_scale() + 10).min(160)), "A+" }
-                    button { onclick: move |_| lang.set(if lang() == Lang::Fr { Lang::En } else { Lang::Fr }),
+                    button { "aria-pressed": "{shortcuts()}", "aria-label": "{t.shortcuts}", title: "{t.shortcuts}",
+                        onclick: move |_| shortcuts.set(!shortcuts()), "⌨"
+                    }
+                    button { "aria-label": "{t.language_name}", title: "{t.language_name}",
+                        lang: if lang() == Lang::Fr { "en" } else { "fr" },
+                        onclick: move |_| lang.set(if lang() == Lang::Fr { Lang::En } else { Lang::Fr }),
                         if lang() == Lang::Fr { "EN" } else { "FR" }
                     }
                 }
             }
-            main { {content} }
+            main { lang: paper_lang, {content} }
         }
     }
 }
@@ -605,6 +647,23 @@ fn go_to(mut session: Signal<Option<Session>>, index: usize) {
 fn keep_review_in_view() {
     let _ = document::eval(
         "setTimeout(() => { const g = document.querySelector('.review-guide');          if (g && g.getBoundingClientRect().top < 0) g.scrollIntoView(); }, 0);",
+    );
+}
+
+/// Back to the exam, the focus on the button that opened the hand-in question.
+fn close_confirm(mut stage: Signal<Stage>) {
+    stage.set(Stage::Exam);
+    let _ = document::eval(
+        "setTimeout(() => { const b = document.getElementById('finish'); if (b) b.focus(); }, 0);",
+    );
+}
+
+/// After moving to another question, the focus goes to its title when it was lost with the
+/// previous question's options, so keyboard and screen reader users start from the top.
+fn focus_question() {
+    let _ = document::eval(
+        "setTimeout(() => { const a = document.activeElement; \
+         if (!a || a === document.body) { const h = document.getElementById('q-title'); if (h) h.focus({ preventScroll: true }); } }, 0);",
     );
 }
 

@@ -17,6 +17,14 @@ impl Lang {
         }
     }
 
+    /// The BCP 47 tag, for the page's `lang` attribute.
+    pub fn tag(self) -> &'static str {
+        match self {
+            Lang::En => "en",
+            Lang::Fr => "fr",
+        }
+    }
+
     pub fn texts(self) -> &'static Texts {
         match self {
             Lang::En => &EN,
@@ -59,6 +67,11 @@ pub struct Texts {
     pub advice_with_idea: &'static str,
     pub advice_tick_only: &'static str,
     pub time_never_blocks: &'static str,
+    pub extra_time: &'static str,
+    /// One per `TimeExtension::ALL`, in that order.
+    pub extra_time_choices: [&'static str; 5],
+    pub extra_time_hint: &'static str,
+    pub extra_time_locked: &'static str,
     pub keyboard_hint: &'static str,
     pub start: &'static str,
     pub resume: &'static str,
@@ -75,6 +88,15 @@ pub struct Texts {
     pub next: &'static str,
     pub next_flagged: &'static str,
     pub overview: &'static str,
+    /// Spoken states of a question in the overview bar.
+    pub state_answered: &'static str,
+    pub state_unanswered: &'static str,
+    pub state_flagged: &'static str,
+    pub show: &'static str,
+    pub close: &'static str,
+    /// The toggle for single-key shortcuts (WCAG 2.1.4).
+    pub shortcuts: &'static str,
+    pub language_name: &'static str,
     pub time_left: &'static str,
     pub elapsed: &'static str,
     pub overtime: &'static str,
@@ -193,6 +215,16 @@ pub static EN: Texts = Texts {
     advice_with_idea: "Answer whenever you have an idea; leave blank only if you have none.",
     advice_tick_only: "Tick only when you have an idea: blind guesses cost points on average.",
     time_never_blocks: "Time never closes your paper: running over is only written on your copy.",
+    extra_time: "Extra time",
+    extra_time_choices: [
+        "None",
+        "One third more",
+        "Half as much again",
+        "Double time",
+        "No time limit",
+    ],
+    extra_time_hint: "Only if an arrangement was granted to you: your teacher sees your choice on your copy.",
+    extra_time_locked: "Set before the start; it can no longer change.",
     keyboard_hint: "Keys: A to F or 1 to 9 tick, arrows or Enter move, M or Space flags for review.",
     start: "Start",
     resume: "Resume",
@@ -204,6 +236,13 @@ pub static EN: Texts = Texts {
     several_answers: "Several answers",
     tick: "to tick",
     flag: "Flag for review",
+    state_answered: "answered",
+    state_unanswered: "not answered",
+    state_flagged: "flagged for review",
+    show: "Show",
+    close: "Close",
+    shortcuts: "Keyboard shortcuts",
+    language_name: "Français",
     unflag: "Unflag",
     previous: "Previous",
     next: "Next",
@@ -323,6 +362,16 @@ pub static FR: Texts = Texts {
     advice_with_idea: "Répondez dès que vous avez une idée ; ne laissez blanc que sans aucune idée.",
     advice_tick_only: "Ne cochez que si vous avez une idée : le hasard coûte des points en moyenne.",
     time_never_blocks: "Le temps ne ferme jamais votre copie : un dépassement est seulement noté dessus.",
+    extra_time: "Temps majoré",
+    extra_time_choices: [
+        "Aucun",
+        "Tiers-temps (+1/3)",
+        "Moitié en plus (+1/2)",
+        "Temps double",
+        "Sans limite de temps",
+    ],
+    extra_time_hint: "Seulement si un aménagement vous a été accordé : votre enseignant voit votre choix sur votre copie.",
+    extra_time_locked: "Choisi avant le début, il ne peut plus changer.",
     keyboard_hint: "Clavier : A à F ou 1 à 9 pour cocher, flèches ou Entrée pour avancer, M ou Espace pour marquer à revoir.",
     start: "Commencer",
     resume: "Reprendre",
@@ -334,6 +383,13 @@ pub static FR: Texts = Texts {
     several_answers: "Plusieurs réponses",
     tick: "à cocher",
     flag: "Marquer à revoir",
+    state_answered: "répondue",
+    state_unanswered: "sans réponse",
+    state_flagged: "marquée à revoir",
+    show: "Afficher",
+    close: "Fermer",
+    shortcuts: "Raccourcis clavier",
+    language_name: "English",
     unflag: "Ne plus marquer",
     previous: "Précédente",
     next: "Suivante",

@@ -61,7 +61,7 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
             }
             fieldset { class: "card", disabled: !editable,
                 legend { "{t.settings_scoring}" }
-                div { class: "segmented", role: "radiogroup",
+                div { class: "segmented", role: "group", "aria-label": "{t.settings_scoring}",
                     button { "aria-pressed": "{!partial}", onclick: move |_| studio.write().edit_paper(|p| p.scoring = Scoring::AllOrNothing), "{t.scoring_all_or_nothing}" }
                     button { "aria-pressed": "{partial}", onclick: move |_| studio.write().edit_paper(|p| p.scoring = Scoring::Partial), "{t.scoring_partial}" }
                 }
