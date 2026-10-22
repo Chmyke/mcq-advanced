@@ -321,6 +321,83 @@ pub struct AnswerOption {
     pub explanation: String,
 }
 
+/// Category of a piece of highlighted code; each theme gives each kind a colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenKind {
+    Plain,
+    Keyword,
+    Type,
+    Function,
+    String,
+    Number,
+    Constant,
+    Comment,
+    Operator,
+}
+
+impl TokenKind {
+    pub const ALL: [TokenKind; 9] = [
+        TokenKind::Plain,
+        TokenKind::Keyword,
+        TokenKind::Type,
+        TokenKind::Function,
+        TokenKind::String,
+        TokenKind::Number,
+        TokenKind::Constant,
+        TokenKind::Comment,
+        TokenKind::Operator,
+    ];
+
+    pub fn code(self) -> u8 {
+        match self {
+            TokenKind::Plain => 0,
+            TokenKind::Keyword => 1,
+            TokenKind::Type => 2,
+            TokenKind::Function => 3,
+            TokenKind::String => 4,
+            TokenKind::Number => 5,
+            TokenKind::Constant => 6,
+            TokenKind::Comment => 7,
+            TokenKind::Operator => 8,
+        }
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.code() == code)
+    }
+
+    /// Stable name, used as a CSS class suffix.
+    pub fn name(self) -> &'static str {
+        match self {
+            TokenKind::Plain => "plain",
+            TokenKind::Keyword => "keyword",
+            TokenKind::Type => "type",
+            TokenKind::Function => "function",
+            TokenKind::String => "string",
+            TokenKind::Number => "number",
+            TokenKind::Constant => "constant",
+            TokenKind::Comment => "comment",
+            TokenKind::Operator => "operator",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenRun {
+    pub kind: TokenKind,
+    pub text: String,
+}
+
+/// The highlighted form of one code block, computed when the paper is published.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeTokens {
+    pub question_id: String,
+    /// Index of the block among the question's code blocks, from 0.
+    pub block: u32,
+    /// One entry per source line.
+    pub lines: Vec<Vec<TokenRun>>,
+}
+
 /// What the student ticked on one question of their session.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Answer {

@@ -6,8 +6,8 @@ the results tell the class what to revisit, topic by topic.
 
 **Status: early development.** There is no usable release yet. The core works from the command
 line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
-encrypted packages, answer key apart, copies sealed for the teacher). The player and the editor
-come next. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
+encrypted packages, answer key apart, copies sealed for the teacher). The student player runs in
+the browser and on the desktop. The editor comes next. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
 encryption, export and cohort analysis are carried over.
 
 ## Principles
@@ -74,6 +74,23 @@ cargo run -p mcq-cli -- publish my-paper/my-paper.qcm.md --identity teacher.mcqi
 The first command creates the teacher identity; the second prints the opening code to give when
 the exam starts, and an end code that opens the correction later. Both read the passphrase from
 the first line of input. See [security](SECURITY.md) for what is guaranteed and what is not.
+
+## Taking a paper
+
+The player opens a `.mcqpack` file, or a link such as `index.html?paper=exam.mcqpack`. It shows the
+teacher's fingerprint, asks for the student's name and the opening code, then runs the exam:
+coloured code, images, sound and video, single and multiple answers (announced before reading),
+flags for review, an overview grid, keyboard keys, light and dark themes, larger text, and a save
+after every click so a closed tab loses nothing. At the end it seals the copy and shows a receipt
+code; practice papers, or the teacher's end code, show the correction.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1
+cargo run -p mcq-player --features desktop
+```
+
+The first builds the static web player into `target/web/player`; the second opens the desktop
+window.
 
 ## Building and checking
 

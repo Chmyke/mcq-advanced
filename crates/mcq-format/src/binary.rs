@@ -3,7 +3,7 @@
 //! Little-endian integers, `u32` length prefixes. Decoding never panics and never trusts a
 //! length: every read is bounded by the bytes actually present.
 
-use mcq_model::{Answer, LogEntry, LogKind, Submission};
+use mcq_model::{Answer, CodeTokens, LogEntry, LogKind, Submission, TokenKind, TokenRun};
 
 /// Why bytes could not be decoded.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -172,6 +172,10 @@ pub struct Entry {
 }
 
 const ARCHIVE_VERSION: u8 = 1;
+const TOKENS_VERSION: u8 = 1;
+
+/// Name of the highlighted code inside package archives.
+pub const CODE_TOKENS_FILE: &str = "code.tokens";
 const SUBMISSION_VERSION: u8 = 1;
 
 /// Encodes files in the given order.
@@ -299,6 +303,60 @@ pub fn decode_submission(data: &[u8]) -> Result<Submission, DecodeError> {
     })
 }
 
+pub fn encode_code_tokens(blocks: &[CodeTokens]) -> Vec<u8> {
+    let mut w = ByteWriter::new();
+    w.u8(TOKENS_VERSION)
+        .u32(u32::try_from(blocks.len()).expect("fewer than 4 billion blocks"));
+    for block in blocks {
+        w.str(&block.question_id)
+            .u32(block.block)
+            .u32(u32::try_from(block.lines.len()).expect("fewer than 4 billion lines"));
+        for line in &block.lines {
+            w.u32(u32::try_from(line.len()).expect("fewer than 4 billion runs"));
+            for run in line {
+                w.u8(run.kind.code()).str(&run.text);
+            }
+        }
+    }
+    w.into_vec()
+}
+
+pub fn decode_code_tokens(data: &[u8]) -> Result<Vec<CodeTokens>, DecodeError> {
+    let mut r = ByteReader::new(data);
+    let version = r.u8()?;
+    if version != TOKENS_VERSION {
+        return Err(DecodeError::UnsupportedVersion(version));
+    }
+    let count = r.count(12)?;
+    let mut blocks = Vec::with_capacity(count);
+    for _ in 0..count {
+        let question_id = r.str()?.to_string();
+        let block = r.u32()?;
+        let n_lines = r.count(4)?;
+        let mut lines = Vec::with_capacity(n_lines);
+        for _ in 0..n_lines {
+            let n_runs = r.count(5)?;
+            let mut runs = Vec::with_capacity(n_runs);
+            for _ in 0..n_runs {
+                let kind =
+                    TokenKind::from_code(r.u8()?).ok_or(DecodeError::Invalid("token kind"))?;
+                runs.push(TokenRun {
+                    kind,
+                    text: r.str()?.to_string(),
+                });
+            }
+            lines.push(runs);
+        }
+        blocks.push(CodeTokens {
+            question_id,
+            block,
+            lines,
+        });
+    }
+    r.finish()?;
+    Ok(blocks)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,6 +384,32 @@ mod tests {
                 LogEntry::new(10, LogKind::Tick, "q1", "q1-o2"),
                 LogEntry::new(40, LogKind::FocusLost, "", ""),
             ],
+        }
+    }
+
+    #[test]
+    fn code_tokens_round_trip() {
+        let blocks = vec![CodeTokens {
+            question_id: "q1".into(),
+            block: 0,
+            lines: vec![
+                vec![
+                    TokenRun {
+                        kind: TokenKind::Keyword,
+                        text: "int".into(),
+                    },
+                    TokenRun {
+                        kind: TokenKind::Plain,
+                        text: " x = ".into(),
+                    },
+                ],
+                vec![],
+            ],
+        }];
+        let bytes = encode_code_tokens(&blocks);
+        assert_eq!(decode_code_tokens(&bytes), Ok(blocks));
+        for len in 0..bytes.len() {
+            assert!(decode_code_tokens(&bytes[..len]).is_err(), "length {len}");
         }
     }
 

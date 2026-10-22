@@ -189,6 +189,15 @@ pub fn publish(args: &[String]) -> ExitCode {
         }
     }
 
+    // Code is coloured once, here, so players only map token kinds to theme colours.
+    let tokens = mcq_highlight::Highlighter::new().paper(&paper);
+    if !tokens.is_empty() {
+        media.push(Entry {
+            path: mcq_format::binary::CODE_TOKENS_FILE.to_string(),
+            data: mcq_format::binary::encode_code_tokens(&tokens),
+        });
+    }
+
     let identity = match unlock(identity_path) {
         Ok(identity) => identity,
         Err(e) => return fail(e),

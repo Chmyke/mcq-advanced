@@ -4,9 +4,8 @@ MCQ Advanced is open source, so nothing it protects may depend on hidden code. P
 from keys alone (Kerckhoffs's principle), built from standard primitives with no home-made
 cryptography. This page says what is guaranteed, what is not, and how it works.
 
-**Status:** the cryptographic core and the command line are implemented and tested; the player
-and the editor that will use them are not released yet. Drawing and shuffling per student come
-with the player.
+**Status:** the cryptographic core, the command line and the student player are implemented and
+tested; the editor is not released yet.
 
 ## Reporting a vulnerability
 
@@ -31,6 +30,10 @@ photograph or a memory dump. The guarantees below hold within that limit.
 | Searching the web during the exam | Focus losses are **detected and reported, not prevented**. |
 
 Practice packages have no opening code: their answers are readable at once, and the player says so.
+
+The player saves the session after every change in the browser's storage, on the student's own
+device: the answers given so far, never the paper nor its answers. It renders the paper's Markdown
+without raw HTML, links or remote images, so a paper cannot run code in the player.
 
 ## Keys and codes
 

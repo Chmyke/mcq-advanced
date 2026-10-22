@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/*", "apps/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -22,6 +22,7 @@ mcq-grade = { path = "crates/mcq-grade" }
 mcq-lint = { path = "crates/mcq-lint" }
 mcq-crypto = { path = "crates/mcq-crypto" }
 mcq-engine = { path = "crates/mcq-engine" }
+mcq-highlight = { path = "crates/mcq-highlight" }
 
 # Cryptography is slow without optimisation; dependencies are optimised even in tests.
 [profile.dev.package."*"]
