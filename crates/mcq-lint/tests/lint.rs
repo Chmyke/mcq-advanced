@@ -13,6 +13,7 @@ fn clean(n: usize) -> Paper {
         id: "fruit".into(),
         title: "Fruit".into(),
         course_ref: "Fruit, chapter 1".into(),
+        ..Theme::default()
     });
     let fruits = [
         "banana", "apple", "cherry", "lemon", "grape", "melon", "peach", "plum", "kiwi", "mango",

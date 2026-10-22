@@ -74,6 +74,15 @@ fn sample_paper() -> Paper {
     paper
 }
 
+/// What an answer key holds: the paper without the author's notes.
+fn without_notes(mut paper: Paper) -> Paper {
+    paper.notes.clear();
+    for theme in &mut paper.themes {
+        theme.notes.clear();
+    }
+    paper
+}
+
 fn media() -> Vec<Entry> {
     vec![
         Entry {
@@ -220,12 +229,15 @@ fn wrong_codes_open_nothing() {
 #[test]
 fn teacher_and_end_code_open_the_full_paper() {
     let exam = exam("key");
+    // Author notes never travel: students read the answer key once the end code is out.
+    assert!(!sample_paper().notes.is_empty());
+    let expected = without_notes(sample_paper());
     let by_teacher =
         open_answer_key(&exam.package, KeyUnlock::Teacher(&exam.teacher)).expect("teacher");
-    assert_eq!(by_teacher, sample_paper());
+    assert_eq!(by_teacher, expected);
     let by_end_code =
         open_answer_key(&exam.package, KeyUnlock::EndCode(&exam.end_code)).expect("end code");
-    assert_eq!(by_end_code, sample_paper());
+    assert_eq!(by_end_code, expected);
 }
 
 #[test]
@@ -278,7 +290,7 @@ fn passphrase_and_practice_packages() {
     assert!(open(&practice, "").is_ok());
     assert_eq!(
         open_answer_key(&practice, KeyUnlock::Practice),
-        Ok(paper.clone())
+        Ok(without_notes(paper.clone()))
     );
     assert_eq!(
         publish(

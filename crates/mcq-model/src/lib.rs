@@ -132,6 +132,8 @@ pub struct Paper {
     pub shuffle_options: bool,
     /// Tell the student how many options to tick on multiple-answer questions.
     pub show_answer_count: bool,
+    /// Author notes written before the first theme: kept in the source, never shown to students.
+    pub notes: String,
     pub themes: Vec<Theme>,
     pub questions: Vec<Question>,
 }
@@ -178,6 +180,8 @@ pub struct Theme {
     pub title: String,
     /// Where to revise in the course material.
     pub course_ref: String,
+    /// Author notes written between the theme header and its first question.
+    pub notes: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -295,7 +299,9 @@ impl MediaKind {
         let ext = path.rsplit_once('.')?.1.to_ascii_lowercase();
         match ext.as_str() {
             "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "avif" => Some(MediaKind::Image),
-            "mp3" | "ogg" | "oga" | "wav" | "m4a" | "opus" | "flac" => Some(MediaKind::Audio),
+            "mp3" | "ogg" | "oga" | "wav" | "m4a" | "opus" | "flac" | "weba" => {
+                Some(MediaKind::Audio)
+            }
             "mp4" | "webm" | "ogv" | "mov" => Some(MediaKind::Video),
             _ => None,
         }

@@ -291,7 +291,7 @@ pub fn App() -> Element {
                     item,
                     current,
                     total,
-                    &o,
+                    o.content(),
                     t,
                     EventHandler::new(move |option: String| {
                         if let Some(s) = session.write().as_mut() {
@@ -458,7 +458,7 @@ pub fn App() -> Element {
             ) else {
                 return rsx! {};
             };
-            render::review_view(&g.full, &s, &g.result, t, &o)
+            render::review_view(&g.full, &s, &g.result, t, o.content())
         }
     };
 

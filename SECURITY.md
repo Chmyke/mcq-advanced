@@ -78,7 +78,7 @@ public keys, Argon2id settings, two salts), then:
 3. the answer key's key, sealed with HPKE for the teacher;
 4. the same key encrypted under the end code, when there is one;
 5. the same key in clear, for practice packages only;
-6. the full paper, encrypted under the answer key's key;
+6. the full paper, author notes removed, encrypted under the answer key's key;
 7. an Ed25519 signature over everything before it.
 
 Each encrypted field is bound to the header (SHA-256 of the header plus a label naming the

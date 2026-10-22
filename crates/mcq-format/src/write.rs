@@ -11,6 +11,9 @@ use mcq_model::{Block, Level, Paper, Question, Scoring};
 pub fn write(paper: &Paper) -> String {
     let mut out = String::new();
     write_header(&mut out, paper);
+    if !paper.notes.is_empty() {
+        let _ = writeln!(out, "{}", paper.notes);
+    }
     // Questions without a theme can only come first, before any `# THEME`.
     for question in paper.questions.iter().filter(|q| q.theme_id.is_empty()) {
         write_question(&mut out, question);
@@ -25,6 +28,9 @@ pub fn write(paper: &Paper) -> String {
         if !theme.course_ref.is_empty() {
             let _ = writeln!(out, "COURSE: {}", theme.course_ref);
         }
+        if !theme.notes.is_empty() {
+            let _ = writeln!(out, "{}", theme.notes);
+        }
         for question in paper.questions.iter().filter(|q| q.theme_id == theme.id) {
             write_question(&mut out, question);
         }
@@ -32,10 +38,14 @@ pub fn write(paper: &Paper) -> String {
     out
 }
 
-/// What students receive: no correct flag, no explanation, no rule, but the number of options
-/// to tick on every question, so multiple-answer questions stay announced.
+/// What students receive: no correct flag, no explanation, no rule, no author note, but the
+/// number of options to tick on every question, so multiple-answer questions stay announced.
 pub fn student_view(paper: &Paper) -> Paper {
     let mut copy = paper.clone();
+    copy.notes.clear();
+    for theme in &mut copy.themes {
+        theme.notes.clear();
+    }
     for question in &mut copy.questions {
         question.declared_answers = u32::try_from(question.answers_to_tick()).unwrap_or(u32::MAX);
         question.rule.clear();

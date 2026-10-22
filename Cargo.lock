@@ -3158,9 +3158,9 @@ dependencies = [
  "getrandom 0.4.3",
  "mcq-crypto",
  "mcq-format",
- "mcq-highlight",
  "mcq-lint",
  "mcq-model",
+ "mcq-publish",
 ]
 
 [[package]]
@@ -3175,6 +3175,16 @@ dependencies = [
  "mcq-model",
  "sha2 0.11.0",
  "zeroize",
+]
+
+[[package]]
+name = "mcq-edit"
+version = "0.1.0"
+dependencies = [
+ "mcq-format",
+ "mcq-lint",
+ "mcq-model",
+ "zip",
 ]
 
 [[package]]
@@ -3234,6 +3244,35 @@ dependencies = [
  "mcq-highlight",
  "mcq-model",
  "pulldown-cmark",
+ "web-sys",
+]
+
+[[package]]
+name = "mcq-publish"
+version = "0.1.0"
+dependencies = [
+ "mcq-crypto",
+ "mcq-format",
+ "mcq-highlight",
+ "mcq-lint",
+ "mcq-model",
+]
+
+[[package]]
+name = "mcq-studio"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "dioxus-ssr",
+ "getrandom 0.4.3",
+ "mcq-crypto",
+ "mcq-edit",
+ "mcq-engine",
+ "mcq-format",
+ "mcq-highlight",
+ "mcq-model",
+ "mcq-player",
+ "mcq-publish",
  "web-sys",
 ]
 
@@ -5703,6 +5742,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "typed-path"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54ec2755506471f54baf5e4bb5499d8e510cc1caf271270e778a736bd2d7336c"
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6719,6 +6764,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zip"
+version = "8.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b"
+dependencies = [
+ "crc32fast",
+ "flate2",
+ "indexmap",
+ "memchr",
+ "typed-path",
+ "zopfli",
+]
+
+[[package]]
 name = "zlib-rs"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6729,6 +6788,18 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[package]]
+name = "zopfli"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f05cd8797d63865425ff89b5c4a48804f35ba0ce8d125800027ad6017d2b5249"
+dependencies = [
+ "bumpalo",
+ "crc32fast",
+ "log",
+ "simd-adler32",
+]
 
 [[package]]
 name = "zune-core"

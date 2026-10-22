@@ -114,7 +114,7 @@ fn question_html(question_id: &'static str) -> String {
             &item,
             index,
             session.items.len(),
-            &opened,
+            opened.content(),
             Lang::En.texts(),
             EventHandler::new(|_: String| {}),
             EventHandler::new(|()| {}),
@@ -203,7 +203,7 @@ fn practice_and_correction_show_the_answers_after_hand_in() {
         session.toggle(&opened.paper, "fruit-banana-colour-o1");
         let copy = session.submit();
         let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
-        render::review_view(&full, &session, &result, Lang::En.texts(), &opened)
+        render::review_view(&full, &session, &result, Lang::En.texts(), opened.content())
     });
     assert!(html.contains("6.67 / 20"), "one of three right: {html}");
     assert!(

@@ -17,6 +17,7 @@ fn paper(n: usize, t: usize) -> Paper {
             id: format!("t{i}"),
             title: format!("Theme {i}"),
             course_ref: "Chapter".into(),
+            ..Theme::default()
         });
     }
     for i in 0..n {

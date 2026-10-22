@@ -28,7 +28,7 @@ shuffleQuestions: true
 shuffleOptions: true
 showAnswerCount: true
 ---
-Notes before the first theme are for the author and are ignored.
+Notes before the first theme are for the author: kept in the source, never shown to students.
 
 # THEME loops | Counting loops
 COURSE: Chapter 2, loops
@@ -85,6 +85,8 @@ reported and ignored.
   many options to tick; student copies carry it because they carry no `[x]`. In a paper with
   its answers it must match the options marked correct.
 - Every other line until the options is the statement, in Markdown.
+- Lines outside any question (before the first theme, or between a theme header and its first
+  question) are author notes: editors keep them, packages and student copies drop them.
 
 ## Statement content
 
@@ -92,7 +94,7 @@ reported and ignored.
   ```` ```cpp ````, ```` ```python ````... Lines to emphasise go in braces: ```` ```cs {3,5-6} ````.
   Tabs become four spaces. Text, code and media keep their order.
 - **Media**: a line holding only `![text alternative](media/file.ext)`. Images (`png`, `jpg`,
-  `gif`, `webp`, `svg`, `avif`), sounds (`mp3`, `ogg`, `wav`, `m4a`, `opus`, `flac`) and videos
+  `gif`, `webp`, `svg`, `avif`), sounds (`mp3`, `ogg`, `wav`, `m4a`, `opus`, `flac`, `weba`) and videos
   (`mp4`, `webm`, `ogv`, `mov`). Paths are relative to the paper and stay inside its folder. The
   text alternative is what a student who cannot see or hear the media gets.
 

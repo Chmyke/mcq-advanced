@@ -22,15 +22,17 @@ foreach ($step in $scripts) {
 # Native tools write progress to stderr: keep it from turning into terminating errors.
 $ErrorActionPreference = 'Continue'
 # The pure core must build for the browser: no file, clock or window inside it.
-$core = @('-p', 'mcq-model', '-p', 'mcq-format', '-p', 'mcq-grade', '-p', 'mcq-lint', '-p', 'mcq-crypto', '-p', 'mcq-engine')
+$core = @('-p', 'mcq-model', '-p', 'mcq-format', '-p', 'mcq-grade', '-p', 'mcq-lint', '-p', 'mcq-crypto', '-p', 'mcq-engine', '-p', 'mcq-edit', '-p', 'mcq-publish')
 $cargo = @(
     @{ Name = 'rustfmt'; Args = @('fmt', '--all', '--check') },
     @{ Name = 'clippy'; Args = @('clippy', '--workspace', '--all-targets', '--quiet', '--', '-D', 'warnings') },
     @{ Name = 'tests'; Args = @('test', '--workspace', '--quiet') },
     @{ Name = 'wasm core'; Args = @('build', '--quiet', '--target', 'wasm32-unknown-unknown') + $core },
-    # The player in both shells: the browser build and the desktop window.
+    # Both apps in both shells: the browser build and the desktop window.
     @{ Name = 'player web'; Args = @('build', '--quiet', '--target', 'wasm32-unknown-unknown', '-p', 'mcq-player', '--features', 'web') },
-    @{ Name = 'player desktop'; Args = @('check', '--quiet', '-p', 'mcq-player', '--features', 'desktop') }
+    @{ Name = 'player desktop'; Args = @('check', '--quiet', '-p', 'mcq-player', '--features', 'desktop') },
+    @{ Name = 'studio web'; Args = @('build', '--quiet', '--target', 'wasm32-unknown-unknown', '-p', 'mcq-studio', '--features', 'web') },
+    @{ Name = 'studio desktop'; Args = @('check', '--quiet', '-p', 'mcq-studio', '--features', 'desktop') }
 )
 Push-Location $root
 try {

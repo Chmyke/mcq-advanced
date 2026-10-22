@@ -49,6 +49,25 @@ impl Opened {
         })
     }
 
+    pub fn content(&self) -> Content<'_> {
+        Content {
+            paper: &self.paper,
+            media: &self.media,
+            tokens: &self.tokens,
+        }
+    }
+}
+
+/// What the question views draw from: a paper, its media as `data:` URLs and its coloured code.
+/// The player takes it from an opened package; the Studio's preview from the paper being edited.
+#[derive(Clone, Copy)]
+pub struct Content<'a> {
+    pub paper: &'a Paper,
+    pub media: &'a BTreeMap<String, String>,
+    pub tokens: &'a [CodeTokens],
+}
+
+impl Content<'_> {
     fn tokens(&self, question_id: &str, block: usize) -> Option<&CodeTokens> {
         self.tokens
             .iter()
@@ -74,6 +93,7 @@ pub fn mime(path: &str) -> &'static str {
         "wav" => "audio/wav",
         "m4a" => "audio/mp4",
         "flac" => "audio/flac",
+        "weba" => "audio/webm",
         "mp4" => "video/mp4",
         "webm" => "video/webm",
         "ogv" => "video/ogg",
@@ -126,7 +146,7 @@ pub fn code_block(code: &CodeBlock, tokens: Option<&CodeTokens>) -> Element {
     }
 }
 
-pub fn body(question: &Question, opened: &Opened) -> Element {
+pub fn body(question: &Question, content: Content<'_>) -> Element {
     let mut code_index = 0;
     let blocks: Vec<Element> = question
         .body
@@ -137,12 +157,12 @@ pub fn body(question: &Question, opened: &Opened) -> Element {
                 rsx! { div { class: "prose", dangerous_inner_html: "{html}" } }
             }
             Block::Code(code) => {
-                let element = code_block(code, opened.tokens(&question.id, code_index));
+                let element = code_block(code, content.tokens(&question.id, code_index));
                 code_index += 1;
                 element
             }
             Block::Media(media) => {
-                let src = opened.media.get(&media.path).cloned().unwrap_or_default();
+                let src = content.media.get(&media.path).cloned().unwrap_or_default();
                 let alt = media.alt.clone();
                 match media.kind {
                     MediaKind::Image => rsx! { img { class: "media", src: "{src}", alt: "{alt}" } },
@@ -175,7 +195,7 @@ pub fn question_view(
     item: &SessionItem,
     index: usize,
     total: usize,
-    opened: &Opened,
+    content: Content<'_>,
     t: &'static Texts,
     on_toggle: EventHandler<String>,
     on_flag: EventHandler<()>,
@@ -183,7 +203,7 @@ pub fn question_view(
     let multiple = question.is_multiple();
     let count = question.answers_to_tick();
     let badge = if multiple {
-        if opened.paper.show_answer_count {
+        if content.paper.show_answer_count {
             format!("{} · {count} {}", t.several_answers, t.tick)
         } else {
             t.several_answers.to_string()
@@ -191,7 +211,7 @@ pub fn question_view(
     } else {
         t.one_answer.to_string()
     };
-    let theme = opened
+    let theme = content
         .paper
         .theme(&question.theme_id)
         .map(|th| th.title.clone())
@@ -219,7 +239,7 @@ pub fn question_view(
                 if !theme.is_empty() { span { class: "theme", "{theme}" } }
                 span { class: if multiple { "badge multi" } else { "badge" }, "{badge}" }
             }
-            {body(question, opened)}
+            {body(question, content)}
             fieldset { class: "options",
                 legend { class: "sr-only", "{badge}" }
                 for (k, id, html, checked) in options {
@@ -382,7 +402,7 @@ pub fn review_view(
     session: &Session,
     result: &GradeResult,
     t: &'static Texts,
-    opened: &Opened,
+    content: Content<'_>,
 ) -> Element {
     let mark = format!("{:.2}", result.mark(20.0)).replace('.', t.decimal);
     let themes: Vec<(String, u32, &'static str)> = result
@@ -433,7 +453,7 @@ pub fn review_view(
             Some(rsx! {
                 article { class: "review-item {class}",
                     h3 { "{t.question} {i + 1}" span { class: "status", "{status}" } }
-                    {body(question, opened)}
+                    {body(question, content)}
                     ul { class: "review-options",
                         for (id, text, explanation, correct, chosen) in options {
                             li { key: "{id}", class: if correct { "right" } else { "" },

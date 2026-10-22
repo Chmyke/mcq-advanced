@@ -152,7 +152,12 @@ pub fn publish(
     debug_assert_eq!(w.len(), HEADER_LEN);
     let header_hash = primitives::sha256(&[w.as_slice()]);
 
+    // Author notes stay with the author: the end code opens the answer key to students.
     let mut paper = paper.clone();
+    paper.notes.clear();
+    for theme in &mut paper.themes {
+        theme.notes.clear();
+    }
     for question in &mut paper.questions {
         question.line = 0;
     }

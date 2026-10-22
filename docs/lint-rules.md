@@ -77,3 +77,13 @@ and from classroom use of the earlier tool.
 | `THIN_THEME` | warning | A theme with 1 or 2 questions: its success rate means little. |
 | `LENGTH_RANK_BIAS` | warning | From 10 questions: the correct answer is the longest option in more than 35 % of them. |
 | `ANSWER_POSITION_BIAS` | warning | From 10 questions: more than 60 % of the correct answers sit at the same position. |
+
+## In the Studio
+
+The Studio shows every check above as the paper is typed, next to the question concerned, and
+adds two about the weight of the media students will download:
+
+| Code | Level | Meaning |
+|---|---|---|
+| `HEAVY_MEDIA` | warning | One media file above 5 MB: compress or shorten it. |
+| `HEAVY_PAPER` | warning | Media above 25 MB in all: slow to open on a phone or a busy network. |

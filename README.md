@@ -6,8 +6,8 @@ the results tell the class what to revisit, topic by topic.
 
 **Status: early development.** There is no usable release yet. The core works from the command
 line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
-encrypted packages, answer key apart, copies sealed for the teacher). The student player runs in
-the browser and on the desktop. The editor comes next. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
+encrypted packages, answer key apart, copies sealed for the teacher). The student player and the
+teacher's Studio run in the browser and on the desktop. Grading and analysis come next. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
 encryption, export and cohort analysis are carried over.
 
 ## Principles
@@ -92,6 +92,24 @@ cargo run -p mcq-player --features desktop
 The first builds the static web player into `target/web/player`; the second opens the desktop
 window.
 
+## Writing in the Studio
+
+The Studio is the teacher's editor, in the browser or on the desktop, without an account or a
+server. Questions are listed by theme with the validator's verdict; the selected question is
+edited in the middle (single or multiple answers, true or false, text, code, media, an
+explanation per answer, the rule to remember) with the validator's advice beside it and a live
+preview exactly as students will see it, on a computer or a phone, light or dark. The Source view
+shows and edits the same `.qcm.md` text. Images, sounds and videos are dropped, pasted, chosen or
+recorded from the microphone, each with its text alternative. Publishing builds the signed
+package, its opening and end codes, and a sheet to print for the exam room with the teacher's
+fingerprint. The draft is kept in the browser after every change; the paper and its media go in
+and out as one `.qcmz` file.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -App studio
+cargo run -p mcq-studio --features desktop
+```
+
 ## Building and checking
 
 The core crates (`mcq-model`, `mcq-format`, `mcq-grade`, `mcq-lint`) have no dependency;
@@ -101,7 +119,8 @@ The core crates (`mcq-model`, `mcq-format`, `mcq-grade`, `mcq-lint`) have no dep
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1
 ```
 
-It runs rustfmt, clippy, the tests and the WebAssembly build of the core. It also includes a
+It runs rustfmt, clippy, the tests, the WebAssembly build of the core and of both apps, and
+the desktop build of both apps. It also includes a
 content guard: real exam subjects, answer keys, results and keys must never enter
 this repository, and the guard refuses them.
 

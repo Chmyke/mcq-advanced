@@ -66,3 +66,18 @@ fn student_copy_keeps_the_count_but_not_the_answers() {
     assert_eq!(q.course_ref, paper.questions[1].course_ref);
     assert_eq!(q.options[0].id, paper.questions[1].options[0].id);
 }
+
+#[test]
+fn author_notes_survive_a_rewrite_but_never_reach_students() {
+    let source = "---\ntitle: Notes\n---\nDraft: ask Sam about Q2.\nSecond note line\n\
+                  # THEME t | Topic\nCOURSE: ch. 1\nTheme note\n## Q q1\nWhy?\n- [x] A\n- [ ] B\n";
+    let (paper, issues) = read(source);
+    assert!(issues.is_empty(), "{issues:#?}");
+    assert_eq!(paper.notes, "Draft: ask Sam about Q2.\nSecond note line");
+    assert_eq!(paper.themes[0].notes, "Theme note");
+    round_trip(source);
+
+    let copy = write(&student_view(&paper));
+    assert!(!copy.contains("Sam"), "{copy}");
+    assert!(!copy.contains("Theme note"), "{copy}");
+}

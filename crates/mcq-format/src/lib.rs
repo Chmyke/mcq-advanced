@@ -197,10 +197,19 @@ impl Reader {
             self.read_media(alt, path, line_no);
             return;
         }
-        // Statement text inside a question; author notes outside, ignored.
+        // Statement text inside a question; author notes outside, kept for the author only.
         if let Some(draft) = self.question.as_mut() {
             draft.text.push(line.to_string());
             draft.last_option = None;
+        } else {
+            let notes = match self.theme {
+                Some(index) => &mut self.paper.themes[index].notes,
+                None => &mut self.paper.notes,
+            };
+            if !notes.is_empty() {
+                notes.push('\n');
+            }
+            notes.push_str(line);
         }
     }
 
@@ -265,6 +274,7 @@ impl Reader {
             id: id.to_string(),
             title: if title.is_empty() { id } else { title }.to_string(),
             course_ref: String::new(),
+            notes: String::new(),
         });
         self.theme = Some(self.paper.themes.len() - 1);
     }
@@ -546,6 +556,11 @@ fn parse_fence_info(info: &str) -> (String, Vec<u32>) {
         .next()
         .unwrap_or_default()
         .to_string();
+    (language, line_ranges(lines))
+}
+
+/// `2,4-5` gives [2, 4, 5], sorted and without repeats. Unreadable ranges are ignored.
+pub fn line_ranges(lines: &str) -> Vec<u32> {
     let mut highlighted = Vec::new();
     for part in lines.split(',') {
         let part = part.trim();
@@ -567,7 +582,7 @@ fn parse_fence_info(info: &str) -> (String, Vec<u32>) {
     highlighted.retain(|&n| n > 0);
     highlighted.sort_unstable();
     highlighted.dedup();
-    (language, highlighted)
+    highlighted
 }
 
 #[cfg(test)]

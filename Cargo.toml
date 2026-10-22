@@ -23,6 +23,8 @@ mcq-lint = { path = "crates/mcq-lint" }
 mcq-crypto = { path = "crates/mcq-crypto" }
 mcq-engine = { path = "crates/mcq-engine" }
 mcq-highlight = { path = "crates/mcq-highlight" }
+mcq-edit = { path = "crates/mcq-edit" }
+mcq-publish = { path = "crates/mcq-publish" }
 
 # Cryptography is slow without optimisation; dependencies are optimised even in tests.
 [profile.dev.package."*"]

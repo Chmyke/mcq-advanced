@@ -9,7 +9,7 @@ scoring: partial
 shuffleQuestions: false
 shuffleOptions: true
 ---
-Author notes before the first theme are ignored.
+Author notes before the first theme are kept for the author only.
 
 # THEME colours | Fruit colours
 COURSE: Fruit, chapter 1

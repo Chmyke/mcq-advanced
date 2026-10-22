@@ -7,9 +7,9 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use mcq_crypto::rand_core::UnwrapErr;
-use mcq_crypto::{Identity, KdfParams, KeyUnlock, Opening, OpeningKind, PublishOptions};
-use mcq_format::binary::Entry;
+use mcq_crypto::{Identity, KdfParams, KeyUnlock, OpeningKind};
 use mcq_model::Severity;
+use mcq_publish::Mode;
 
 use crate::{read_text, usage};
 
@@ -175,61 +175,39 @@ pub fn publish(args: &[String]) -> ExitCode {
     };
     let (paper, _) = mcq_format::read(&source);
     let folder = paper_path.parent().unwrap_or(Path::new("."));
-    let mut media: Vec<Entry> = Vec::new();
-    for item in paper.questions.iter().flat_map(|q| q.media()) {
-        if media.iter().any(|m| m.path == item.path) {
-            continue;
-        }
-        match std::fs::read(folder.join(&item.path)) {
-            Ok(data) => media.push(Entry {
-                path: item.path.clone(),
-                data,
-            }),
-            Err(e) => return fail(format!("cannot read {}: {e}", item.path)),
-        }
-    }
-
-    // Code is coloured once, here, so players only map token kinds to theme colours.
-    let tokens = mcq_highlight::Highlighter::new().paper(&paper);
-    if !tokens.is_empty() {
-        media.push(Entry {
-            path: mcq_format::binary::CODE_TOKENS_FILE.to_string(),
-            data: mcq_format::binary::encode_code_tokens(&tokens),
-        });
-    }
 
     let identity = match unlock(identity_path) {
         Ok(identity) => identity,
         Err(e) => return fail(e),
     };
-    let mut rng = system_rng();
-    let opening = if practice {
-        Opening::Open
+    let mode = if practice {
+        Mode::Practice
     } else {
-        Opening::Code(mcq_crypto::generate_code(&mut rng))
+        Mode::Exam {
+            end_code: parsed.flag("--end-code"),
+        }
     };
-    let end_code = parsed
-        .flag("--end-code")
-        .then(|| mcq_crypto::generate_code(&mut rng));
-    let options = PublishOptions {
-        opening: opening.clone(),
-        end_code: end_code.clone(),
-        kdf: KdfParams::CODE,
-    };
-    let package = match mcq_crypto::publish(&identity, &paper, &media, &options, &mut rng) {
-        Ok(package) => package,
+    let published = match mcq_publish::publish(
+        &identity,
+        &paper,
+        |path: &str| std::fs::read(folder.join(path)).map_err(|e| e.to_string()),
+        mode,
+        KdfParams::CODE,
+        &mut system_rng(),
+    ) {
+        Ok(published) => published,
         Err(e) => return fail(e),
     };
-    if let Err(e) = write_new(Path::new(out), &package) {
+    if let Err(e) = write_new(Path::new(out), &published.package) {
         return fail(e);
     }
     println!("Package written: {out}");
-    println!("Teacher fingerprint: {}", identity.public().fingerprint());
-    match &opening {
-        Opening::Code(code) => println!("Opening code: {code}"),
-        _ => println!("Practice package: no opening code, answers readable by students."),
+    println!("Teacher fingerprint: {}", published.fingerprint);
+    match &published.opening_code {
+        Some(code) => println!("Opening code: {code}"),
+        None => println!("Practice package: no opening code, answers readable by students."),
     }
-    if let Some(code) = end_code {
+    if let Some(code) = &published.end_code {
         println!("End code: {code}");
     }
     ExitCode::SUCCESS
