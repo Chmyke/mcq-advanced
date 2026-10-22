@@ -10,6 +10,7 @@ use mcq_analysis::timeline::{Change, Event, Timeline};
 use mcq_analysis::{Adjustment, Anomaly, Decision, Finding, Report, csv};
 use mcq_crypto::Identity;
 use mcq_grade::Mastery;
+use mcq_math::Formulas;
 use mcq_model::{Block, Paper};
 use mcq_player::{b64, markdown, render};
 
@@ -45,6 +46,74 @@ fn option_text(paper: &Paper, question: &str, option: &str) -> String {
         .unwrap_or_else(|| option.to_string())
 }
 
+/// The formulas of every option of the paper, for the sentences that quote them.
+fn option_formulas(paper: &Paper) -> Formulas {
+    let texts: Vec<&str> = paper
+        .questions
+        .iter()
+        .flat_map(|q| q.options.iter().map(|o| o.text.as_str()))
+        .collect();
+    preview::formulas(&texts)
+}
+
+/// An option as the student saw it: inline Markdown, code and formulas, as safe HTML.
+fn quoted(paper: &Paper, formulas: &Formulas, question: &str, option: &str) -> String {
+    markdown::inline(&option_text(paper, question, option), formulas)
+}
+
+/// A piece of a report sentence: words as text, or a quoted option already rendered.
+#[derive(Debug, Clone, PartialEq)]
+enum Piece {
+    Text(String),
+    Html(String),
+}
+
+/// A report sentence that quotes options.
+type Sentence = Vec<Piece>;
+
+/// `fill` for sentences: `values` go in as text, `quotes` as rendered HTML.
+fn fill_quoted(template: &str, values: &[(&str, String)], quotes: &[(&str, String)]) -> Sentence {
+    let mut pieces = vec![Piece::Text(template.to_string())];
+    for (name, html) in quotes {
+        let mark = format!("{{{name}}}");
+        pieces = pieces
+            .into_iter()
+            .flat_map(|piece| match piece {
+                Piece::Text(text) => {
+                    let mut out = Vec::new();
+                    for (k, part) in text.split(&mark).enumerate() {
+                        if k > 0 {
+                            out.push(Piece::Html(html.clone()));
+                        }
+                        out.push(Piece::Text(part.to_string()));
+                    }
+                    out
+                }
+                html => vec![html],
+            })
+            .collect();
+    }
+    pieces
+        .into_iter()
+        .filter_map(|piece| match piece {
+            Piece::Text(text) if text.is_empty() => None,
+            Piece::Text(text) => Some(Piece::Text(fill(&text, values))),
+            html => Some(html),
+        })
+        .collect()
+}
+
+fn sentence_view(sentence: Sentence) -> Element {
+    rsx! {
+        for (k, piece) in sentence.into_iter().enumerate() {
+            match piece {
+                Piece::Text(text) => rsx! { "{text}" },
+                Piece::Html(html) => rsx! { span { key: "{k}", class: "quoted", dangerous_inner_html: "{html}" } },
+            }
+        }
+    }
+}
+
 fn theme_title(paper: &Paper, id: &str) -> String {
     paper
         .theme(id)
@@ -54,13 +123,13 @@ fn theme_title(paper: &Paper, id: &str) -> String {
 /// What the teacher can decide about a doubtful key, ready to click.
 struct Choices {
     question: String,
-    /// Each distractor, the rival first, with the key it would give.
+    /// Each distractor rendered, the rival first, with the key it would give.
     accept: Vec<(String, Vec<String>)>,
 }
 
 /// One button per distractor: on a single-answer question it replaces the key, on a multiple
 /// answer one it joins it.
-fn key_choices(paper: &Paper, question: &str, rival: Option<&str>) -> Choices {
+fn key_choices(paper: &Paper, formulas: &Formulas, question: &str, rival: Option<&str>) -> Choices {
     let mut accept = Vec::new();
     if let Some(q) = paper.question(question) {
         let key: Vec<String> = q
@@ -79,7 +148,7 @@ fn key_choices(paper: &Paper, question: &str, rival: Option<&str>) -> Choices {
             } else {
                 vec![option.id.clone()]
             };
-            accept.push((option.text.clone(), new_key));
+            accept.push((markdown::inline(&option.text, formulas), new_key));
         }
     }
     Choices {
@@ -92,14 +161,16 @@ fn key_choices(paper: &Paper, question: &str, rival: Option<&str>) -> Choices {
 struct Lines {
     /// Each theme to reteach, with the doubtful keys to check first.
     reteach: Vec<(String, Option<String>)>,
-    traps: Vec<String>,
+    traps: Vec<Sentence>,
     /// A doubtful key comes with its choices.
-    review: Vec<(String, Option<Choices>)>,
+    review: Vec<(Sentence, Option<Choices>)>,
 }
 
 /// One sentence per finding of a kind, in the report's order.
 fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -> Lines {
     let d = |v: f64| decimal(v, 2, lang);
+    let formulas = option_formulas(paper);
+    let text = |line: String| vec![Piece::Text(line)];
     let (mut reteach, mut traps, mut review) = (Vec::new(), Vec::new(), Vec::new());
     for finding in &report.findings {
         match finding {
@@ -142,13 +213,10 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                 question,
                 option,
                 rate,
-            } => traps.push(fill(
+            } => traps.push(fill_quoted(
                 c.trap,
-                &[
-                    ("rate", pct(*rate)),
-                    ("option", option_text(paper, question, option)),
-                    ("question", question.clone()),
-                ],
+                &[("rate", pct(*rate)), ("question", question.clone())],
+                &[("option", quoted(paper, &formulas, question, option))],
             )),
             Finding::KeyDoubt {
                 question,
@@ -156,46 +224,46 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                 discrimination,
             } => review.push((
                 match rival {
-                    Some(rival) => fill(
+                    Some(rival) => fill_quoted(
                         c.key_doubt_rival,
-                        &[
-                            ("question", question.clone()),
-                            ("rival", option_text(paper, question, rival)),
-                            ("d", d(*discrimination)),
-                        ],
+                        &[("question", question.clone()), ("d", d(*discrimination))],
+                        &[("rival", quoted(paper, &formulas, question, rival))],
                     ),
-                    None => fill(
+                    None => text(fill(
                         c.key_doubt,
                         &[("question", question.clone()), ("d", d(*discrimination))],
-                    ),
+                    )),
                 },
-                Some(key_choices(paper, question, rival.as_deref())),
+                Some(key_choices(paper, &formulas, question, rival.as_deref())),
             )),
             Finding::TooHard { question, facility } => review.push((
-                fill(
+                text(fill(
                     c.too_hard,
                     &[("question", question.clone()), ("pct", pct(1.0 - facility))],
-                ),
+                )),
                 None,
             )),
             Finding::DeadDistractors { question, count } => review.push((
-                fill(
+                text(fill(
                     c.dead,
                     &[("question", question.clone()), ("n", count.to_string())],
-                ),
+                )),
                 None,
             )),
             Finding::TooEasy { question, .. } => {
-                review.push((fill(c.too_easy, &[("question", question.clone())]), None));
+                review.push((
+                    text(fill(c.too_easy, &[("question", question.clone())])),
+                    None,
+                ));
             }
             Finding::WeakDiscrimination {
                 question,
                 discrimination,
             } => review.push((
-                fill(
+                text(fill(
                     c.weak,
                     &[("question", question.clone()), ("d", d(*discrimination))],
-                ),
+                )),
                 None,
             )),
         }
@@ -276,7 +344,8 @@ fn reliability_line(value: f64, c: &CorrectTexts, lang: Lang) -> String {
 }
 
 /// The decisions in force, one sentence each with the question they are about.
-fn decision_lines(report: &Report, paper: &Paper, c: &CorrectTexts) -> Vec<(String, String)> {
+fn decision_lines(report: &Report, paper: &Paper, c: &CorrectTexts) -> Vec<(String, Sentence)> {
+    let formulas = option_formulas(paper);
     let neutralized = report
         .adjustments
         .iter()
@@ -288,23 +357,21 @@ fn decision_lines(report: &Report, paper: &Paper, c: &CorrectTexts) -> Vec<(Stri
         .iter()
         .map(|a| {
             let line = match &a.decision {
-                Decision::Neutralize => fill(
+                Decision::Neutralize => vec![Piece::Text(fill(
                     c.decided_neutral,
                     &[("question", a.question.clone()), ("n", graded.to_string())],
-                ),
-                Decision::Rekey(options) => fill(
+                ))],
+                Decision::Rekey(options) => fill_quoted(
                     c.decided_rekey,
-                    &[
-                        ("question", a.question.clone()),
-                        (
-                            "options",
-                            options
-                                .iter()
-                                .map(|o| option_text(paper, &a.question, o))
-                                .collect::<Vec<_>>()
-                                .join("», «"),
-                        ),
-                    ],
+                    &[("question", a.question.clone())],
+                    &[(
+                        "options",
+                        options
+                            .iter()
+                            .map(|o| quoted(paper, &formulas, &a.question, o))
+                            .collect::<Vec<_>>()
+                            .join("», «"),
+                    )],
                 ),
             };
             (a.question.clone(), line)
@@ -405,7 +472,7 @@ pub fn report_view(
         section { class: "card finding-group",
             h2 { "{c.traps_title}" }
             if traps.is_empty() { p { class: "ok-note", "{c.traps_none}" } }
-            ul { for (k, line) in traps.into_iter().enumerate() { li { key: "{k}", "{line}" } } }
+            ul { for (k, line) in traps.into_iter().enumerate() { li { key: "{k}", {sentence_view(line)} } } }
         }
         section { class: "card finding-group",
             h2 { "{c.review_title}" }
@@ -414,7 +481,7 @@ pub fn report_view(
                     h3 { "{c.decisions_title}" }
                     ul {
                         for (question, line) in decisions {
-                            li { key: "{question}", class: "decision", "{line} "
+                            li { key: "{question}", class: "decision", {sentence_view(line)} " "
                                 button { class: "small", onclick: { let q = question.clone(); move |_| on_action.call(ReportAction::Undo(q.clone())) }, "{c.undo}" }
                             }
                         }
@@ -424,7 +491,7 @@ pub fn report_view(
             if review.is_empty() { p { class: "ok-note", "{c.review_none}" } }
             ul {
                 for (k, (line, choices)) in review.into_iter().enumerate() {
-                    li { key: "{k}", "{line}"
+                    li { key: "{k}", {sentence_view(line)}
                         if let Some(choices) = choices {
                             div { class: "key-choices",
                                 p { class: "muted", "{c.decide_hint}" }
@@ -436,7 +503,7 @@ pub fn report_view(
                                                 let q = choices.question.clone();
                                                 move |_| on_action.call(ReportAction::Decide(Adjustment { question: q.clone(), decision: Decision::Rekey(key.clone()) }))
                                             },
-                                            {fill(c.accept, &[("option", text)])}
+                                            {sentence_view(fill_quoted(c.accept, &[], &[("option", text)]))}
                                         }
                                     }
                                 }
@@ -508,11 +575,13 @@ pub fn timeline_view(
             ),
         ],
     );
+    let formulas = option_formulas(paper);
+    let text = |line: String| vec![Piece::Text(line)];
     let span = f64::from(timeline.elapsed_seconds.max(1));
     let at = |seconds: u32| (f64::from(seconds) / span * 100.0).min(100.0);
     // Marks on the strip: left %, width %, class.
     let mut marks: Vec<(String, String, &'static str)> = Vec::new();
-    let mut rows: Vec<(String, String, &'static str)> = Vec::new();
+    let mut rows: Vec<(String, Sentence, &'static str)> = Vec::new();
     for moment in &timeline.moments {
         let (line, class) = match &moment.event {
             Event::Answer {
@@ -524,19 +593,14 @@ pub fn timeline_view(
             } => {
                 let options: Vec<String> = selected
                     .iter()
-                    .map(|o| option_text(paper, question_id, o))
+                    .map(|o| quoted(paper, &formulas, question_id, o))
                     .collect();
-                let mut line = fill(
+                let mut line = fill_quoted(
                     c.tl_answer,
-                    &[
-                        ("q", question.to_string()),
-                        ("options", options.join("», «")),
-                    ],
+                    &[("q", question.to_string())],
+                    &[("options", options.join("», «"))],
                 );
-                line.push_str(&format!(
-                    " ({})",
-                    if *right { c.tl_right } else { c.tl_wrong }
-                ));
+                let mut tail = format!(" ({})", if *right { c.tl_right } else { c.tl_wrong });
                 let class = match change {
                     Some(change) => {
                         let k = match change {
@@ -544,7 +608,7 @@ pub fn timeline_view(
                             Change::WrongToRight => 1,
                             Change::WrongToWrong => 2,
                         };
-                        line.push_str(&format!(" · {}", c.tl_changes[k]));
+                        tail.push_str(&format!(" · {}", c.tl_changes[k]));
                         match change {
                             Change::RightToWrong => "tl-change bad",
                             Change::WrongToRight => "tl-change good",
@@ -554,21 +618,22 @@ pub fn timeline_view(
                     None if *right => "tl-answer good",
                     None => "tl-answer bad",
                 };
+                line.push(Piece::Text(tail));
                 (line, class)
             }
             Event::Cleared { question, .. } => (
-                fill(c.tl_cleared, &[("q", question.to_string())]),
+                text(fill(c.tl_cleared, &[("q", question.to_string())])),
                 "tl-answer",
             ),
-            Event::Away { seconds: 0 } => (c.tl_away_open.to_string(), "tl-away"),
+            Event::Away { seconds: 0 } => (text(c.tl_away_open.to_string()), "tl-away"),
             Event::Away { seconds } => (
-                fill(
+                text(fill(
                     c.tl_away,
                     &[("duration", mcq_engine::format_duration(*seconds))],
-                ),
+                )),
                 "tl-away",
             ),
-            Event::Submitted => (c.tl_submitted.to_string(), "tl-submit"),
+            Event::Submitted => (text(c.tl_submitted.to_string()), "tl-submit"),
         };
         let width = match moment.event {
             Event::Away { seconds: 0 } => 100.0 - at(moment.seconds),
@@ -597,7 +662,7 @@ pub fn timeline_view(
                 }
                 ol { class: "timeline-list",
                     for (k, (time, line, class)) in rows.into_iter().enumerate() {
-                        li { key: "{k}", class: "{class}", span { class: "mono time", "{time}" } " {line}" }
+                        li { key: "{k}", class: "{class}", span { class: "mono time", "{time}" } " " {sentence_view(line)} }
                     }
                 }
             }

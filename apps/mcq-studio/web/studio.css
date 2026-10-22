@@ -106,6 +106,8 @@ button.recording { background: var(--ko); color: #fff; border-color: var(--ko); 
 .finding-group li { margin: .3rem 0; }
 .key-choices { margin: .35rem 0 .6rem; }
 .key-choices .muted { margin: .2rem 0 .35rem; }
+/* Options quoted in the report: their inline code looks as it does in the player. */
+.quoted code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: .05em .35em; border-radius: 4px; font-size: .92em; }
 .decisions { border-left: 3px solid var(--accent); padding: .1rem 0 .1rem .75rem; margin-bottom: .75rem; }
 .decisions h3 { margin: .2rem 0; font-size: 1em; }
 .table-scroll { overflow-x: auto; }

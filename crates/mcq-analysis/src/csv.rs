@@ -1,6 +1,10 @@
 //! The three spreadsheets of a class, as the earlier tool wrote them: `notes.csv`, `themes.csv`
 //! and `questions.csv`. UTF-8 with a byte order mark, `;` between fields, `\n` between lines,
 //! numbers with one decimal, so spreadsheet software opens them as they are.
+//!
+//! Statements and options stay as written in the paper, Markdown and LaTeX included: a cell
+//! cannot draw a formula, and `$\frac{5}{6}$` or `` `7` `` says more than `\frac{5}{6}` or `7`
+//! with its delimiters stripped.
 
 use mcq_model::{Level, Paper};
 
