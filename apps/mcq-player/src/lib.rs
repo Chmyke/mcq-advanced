@@ -5,6 +5,7 @@
 
 pub mod app;
 pub mod b64;
+pub mod link;
 pub mod markdown;
 pub mod platform;
 pub mod render;

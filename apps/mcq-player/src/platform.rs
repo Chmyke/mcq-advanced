@@ -112,6 +112,22 @@ try {
     crate::b64::decode(&text)
 }
 
+/// The other options of the page's link (`name`, `lang`, `source`); `source` comes back as an
+/// absolute path, and only when it is on this site.
+pub async fn link_options() -> crate::link::LinkOptions {
+    const SCRIPT: &str = r#"
+const q = new URLSearchParams(location.search);
+let source = '';
+try {
+  const s = q.get('source');
+  if (s) { const u = new URL(s, location.href); if (u.origin === location.origin) source = u.pathname; }
+} catch (e) {}
+return [q.get('name') || '', q.get('lang') || '', source];
+"#;
+    let [name, lang, source]: [String; 3] = document::eval(SCRIPT).join().await.unwrap_or_default();
+    crate::link::LinkOptions { name, lang, source }
+}
+
 /// Sends `tick` every second, `away` and `back` on focus changes, and `k:<key>` on key presses
 /// outside text fields.
 pub const EVENTS_SCRIPT: &str = r#"

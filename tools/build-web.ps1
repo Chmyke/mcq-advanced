@@ -37,6 +37,8 @@ try {
     $ErrorActionPreference = 'Stop'
     Copy-Item -LiteralPath (Join-Path $root "apps/$package/web/index.html") $out
     Copy-Item -LiteralPath (Join-Path $root 'LICENSE') $out
+    # The licenses of the third-party crates inside the program (tools/notices.ps1).
+    Copy-Item -LiteralPath (Join-Path $root 'THIRD-PARTY-NOTICES.txt') $out
 } catch {
     if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Recurse -Force }
     throw

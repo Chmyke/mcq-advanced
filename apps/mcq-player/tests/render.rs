@@ -469,3 +469,20 @@ fn the_exam_shows_segments_and_a_calm_pace_gauge_with_letter_keys() {
         "options keyed by letter: {html}"
     );
 }
+
+#[test]
+fn a_demo_link_leads_to_the_editor_in_a_new_tab() {
+    let html = render(|| render::editor_link("/mcq-advanced/demo/fr.qcmz", Lang::Fr.texts()));
+    assert!(
+        html.contains("href=\"../studio/?open=/mcq-advanced/demo/fr.qcmz\""),
+        "{html}"
+    );
+    assert!(html.contains("target=\"_blank\""), "{html}");
+    assert!(html.contains("rel=\"noopener\""), "{html}");
+    assert!(html.contains("Ouvrir ce QCM dans l"), "{html}");
+    // Without a source, or with one from elsewhere, nothing is shown.
+    for source in ["", "https://evil.example/x.qcmz"] {
+        let html = render(move || render::editor_link(source, Lang::En.texts()));
+        assert!(!html.contains("href"), "{html}");
+    }
+}

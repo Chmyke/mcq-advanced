@@ -3246,6 +3246,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcq-demo"
+version = "0.1.0"
+dependencies = [
+ "mcq-crypto",
+ "mcq-edit",
+ "mcq-format",
+ "mcq-lint",
+ "mcq-model",
+ "mcq-publish",
+ "sha2 0.11.0",
+]
+
+[[package]]
 name = "mcq-edit"
 version = "0.1.0"
 dependencies = [
@@ -3350,6 +3363,7 @@ dependencies = [
  "mcq-analysis",
  "mcq-convert",
  "mcq-crypto",
+ "mcq-demo",
  "mcq-edit",
  "mcq-engine",
  "mcq-format",

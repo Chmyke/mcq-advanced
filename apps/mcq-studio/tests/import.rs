@@ -43,3 +43,22 @@ fn unreadable_banks_say_why() {
     let err = read_paper("bank.xml", b"<quiz>".to_vec(), "en").expect_err("broken");
     assert!(err.contains("XML"), "{err}");
 }
+
+#[test]
+fn the_website_demo_opens_with_its_picture() {
+    for built in mcq_demo::build_all().expect("demo") {
+        let name = format!("{}.qcmz", built.lang);
+        assert!(is_paper_file(&name));
+        let (project, issues) = read_paper(&name, built.qcmz, "en").expect("demo paper");
+        assert!(issues.is_empty(), "{issues:?}");
+        assert_eq!(project.paper.lang, built.lang);
+        assert_eq!(project.paper.questions.len(), 6);
+        assert!(project.media.contains_key("media/triangle.svg"));
+        assert!(
+            project
+                .issues()
+                .iter()
+                .all(|i| i.severity == mcq_model::Severity::Info)
+        );
+    }
+}

@@ -104,6 +104,26 @@ cargo run -p mcq-player --features desktop
 The first builds the static web player into `target/web/player`; the second opens the desktop
 window.
 
+A link can also say `name=` (pre-filled, the student can change it), `lang=fr` or `lang=en` (the
+interface language), and `source=`, the paper's `.qcmz` on the same site: the player then offers
+"Open this paper in the editor" once the paper is handed in, which opens the Studio (`../studio/`,
+next to the player) with `?open=`. The Studio opens such a paper over its draft, asking first when
+the draft would be lost.
+
+## The website demo
+
+[`examples/demo`](examples/demo) holds a fictional six-question practice paper in English and
+French: a formula, a picture, coloured code, a multiple-answer question and a true or false.
+`crates/mcq-demo` builds its packages and `.qcmz` files byte for byte the same at every build, with
+a public demo identity that signs practice packages only, and its tests keep both languages
+identical in structure and free of validator warnings.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-site.ps1 -Out <folder>
+```
+
+writes `player/`, `studio/` and `demo/` into the folder, as the website serves them.
+
 ## Writing in the Studio
 
 The Studio is the teacher's editor, in the browser or on the desktop, without an account or a

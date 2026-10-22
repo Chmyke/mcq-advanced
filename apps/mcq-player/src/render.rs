@@ -456,6 +456,21 @@ pub fn clock(status: &TimeStatus, elapsed: u32, t: &'static Texts) -> Element {
     }
 }
 
+/// The way from a finished paper to its source in the Studio, when the link gave one.
+pub fn editor_link(source: &str, t: &'static Texts) -> Element {
+    let Some(href) = crate::link::editor_href(source) else {
+        return rsx! {};
+    };
+    rsx! {
+        div { class: "editor-link card no-print",
+            a { class: "button", href: "{href}", target: "_blank", rel: "noopener",
+                "{t.open_in_editor}"
+            }
+            p { class: "muted", "{t.open_in_editor_hint}" }
+        }
+    }
+}
+
 /// Up to three decimals, without trailing zeros, with the language's decimal separator.
 pub fn points(value: f32, t: &Texts) -> String {
     let text = format!("{value:.3}");

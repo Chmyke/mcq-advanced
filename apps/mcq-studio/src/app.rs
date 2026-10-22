@@ -61,6 +61,13 @@ pub fn App() -> Element {
         }
         ready.set(true);
         let mut last_saved = studio.read().revision;
+        // A paper given by link (`?open=...`, such as the website demo) opens over the draft,
+        // after the usual question when the draft would be lost, and becomes the draft.
+        match platform::paper_from_link().await {
+            Some(Some((name, bytes))) => actions::open_paper(studio, notice, t, &name, bytes).await,
+            Some(None) => notice.set(Some(t.link_failed.to_string())),
+            None => {}
+        }
         loop {
             let _ = document::eval(&format!(
                 "await new Promise((r) => setTimeout(r, {AUTOSAVE_MS})); return 0;"

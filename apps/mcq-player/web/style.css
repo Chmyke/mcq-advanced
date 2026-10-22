@@ -49,14 +49,16 @@ html, body { margin: 0; }
 .notice { background: var(--accent-soft); border-radius: 8px; padding: .6rem .9rem; }
 .notice.warn { background: var(--warn-bg); color: var(--warn); }
 
-button, .file {
+button, .file, a.button {
   font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; padding: .5rem 1rem; cursor: pointer; display: inline-block;
 }
-button:hover, .file:hover { border-color: var(--accent); }
-button.primary, .file.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button:hover, .file:hover, a.button:hover { border-color: var(--accent); }
+button.primary, .file.primary, a.button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
 button:disabled { opacity: .45; cursor: default; }
 button.link { border: none; background: none; padding: 0 .3rem; }
+a.button { text-decoration: none; }
+.editor-link p { margin: .5rem 0 0; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 input[type="text"] {
   font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border);

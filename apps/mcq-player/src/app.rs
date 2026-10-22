@@ -64,6 +64,8 @@ pub fn App() -> Element {
     let mut end_code = use_signal(String::new);
     let mut away = use_signal(|| None::<u32>);
     let mut review = use_signal(ReviewState::default);
+    // The paper's source on this site, for "open in the editor"; empty when the link gave none.
+    let mut source = use_signal(String::new);
     // The question just left, for the pace view.
     let mut left = use_signal(|| None::<usize>);
     let mut last_current = use_signal(|| 0_usize);
@@ -77,7 +79,17 @@ pub fn App() -> Element {
     });
 
     use_future(move || async move {
-        lang.set(Lang::from_tag(&platform::browser_language().await));
+        let options = platform::link_options().await;
+        let tag = if options.lang.is_empty() {
+            platform::browser_language().await
+        } else {
+            options.lang
+        };
+        lang.set(Lang::from_tag(&tag));
+        if name.peek().is_empty() {
+            name.set(options.name);
+        }
+        source.set(options.source);
         // The theme starts as the system's, so the first click on the toggle switches it.
         if dark().is_none() {
             dark.set(Some(platform::prefers_dark().await));
@@ -505,6 +517,7 @@ pub fn App() -> Element {
                     }
                     if let Some(message) = error() { p { class: "error", role: "alert", "{message}" } }
                 }
+                {render::editor_link(&source.read(), t)}
             }
         }
         Stage::Review => {
@@ -542,7 +555,10 @@ pub fn App() -> Element {
                     }
                 })
             };
-            crate::review::review_screen(&g.full, &s, &g.result, &state, t, content, on)
+            rsx! {
+                {crate::review::review_screen(&g.full, &s, &g.result, &state, t, content, on)}
+                {render::editor_link(&source.read(), t)}
+            }
         }
     };
 

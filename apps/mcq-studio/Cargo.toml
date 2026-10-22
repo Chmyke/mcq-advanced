@@ -32,6 +32,7 @@ web-sys = { version = "0.3", optional = true, default-features = false, features
 
 [dev-dependencies]
 dioxus-ssr = "0.7"
+mcq-demo = { path = "../../crates/mcq-demo" }
 
 [lints]
 workspace = true

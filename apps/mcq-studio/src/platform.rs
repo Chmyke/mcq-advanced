@@ -102,6 +102,52 @@ return value; }} catch (e) {{ return ''; }}"
     (!value.is_empty()).then_some(value)
 }
 
+/// The paper named by the page's `?open=` link, as `(file name, bytes)`: `Some(None)` when the
+/// link names one that cannot be loaded, `None` without a link. Only papers of this site open
+/// (see `mcq_player::link::is_site_path`); the link is then removed from the address, so a reload
+/// keeps the draft instead of importing the paper again.
+pub async fn paper_from_link() -> Option<Option<(String, Vec<u8>)>> {
+    const SCRIPT: &str = r#"
+const q = new URLSearchParams(location.search);
+const s = q.get('open');
+if (!s) return '';
+q.delete('open');
+const rest = q.toString();
+history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+try { const u = new URL(s, location.href); return u.origin === location.origin ? u.pathname : '-'; }
+catch (e) { return '-'; }
+"#;
+    const FETCH: &str = r#"
+const p = await dioxus.recv();
+try {
+  const r = await fetch(p);
+  if (!r.ok) return '';
+  const b = new Uint8Array(await r.arrayBuffer());
+  let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s);
+} catch (e) { return ''; }
+"#;
+    let path: String = document::eval(SCRIPT).join().await.ok()?;
+    if path.is_empty() {
+        return None;
+    }
+    if !mcq_player::link::is_site_path(&path) {
+        return Some(None);
+    }
+    let eval = document::eval(FETCH);
+    if eval.send(path.clone()).is_err() {
+        return Some(None);
+    }
+    let text: String = eval.join().await.unwrap_or_default();
+    let name = path.rsplit('/').next().unwrap_or_default().to_string();
+    Some(
+        mcq_player::b64::decode(&text)
+            .filter(|b| !b.is_empty())
+            .map(|b| (name, b)),
+    )
+}
+
 /// Asks the browser's yes/no question.
 pub async fn confirm(message: &str) -> bool {
     let eval = document::eval("const m = await dioxus.recv(); return window.confirm(m);");
