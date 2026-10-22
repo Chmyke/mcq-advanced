@@ -90,7 +90,7 @@ pub fn App() -> Element {
                 continue;
             };
             if actions::is_paper_file(&name) {
-                actions::open_paper(studio, notice, t, bytes).await;
+                actions::open_paper(studio, notice, t, &name, bytes).await;
                 continue;
             }
             // Packages and copies go to the Correct space.
@@ -148,12 +148,12 @@ pub fn App() -> Element {
                     }, "{t.new_paper}" }
                     label { class: "file",
                         "{t.import}"
-                        input { r#type: "file", class: "sr-only", accept: ".qcmz,.zip,.md",
+                        input { r#type: "file", class: "sr-only", accept: "{actions::PAPER_FILES}",
                             onchange: move |e: FormEvent| async move {
                                 if let Some(file) = e.files().into_iter().next()
                                     && let Ok(bytes) = file.read_bytes().await
                                 {
-                                    actions::open_paper(studio, notice, t, bytes.to_vec()).await;
+                                    actions::open_paper(studio, notice, t, &file.name(), bytes.to_vec()).await;
                                 }
                             },
                         }
@@ -161,6 +161,7 @@ pub fn App() -> Element {
                     button { onclick: move |_| actions::export_qcmz(studio), "{t.export_qcmz}" }
                     button { onclick: move |_| actions::export_source(studio), "{t.export_source}" }
                     button { onclick: move |_| actions::export_student(studio), "{t.export_student}" }
+                    button { onclick: move |_| actions::export_moodle(studio, notice), "{t.export_moodle}" }
                     button {
                         "aria-pressed": if theme == "dark" { "true" } else { "false" },
                         onclick: move |_| dark.set(Some(!dark().unwrap_or(false))),

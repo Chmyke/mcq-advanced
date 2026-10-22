@@ -3164,11 +3164,25 @@ name = "mcq-cli"
 version = "0.1.0"
 dependencies = [
  "getrandom 0.4.3",
+ "mcq-convert",
  "mcq-crypto",
+ "mcq-edit",
  "mcq-format",
  "mcq-lint",
  "mcq-model",
  "mcq-publish",
+]
+
+[[package]]
+name = "mcq-convert"
+version = "0.1.0"
+dependencies = [
+ "mcq-edit",
+ "mcq-format",
+ "mcq-lint",
+ "mcq-model",
+ "pulldown-cmark",
+ "roxmltree",
 ]
 
 [[package]]
@@ -3274,6 +3288,7 @@ dependencies = [
  "dioxus-ssr",
  "getrandom 0.4.3",
  "mcq-analysis",
+ "mcq-convert",
  "mcq-crypto",
  "mcq-edit",
  "mcq-engine",
@@ -4674,6 +4689,12 @@ dependencies = [
  "untrusted",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "roxmltree"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
 name = "rustc-hash"

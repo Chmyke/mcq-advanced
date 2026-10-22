@@ -210,3 +210,94 @@ fn identity_publish_inspect_and_answers() {
     assert_eq!(code, 1);
     assert!(err.contains("signature"), "{err}");
 }
+
+/// Runs a command without input, standard output and error together.
+fn exchange(args: &[&str]) -> (i32, String) {
+    let output = Command::new(env!("CARGO_BIN_EXE_mcq"))
+        .args(args)
+        .output()
+        .expect("run mcq");
+    let text = String::from_utf8_lossy(&output.stdout).into_owned()
+        + &String::from_utf8_lossy(&output.stderr);
+    (output.status.code().unwrap_or(-1), text)
+}
+
+fn arg(path: &Path) -> &str {
+    path.to_str().expect("UTF-8 temp path")
+}
+
+#[test]
+fn moodle_export_and_import_close_the_loop() {
+    let dir = TempDir::new("moodle");
+    dir.write("media/apple.png", "png");
+    dir.write("media/crunch.ogg", "ogg");
+    let paper = dir.write("sample.qcm.md", SAMPLE);
+    let bank = dir.0.join("bank.xml");
+    let (code, out) = exchange(&["export", arg(&paper), "--to", "moodle", "--out", arg(&bank)]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("info[EXPORT_SETTINGS]"), "{out}");
+    // Never overwritten.
+    let (code, _) = exchange(&["export", arg(&paper), "--out", arg(&bank)]);
+    assert_eq!(code, 1);
+
+    let back_dir = TempDir::new("moodle-back");
+    let back = back_dir.0.join("back.qcm.md");
+    let (code, out) = exchange(&["import", arg(&bank), "--out", arg(&back)]);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(
+        std::fs::read(back_dir.0.join("media/apple.png")).ok(),
+        Some(b"png".to_vec())
+    );
+    let (code, out) = run(&[&back]);
+    assert_eq!(code, 0, "{out}");
+
+    let qcmz = back_dir.0.join("back.qcmz");
+    let (code, out) = exchange(&["import", arg(&bank), "--out", arg(&qcmz)]);
+    assert_eq!(code, 0, "{out}");
+    assert!(qcmz.is_file());
+}
+
+#[test]
+fn import_reports_what_it_cannot_read() {
+    let dir = TempDir::new("import");
+    let bank = dir.write("bank.txt", "no answers here\n");
+    let out_path = dir.0.join("out.qcm.md");
+    let (code, out) = exchange(&["import", arg(&bank), "--out", arg(&out_path)]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("--from"), "{out}");
+    let (code, out) = exchange(&[
+        "import",
+        arg(&bank),
+        "--from",
+        "aiken",
+        "--out",
+        arg(&out_path),
+    ]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("IMPORT_"), "{out}");
+    assert!(!out_path.exists());
+}
+
+#[test]
+fn handout_is_written_checked_and_protected() {
+    let dir = TempDir::new("handout");
+    let paper = dir.write("sample.qcm.md", SAMPLE);
+    let handout = dir.write("handout.md", "my own notes\r\n");
+    let (code, out) = exchange(&["handout", arg(&paper), "--out", arg(&handout)]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("--force"), "{out}");
+    let (code, _) = exchange(&["handout", arg(&paper), "--out", arg(&handout), "--check"]);
+    assert_eq!(code, 1);
+    let (code, out) = exchange(&["handout", arg(&paper), "--out", arg(&handout), "--force"]);
+    assert_eq!(code, 0, "{out}");
+    let text = std::fs::read_to_string(&handout).expect("handout");
+    assert!(
+        text.contains("- **A.** Yellow\r\n"),
+        "Windows line ends are kept"
+    );
+    let (code, out) = exchange(&["handout", arg(&paper), "--out", arg(&handout), "--check"]);
+    assert_eq!(code, 0, "{out}");
+    // A handout it wrote itself is replaced without --force.
+    let (code, out) = exchange(&["handout", arg(&paper), "--out", arg(&handout)]);
+    assert_eq!(code, 0, "{out}");
+}

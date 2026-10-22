@@ -11,57 +11,7 @@ use mcq_crypto::{Identity, KdfParams, KeyUnlock, OpeningKind};
 use mcq_model::Severity;
 use mcq_publish::Mode;
 
-use crate::{read_text, usage};
-
-/// Flags and options of one command, the rest being positional arguments.
-struct Args<'a> {
-    positional: Vec<&'a str>,
-    flags: Vec<&'a str>,
-    options: Vec<(&'a str, &'a str)>,
-}
-
-impl<'a> Args<'a> {
-    /// `valued` lists the options that take a value.
-    fn parse(args: &'a [String], valued: &[&str]) -> Option<Self> {
-        let mut parsed = Args {
-            positional: Vec::new(),
-            flags: Vec::new(),
-            options: Vec::new(),
-        };
-        let mut iter = args.iter();
-        while let Some(arg) = iter.next() {
-            if valued.contains(&arg.as_str()) {
-                parsed.options.push((arg, iter.next()?));
-            } else if arg.starts_with("--") {
-                parsed.flags.push(arg);
-            } else {
-                parsed.positional.push(arg);
-            }
-        }
-        Some(parsed)
-    }
-
-    fn flag(&self, name: &str) -> bool {
-        self.flags.contains(&name)
-    }
-
-    fn option(&self, name: &str) -> Option<&'a str> {
-        self.options
-            .iter()
-            .find(|(n, _)| *n == name)
-            .map(|(_, v)| *v)
-    }
-
-    /// Fails on flags the command does not know, so a typo never goes unnoticed.
-    fn only_flags(&self, known: &[&str]) -> bool {
-        self.flags.iter().all(|f| known.contains(f))
-    }
-}
-
-fn fail(message: impl std::fmt::Display) -> ExitCode {
-    eprintln!("error: {message}");
-    ExitCode::from(1)
-}
+use crate::{Args, fail, read_text, usage, write_new};
 
 fn system_rng() -> UnwrapErr<getrandom::SysRng> {
     UnwrapErr(getrandom::SysRng)
@@ -73,16 +23,6 @@ fn read_secret() -> Result<String, String> {
         .read_line(&mut line)
         .map_err(|e| format!("cannot read the passphrase: {e}"))?;
     Ok(line.trim_end_matches(['\r', '\n']).to_string())
-}
-
-fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    if path.exists() {
-        return Err(format!(
-            "{} already exists: choose another name",
-            path.display()
-        ));
-    }
-    std::fs::write(path, bytes).map_err(|e| format!("cannot write {}: {e}", path.display()))
 }
 
 fn unlock(identity_path: &str) -> Result<Identity, String> {

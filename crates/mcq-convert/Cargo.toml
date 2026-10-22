@@ -1,0 +1,20 @@
+[package]
+name = "mcq-convert"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mcq-model.workspace = true
+mcq-format.workspace = true
+mcq-edit.workspace = true
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+roxmltree = "0.20"
+
+[dev-dependencies]
+mcq-lint.workspace = true
+
+[lints]
+workspace = true

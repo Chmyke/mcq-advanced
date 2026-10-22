@@ -1,0 +1,6 @@
+Question Text;Question Type;Option 1;Option 2;Option 3;Correct Answer;Time in seconds;Answer explanation;Theme
+"Which of these are primary colours? (pick ""all"")";Checkbox;Red;Green;Blue;1,3;30;Red and blue are primary.;Colours
+What colour is the sky?;Multiple Choice;Blue;Green;;Blue;20;;Colours
+Name a colour.;Open-Ended;;;;;;;Colours
+How many legs has a spider?;Multiple Choice;6;8;10;B;;;Animals
+Only one option;Multiple Choice;Yes;;;1;;;Animals

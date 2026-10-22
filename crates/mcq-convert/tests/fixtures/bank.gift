@@ -1,0 +1,40 @@
+// A fictional GIFT bank used by the tests: every case the importer must handle.
+
+$CATEGORY: $course$/top/Default for Demo/Planets
+
+// [id:planet-red] [tag:mcq-level-1] [tag:mcq-time-20]
+::Red planet::Which planet is called the red planet?{
+	=Mars#Iron oxide colours its soil.
+	~Venus#Venus is covered in yellowish clouds.
+	~Jupiter
+	####Mars owes its colour to rust.
+}
+
+::Moons::Which planets have moons?{
+	~%50%Earth
+	~%50%Mars
+	~%-100%Venus#Venus has no moon.
+}
+
+::Sun::The Sun is a star.{TRUE#Wrong, it is a star.#Right.}
+
+::Pluto::Pluto is still a planet.{F}
+
+$CATEGORY: $course$/top/Default for Demo/Symbols
+
+::Escapes::[markdown]In GIFT, which character writes \= literally?{
+	=A backslash \ before it
+	~A colon \: after it
+}
+
+::Gap::Light from the Sun reaches us in about {=8 minutes ~8 seconds ~8 hours}, not instantly.
+
+::Speed::How fast is light, in km/s?{#300000:1000}
+
+::Essay::Describe a comet.{}
+
+::Pairs::Match the planets.{=Mars -> red =Venus -> yellow}
+
+::Short::Name the closest star.{=Sun =the Sun}
+
+A text block without answers is a description.

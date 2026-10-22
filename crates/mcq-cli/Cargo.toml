@@ -16,6 +16,8 @@ mcq-format.workspace = true
 mcq-lint.workspace = true
 mcq-crypto.workspace = true
 mcq-publish.workspace = true
+mcq-edit.workspace = true
+mcq-convert.workspace = true
 getrandom = { version = "0.4", default-features = false, features = ["sys_rng"] }
 
 [lints]

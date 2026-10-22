@@ -8,7 +8,7 @@ the results tell the class what to revisit, topic by topic.
 line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
 encrypted packages, answer key apart, copies sealed for the teacher). The student player and the
 teacher's Studio (writing, publishing, correcting and class analysis) run in the browser and on
-the desktop. Imports from other tools come next. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
+the desktop. It imports GIFT, Moodle XML, Aiken and CSV banks and exports to Moodle. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
 encryption, export and cohort analysis are carried over.
 
 ## Principles
@@ -53,7 +53,7 @@ encryption, export and cohort analysis are carried over.
   CSV export.
 
 **Interoperability**
-- Import from Moodle GIFT, Moodle XML and Aiken; export to Moodle XML and QTI 2.1.
+- Import from Moodle GIFT, Moodle XML, Aiken and CSV; export to Moodle XML (done), QTI 2.1 next.
 
 ## Writing a paper
 
@@ -64,6 +64,17 @@ cargo run -p mcq-cli -- check my-paper/my-paper.qcm.md
 ```
 
 Every problem has a stable code, listed in [checks and writing advice](docs/lint-rules.md).
+
+## Bringing in an existing bank
+
+```powershell
+cargo run -p mcq-cli -- import bank.gift --out my-paper/my-paper.qcm.md
+cargo run -p mcq-cli -- export my-paper/my-paper.qcm.md --to moodle --out bank.xml
+cargo run -p mcq-cli -- handout my-paper/my-paper.qcm.md --out my-paper/handout.md
+```
+
+GIFT, Moodle XML, Aiken and CSV come in; Moodle XML goes out; the handout is the paper for
+students, without answers. What each format keeps is in [exchanging papers](docs/exchange.md).
 
 ## Publishing a paper
 

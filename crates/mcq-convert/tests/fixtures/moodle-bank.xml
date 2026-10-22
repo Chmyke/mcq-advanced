@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+<!-- A fictional bank in the shape Moodle exports: categories, files, every question type. -->
+<!-- question: 0  -->
+  <question type="category">
+    <category>
+        <text>$course$/top/Default for Demo/Kitchen</text>
+    </category>
+    <info format="html">
+      <text><![CDATA[<p>Cooking, <b>chapter 3</b></p>]]></text>
+    </info>
+    <idnumber>kitchen</idnumber>
+  </question>
+
+<!-- question: 101  -->
+  <question type="multichoice">
+    <name>
+      <text>Boiling water</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">At sea level, water boils at which temperature?<br></p><p><img src="@@PLUGINFILE@@/pot%20photo.png" alt="A pot on a stove" width="200" height="150" role="presentation" class="img-fluid atto_image_button_text-bottom"></p>]]></text>
+<file name="pot photo.png" path="/" encoding="base64">iVBORw0KGgpmaWN0aW9uYWwtcGl4ZWxz</file>
+    </questiontext>
+    <generalfeedback format="html">
+      <text><![CDATA[<p>Pure water boils at 100 &deg;C under 1 atm.</p>]]></text>
+    </generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html">
+      <text>Your answer is correct.</text>
+    </correctfeedback>
+    <partiallycorrectfeedback format="html">
+      <text>Your answer is partially correct.</text>
+    </partiallycorrectfeedback>
+    <incorrectfeedback format="html">
+      <text>Your answer is incorrect.</text>
+    </incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">100 &deg;C</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Yes.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>90 &deg;C</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>That is the boiling point <em>at altitude</em>.</p><p>Around 3000 m.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>120 °C</text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+  </question>
+
+<!-- question: 102  -->
+  <question type="multichoice">
+    <name>
+      <text>Knife safety</text>
+    </name>
+    <questiontext format="moodle_auto_format">
+      <text>Which habits are safe with a knife?
+Tick every one.</text>
+    </questiontext>
+    <generalfeedback format="moodle_auto_format">
+      <text></text>
+    </generalfeedback>
+    <defaultgrade>2.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber>knife-habits</idnumber>
+    <single>false</single>
+    <shuffleanswers>false</shuffleanswers>
+    <answernumbering>123</answernumbering>
+    <showstandardinstruction>1</showstandardinstruction>
+    <answer fraction="50" format="moodle_auto_format">
+      <text>Cut away from the body</text>
+      <feedback format="moodle_auto_format"><text></text></feedback>
+    </answer>
+    <answer fraction="50" format="moodle_auto_format">
+      <text>Keep blades sharp</text>
+      <feedback format="moodle_auto_format"><text></text></feedback>
+    </answer>
+    <answer fraction="-100" format="moodle_auto_format">
+      <text>Catch a falling knife</text>
+      <feedback format="moodle_auto_format"><text>Never.</text></feedback>
+    </answer>
+    <tags>
+      <tag><text>safety</text>
+</tag>
+    </tags>
+  </question>
+
+<!-- question: 0  -->
+  <question type="category">
+    <category>
+        <text>$course$/top/Default for Demo/Kitchen/Bread</text>
+    </category>
+    <info format="moodle_auto_format">
+      <text></text>
+    </info>
+    <idnumber></idnumber>
+  </question>
+
+<!-- question: 103  -->
+  <question type="truefalse">
+    <name>
+      <text>Yeast</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Yeast is a fungus.</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>1.0000000</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>true</text>
+      <feedback format="html">
+        <text><![CDATA[<p>Right: a single-celled fungus.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="moodle_auto_format">
+      <text>false</text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+  </question>
+
+<!-- question: 104  -->
+  <question type="shortanswer">
+    <name>
+      <text>Flour</text>
+    </name>
+    <questiontext format="html">
+      <text>Which grain gives most bread flour?</text>
+    </questiontext>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>wheat</text>
+    </answer>
+  </question>
+
+<!-- question: 105  -->
+  <question type="description">
+    <name>
+      <text>Intro</text>
+    </name>
+    <questiontext format="html">
+      <text>Read the recipe first.</text>
+    </questiontext>
+  </question>
+
+</quiz>
