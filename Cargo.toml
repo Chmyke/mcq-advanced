@@ -1,0 +1,22 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+repository = "https://github.com/Chmyke/mcq-advanced"
+rust-version = "1.85"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+
+[workspace.dependencies]
+mcq-model = { path = "crates/mcq-model" }
+mcq-format = { path = "crates/mcq-format" }
+mcq-grade = { path = "crates/mcq-grade" }
+mcq-lint = { path = "crates/mcq-lint" }

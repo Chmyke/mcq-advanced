@@ -4,9 +4,10 @@ Multiple-choice quizzes that teach, not only grade. A teacher writes a quiz, the
 badly written questions as they are typed, students take it on any device without an account, and
 the results tell the class what to revisit, topic by topic.
 
-**Status: design stage.** There is no usable release yet. This repository holds the project's
-foundations; the code will follow. It is the Rust rewrite of a quiz tool already used in class,
-whose scoring, encryption, export and cohort analysis are carried over.
+**Status: early development.** There is no usable release yet. The core is being written: the
+paper format, scoring and the pedagogical linter work from the command line; security, the player
+and the editor come next. It is the Rust rewrite of a quiz tool already used in class, whose
+scoring, encryption, export and cohort analysis are carried over.
 
 ## Principles
 
@@ -52,15 +53,27 @@ whose scoring, encryption, export and cohort analysis are carried over.
 **Interoperability**
 - Import from Moodle GIFT, Moodle XML and Aiken; export to Moodle XML and QTI 2.1.
 
+## Writing a paper
+
+A paper is a Markdown file: see [the format](docs/format.md). Check it with:
+
+```powershell
+cargo run -p mcq-cli -- check my-paper/my-paper.qcm.md
+```
+
+Every problem has a stable code, listed in [checks and writing advice](docs/lint-rules.md).
+
 ## Building and checking
 
-Nothing to build yet. The single check of the repository runs on Windows PowerShell:
+The core crates (`mcq-model`, `mcq-format`, `mcq-grade`, `mcq-lint`) have no dependency and also
+build for WebAssembly. The single check of the repository runs on Windows PowerShell:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1
 ```
 
-It includes a content guard: real exam subjects, answer keys, results and keys must never enter
+It runs rustfmt, clippy, the tests and the WebAssembly build of the core. It also includes a
+content guard: real exam subjects, answer keys, results and keys must never enter
 this repository, and the guard refuses them.
 
 ## License
