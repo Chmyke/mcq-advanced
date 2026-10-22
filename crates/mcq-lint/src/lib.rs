@@ -178,6 +178,17 @@ fn check_options(question: &Question, out: &mut Out) {
         );
     }
 
+    let declared = question.declared_answers as usize;
+    if declared > 0 && correct > 0 && declared != correct {
+        out.error(
+            "ANSWER_COUNT_MISMATCH",
+            at(question),
+            format!(
+                "`answers {declared}` is announced but {correct} option(s) are marked correct."
+            ),
+        );
+    }
+
     let mut seen: Vec<String> = Vec::with_capacity(count);
     for option in &question.options {
         let key = option.text.trim().to_lowercase();

@@ -17,6 +17,10 @@ try {
     [IO.File]::WriteAllText($prints, "zz-secret-question`nA Real Exam Title`n", $utf8)
 
     Put 'build/demo.qcmpack' 'x'
+    Put 'out/exam.mcqpack' 'x'
+    Put 'out/copy.mcqres' 'x'
+    Put 'me/teacher.mcqid' 'x'
+    Put 'drafts/paper.qcmz' 'x'
     Put 'class/grades.xlsx' 'x'
     Put 'Sujets/exam.md' 'x'
     Put 'docs/resultats/a.txt' 'x'
@@ -31,7 +35,7 @@ try {
     $out = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'guard-content.ps1') -Root $repo -Fingerprints $prints
     $code = $LASTEXITCODE
     $flagged = @($out | Where-Object { $_ -match '^\s+\S.* : ' } | ForEach-Object { ($_.Trim() -split ' : ')[0] })
-    $expected = @('build/demo.qcmpack', 'class/grades.xlsx', 'Sujets/exam.md', 'docs/resultats/a.txt',
+    $expected = @('build/demo.qcmpack', 'out/exam.mcqpack', 'out/copy.mcqres', 'me/teacher.mcqid', 'drafts/paper.qcmz', 'class/grades.xlsx', 'Sujets/exam.md', 'docs/resultats/a.txt',
         '_prive/notes.md', 'CLAUDE.md', 'src/leak.rs', 'docs/title.md')
     $diff = Compare-Object ($flagged | Sort-Object) ($expected | Sort-Object)
     if ($code -ne 1 -or $diff) {

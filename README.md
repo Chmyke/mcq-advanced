@@ -4,10 +4,11 @@ Multiple-choice quizzes that teach, not only grade. A teacher writes a quiz, the
 badly written questions as they are typed, students take it on any device without an account, and
 the results tell the class what to revisit, topic by topic.
 
-**Status: early development.** There is no usable release yet. The core is being written: the
-paper format, scoring and the pedagogical linter work from the command line; security, the player
-and the editor come next. It is the Rust rewrite of a quiz tool already used in class, whose
-scoring, encryption, export and cohort analysis are carried over.
+**Status: early development.** There is no usable release yet. The core works from the command
+line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
+encrypted packages, answer key apart, copies sealed for the teacher). The player and the editor
+come next. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
+encryption, export and cohort analysis are carried over.
 
 ## Principles
 
@@ -63,10 +64,21 @@ cargo run -p mcq-cli -- check my-paper/my-paper.qcm.md
 
 Every problem has a stable code, listed in [checks and writing advice](docs/lint-rules.md).
 
+## Publishing a paper
+
+```powershell
+cargo run -p mcq-cli -- identity new teacher.mcqid
+cargo run -p mcq-cli -- publish my-paper/my-paper.qcm.md --identity teacher.mcqid --out exam.mcqpack --end-code
+```
+
+The first command creates the teacher identity; the second prints the opening code to give when
+the exam starts, and an end code that opens the correction later. Both read the passphrase from
+the first line of input. See [security](SECURITY.md) for what is guaranteed and what is not.
+
 ## Building and checking
 
-The core crates (`mcq-model`, `mcq-format`, `mcq-grade`, `mcq-lint`) have no dependency and also
-build for WebAssembly. The single check of the repository runs on Windows PowerShell:
+The core crates (`mcq-model`, `mcq-format`, `mcq-grade`, `mcq-lint`) have no dependency;
+`mcq-crypto` depends only on RustCrypto and dalek crates. All of them also build for WebAssembly. The single check of the repository runs on Windows PowerShell:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/check.ps1

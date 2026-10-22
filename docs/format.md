@@ -81,7 +81,9 @@ reported and ignored.
 - `## Q <id> | <attributes>` opens a question. Ids are never reused, even after a deletion.
   Attributes, all optional, in any order: `level N` (1 remember, 2 understand, 3 apply,
   4 analyse, 5 evaluate) and `Ns`, the expected answering time in seconds. Without a time, the
-  level gives one: 10, 15, 20, 30 or 40 seconds (15 without a level).
+  level gives one: 10, 15, 20, 30 or 40 seconds (15 without a level). `answers N` announces how
+  many options to tick; student copies carry it because they carry no `[x]`. In a paper with
+  its answers it must match the options marked correct.
 - Every other line until the options is the statement, in Markdown.
 
 ## Statement content

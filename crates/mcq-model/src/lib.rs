@@ -193,6 +193,9 @@ pub struct Question {
     /// The rule to remember, shown after correction.
     pub rule: String,
     pub course_ref: String,
+    /// Number of options to tick as announced to students (`answers N`), 0 to derive it from the
+    /// options. Student copies carry it because they carry no correct flag.
+    pub declared_answers: u32,
     /// 1-based line of the question header in its source file, 0 when not read from a file.
     pub line: usize,
 }
@@ -237,9 +240,18 @@ impl Question {
         self.options.iter().filter(|o| o.is_correct).count()
     }
 
-    /// True when more than one option is correct: the student ticks boxes, not a radio.
+    /// How many options the student must tick: the declared count, else the correct options.
+    pub fn answers_to_tick(&self) -> usize {
+        if self.declared_answers > 0 {
+            self.declared_answers as usize
+        } else {
+            self.correct_count()
+        }
+    }
+
+    /// True when more than one option is to be ticked: the student ticks boxes, not a radio.
     pub fn is_multiple(&self) -> bool {
-        self.correct_count() > 1
+        self.answers_to_tick() > 1
     }
 
     pub fn first_correct(&self) -> Option<&AnswerOption> {
@@ -307,6 +319,29 @@ pub struct AnswerOption {
     pub is_correct: bool,
     /// Why this option is right or wrong.
     pub explanation: String,
+}
+
+/// What the student ticked on one question of their session.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Answer {
+    pub question_id: String,
+    pub selected: Vec<String>,
+    pub seconds_spent: u32,
+}
+
+/// A finished copy, as sealed for the teacher.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Submission {
+    /// Identifies the published package the copy answers.
+    pub paper_id: [u8; 16],
+    /// Declared by the student, as on paper.
+    pub student_name: String,
+    /// One per question of the student's session, in session order.
+    pub answers: Vec<Answer>,
+    pub elapsed_seconds: u32,
+    /// Times the exam window lost focus, recorded and reported, never judged.
+    pub focus_losses: u32,
+    pub seconds_away: u32,
 }
 
 #[cfg(test)]

@@ -8,6 +8,10 @@ node_modules/
 *.qcmpack
 *.qcmres
 *.qcmsource
+*.qcmz
+*.mcqpack
+*.mcqres
+*.mcqid
 *.key
 *.secret
 *.pem

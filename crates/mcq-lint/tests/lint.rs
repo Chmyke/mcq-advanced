@@ -140,6 +140,15 @@ fn multiple_correct_options_is_information() {
 }
 
 #[test]
+fn announced_answer_count_must_match() {
+    let mut paper = clean(3);
+    paper.questions[0].declared_answers = 2;
+    assert_eq!(codes(&paper), ["ANSWER_COUNT_MISMATCH"]);
+    paper.questions[0].declared_answers = 1;
+    assert!(codes(&paper).is_empty());
+}
+
+#[test]
 fn too_many_and_meta_options() {
     let mut paper = clean(3);
     let q = &mut paper.questions[0];

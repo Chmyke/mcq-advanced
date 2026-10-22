@@ -3,15 +3,8 @@
 //! INVARIANTS: grading works on option ids, never on display positions;
 //!             time never changes the mark; the success rate is never negative.
 
+pub use mcq_model::Answer;
 use mcq_model::{Paper, Question, Scoring};
-
-/// What the student ticked on one question of their session.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct Answer {
-    pub question_id: String,
-    pub selected: Vec<String>,
-    pub seconds_spent: u32,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {

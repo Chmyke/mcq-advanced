@@ -43,6 +43,7 @@ and from classroom use of the earlier tool.
 | `NO_CORRECT_OPTION` | error | No option marked `[x]`. |
 | `ALL_OPTIONS_CORRECT` | error | Every option is correct: nothing to tell apart. |
 | `DUPLICATE_OPTION` | error | Two options with the same text. |
+| `ANSWER_COUNT_MISMATCH` | error | `answers N` disagrees with the options marked correct. |
 | `MULTIPLE_CORRECT_OPTIONS` | info | Several correct options: students tick boxes. |
 
 ## Writing advice

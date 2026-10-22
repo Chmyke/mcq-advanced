@@ -6,6 +6,11 @@
 //! The grammar is specified in `docs/format.md`. It stays compatible with the papers written for
 //! the earlier Unity tool (French keywords) and accepts English keywords as well.
 
+pub mod binary;
+mod write;
+
+pub use write::{student_view, write};
+
 use mcq_model::{
     AnswerOption, Block, CodeBlock, Issue, Level, Location, Media, MediaKind, Paper, Question,
     Scoring, Severity, Theme,
@@ -304,6 +309,17 @@ impl Reader {
                     "BAD_LEVEL",
                     Location::Line(line_no),
                     format!("Level `{}` is not between 1 and 5.", value.trim()),
+                ),
+            }
+            return;
+        }
+        if let Some(value) = attribute.strip_prefix("answers") {
+            match value.trim().parse() {
+                Ok(n) if n > 0 => question.declared_answers = n,
+                _ => self.warn(
+                    "UNKNOWN_ATTRIBUTE",
+                    Location::Line(line_no),
+                    format!("`answers {}` needs a count from 1.", value.trim()),
                 ),
             }
             return;

@@ -1,7 +1,7 @@
 # Fails when something that must never be public could be committed: real subjects, answer keys,
 # results, keys, or private working notes.
 # Rules, checked on every file git would commit (tracked + untracked not ignored):
-#   1. forbidden extensions (packs, results, keys, office files that hold class data);
+#   1. forbidden extensions (packs, results, identities, paper archives, keys, office files);
 #   2. forbidden paths (private notes, subject and result folders, agent instructions);
 #   3. private fingerprints: ids and titles of real questions, one per line in
 #      _prive/empreintes-contenu.txt. That file is excluded from git, so on CI only rules 1 and 2 run.
@@ -14,7 +14,7 @@ param(
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
-$badExt = '(?i)\.(qcmpack|qcmres|qcmsource|key|secret|pem|p12|pfx|xlsx|xls|docx|doc)$'
+$badExt = '(?i)\.(qcmpack|qcmres|qcmsource|qcmz|mcqpack|mcqres|mcqid|key|secret|pem|p12|pfx|xlsx|xls|docx|doc)$'
 $badPath = '(?i)((^|/)(_prive|sujets|resultats|\.claude)(/|$)|(^|/)(claude|agents|cadrage)\.md$)'
 if (-not $Fingerprints) { $Fingerprints = Join-Path $Root '_prive/empreintes-contenu.txt' }
 

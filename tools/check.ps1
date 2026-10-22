@@ -22,7 +22,7 @@ foreach ($step in $scripts) {
 # Native tools write progress to stderr: keep it from turning into terminating errors.
 $ErrorActionPreference = 'Continue'
 # The pure core must build for the browser: no file, clock or window inside it.
-$core = @('-p', 'mcq-model', '-p', 'mcq-format', '-p', 'mcq-grade', '-p', 'mcq-lint')
+$core = @('-p', 'mcq-model', '-p', 'mcq-format', '-p', 'mcq-grade', '-p', 'mcq-lint', '-p', 'mcq-crypto')
 $cargo = @(
     @{ Name = 'rustfmt'; Args = @('fmt', '--all', '--check') },
     @{ Name = 'clippy'; Args = @('clippy', '--workspace', '--all-targets', '--quiet', '--', '-D', 'warnings') },
