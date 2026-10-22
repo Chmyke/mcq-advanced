@@ -11,6 +11,7 @@ use mcq_player::b64;
 use crate::actions;
 use crate::correct::CorrectSpace;
 use crate::correction::{Correction, is_correction_file};
+use crate::demo::{self, Tour};
 use crate::editor::write_space;
 use crate::platform::{self, DROP_AND_PASTE_SCRIPT};
 use crate::publish::{Done, PublishSpace};
@@ -36,10 +37,11 @@ pub fn App() -> Element {
     let identity = use_signal(|| None::<Rc<Identity>>);
     let done = use_signal(|| None::<Rc<Done>>);
     let mut correction = use_signal(Correction::default);
+    let tour = use_signal(|| false);
 
     // Restores the draft, then saves it whenever it changed.
     use_future(move || async move {
-        let language = Lang::from_tag(&platform::browser_language().await);
+        let language = Lang::from_tag(&platform::interface_language().await);
         lang.set(language);
         if dark().is_none() {
             dark.set(Some(platform::prefers_dark().await));
@@ -67,6 +69,9 @@ pub fn App() -> Element {
             Some(Some((name, bytes))) => actions::open_paper(studio, notice, t, &name, bytes).await,
             Some(None) => notice.set(Some(t.link_failed.to_string())),
             None => {}
+        }
+        if platform::teacher_demo_from_link().await {
+            demo::open(studio, correction, notice, tour, t, language).await;
         }
         loop {
             let _ = document::eval(&format!(
@@ -183,6 +188,7 @@ pub fn App() -> Element {
                 }
                 if saved() { span { class: "muted saved", "{t.saved_locally}" } }
             }
+            if tour() { Tour { studio, t } }
             if ready() {
                 div { class: "studio-main",
                     match space {

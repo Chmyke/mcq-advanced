@@ -159,6 +159,7 @@ pub struct Texts {
     pub sheet_practice: &'static str,
     pub space_correct: &'static str,
     pub correction: &'static CorrectTexts,
+    pub demo: &'static DemoTexts,
 }
 
 /// The Studio's texts in the interface language.
@@ -336,6 +337,7 @@ pub static EN: Texts = Texts {
     sheet_practice: "Practice paper: no code, the correction shows at the end.",
     space_correct: "Correct",
     correction: &CORRECT_EN,
+    demo: &DEMO_EN,
 };
 
 pub static FR: Texts = Texts {
@@ -505,6 +507,7 @@ pub static FR: Texts = Texts {
     sheet_practice: "Sujet d'entraînement : aucun code, la correction s'affiche à la fin.",
     space_correct: "Corriger",
     correction: &CORRECT_FR,
+    demo: &DEMO_FR,
 };
 
 /// Puts values in a template: `{name}` becomes the value given for `name`.
@@ -808,4 +811,103 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     mastery: ["acquis", "fragile", "à reprendre"],
     print_student_sheet: "Imprimer cette fiche",
     close_sheet: "Fermer",
+};
+
+/// The teacher demo: what the status line says and the tour of what to try.
+#[derive(PartialEq)]
+pub struct DemoTexts {
+    pub preparing: &'static str,
+    pub ready: &'static str,
+    pub failed: &'static str,
+    pub title: &'static str,
+    pub intro: &'static str,
+    /// Title and text of each step, in the order of `demo::STEP_SPACES`.
+    pub steps: [(&'static str, &'static str); 8],
+    pub identity_note: &'static str,
+}
+
+pub static DEMO_EN: DemoTexts = DemoTexts {
+    preparing: "Preparing the demo: paper, package and 32 fictional copies...",
+    ready: "Teacher demo ready: the paper is in the editor, 32 fictional copies wait in Correct.",
+    failed: "The demo could not be prepared.",
+    title: "Teacher demo tour",
+    intro: "A fictional paper and class. Click a step to go there.",
+    steps: [
+        (
+            "Write.",
+            "Edit a question visually or as source (Markdown); the preview shows it as a student will, on a phone or in the dark theme, with its formulas, picture and coloured code.",
+        ),
+        (
+            "Check.",
+            "The live check flags every problem, question by question, before anything is published.",
+        ),
+        (
+            "Set up.",
+            "Duration, scoring, penalties, shuffling, and the themes with their course references.",
+        ),
+        (
+            "Publish.",
+            "Create your identity, then publish: a signed package, its opening code and a room sheet to print.",
+        ),
+        (
+            "Correct.",
+            "32 fictional copies are already in: what to reteach, shared confusions, questions to read again, then the marks.",
+        ),
+        (
+            "Settle a doubtful key.",
+            "A box ticked by mistake puts the key in doubt: accept the answer the strongest students chose, and every mark is computed again.",
+        ),
+        (
+            "Look at a copy.",
+            "Identical copies, exits from the window, overtime: open a student's timeline or revision sheet, export the marks as CSV.",
+        ),
+        (
+            "Import and export.",
+            "In the top bar: import a GIFT, Moodle XML, Aiken or CSV bank, export to Moodle or as a paper without answers.",
+        ),
+    ],
+    identity_note: "The copies are opened with a public demo identity that serves them only. To publish a real paper, create your own identity.",
+};
+
+pub static DEMO_FR: DemoTexts = DemoTexts {
+    preparing: "Préparation de la démo : sujet, paquet et 32 copies fictives...",
+    ready: "Démo enseignant prête : le sujet est dans l'éditeur, 32 copies fictives attendent dans Corriger.",
+    failed: "La démo n'a pas pu être préparée.",
+    title: "Visite de la démo enseignant",
+    intro: "Un sujet et une classe fictifs. Cliquez une étape pour y aller.",
+    steps: [
+        (
+            "Rédiger.",
+            "Modifiez une question en mode visuel ou en source (Markdown) ; l'aperçu la montre comme l'élève la verra, sur téléphone ou en thème sombre, avec ses formules, son image et son code coloré.",
+        ),
+        (
+            "Vérifier.",
+            "Le contrôle en direct signale chaque problème, question par question, avant toute publication.",
+        ),
+        (
+            "Régler.",
+            "Durée, barème, pénalités, mélange, et les thèmes avec leur renvoi de cours.",
+        ),
+        (
+            "Publier.",
+            "Créez votre identité, puis publiez : un paquet signé, son code d'ouverture et une fiche de salle à imprimer.",
+        ),
+        (
+            "Corriger.",
+            "32 copies fictives sont déjà là : ce qu'il faut retravailler, les confusions partagées, les questions à relire, puis les notes.",
+        ),
+        (
+            "Trancher une clé douteuse.",
+            "Une case cochée par erreur fait douter de la clé : acceptez la réponse choisie par les meilleurs élèves, et toutes les notes sont recalculées.",
+        ),
+        (
+            "Examiner une copie.",
+            "Copies identiques, sorties de fenêtre, dépassement de temps : ouvrez la chronologie d'un élève ou sa fiche de révision, exportez les notes en CSV.",
+        ),
+        (
+            "Importer et exporter.",
+            "Dans la barre du haut : importez une banque GIFT, Moodle XML, Aiken ou CSV, exportez vers Moodle ou en sujet sans réponses.",
+        ),
+    ],
+    identity_note: "Les copies sont ouvertes avec une identité de démo publique, qui ne sert qu'à elles. Pour publier un vrai sujet, créez votre propre identité.",
 };

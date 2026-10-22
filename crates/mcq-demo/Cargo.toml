@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 mcq-model.workspace = true
+mcq-analysis.workspace = true
 mcq-crypto.workspace = true
 mcq-edit.workspace = true
 mcq-publish.workspace = true

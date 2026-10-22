@@ -148,6 +148,25 @@ try {
     )
 }
 
+/// The interface language: the link's `lang=` (as the website's demo links give it), otherwise
+/// the browser's.
+pub async fn interface_language() -> String {
+    const SCRIPT: &str = "return new URLSearchParams(location.search).get('lang') || '';";
+    let tag: String = document::eval(SCRIPT).join().await.unwrap_or_default();
+    if tag.is_empty() {
+        browser_language().await
+    } else {
+        tag
+    }
+}
+
+/// True when the page's link asks for the teacher demo (`?demo=teacher`). The link stays in the
+/// address: a reload opens the demo again, over a draft that already is its paper.
+pub async fn teacher_demo_from_link() -> bool {
+    const SCRIPT: &str = "return new URLSearchParams(location.search).get('demo') === 'teacher';";
+    document::eval(SCRIPT).join().await.unwrap_or(false)
+}
+
 /// Asks the browser's yes/no question.
 pub async fn confirm(message: &str) -> bool {
     let eval = document::eval("const m = await dioxus.recv(); return window.confirm(m);");

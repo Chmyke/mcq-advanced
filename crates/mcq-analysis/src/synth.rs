@@ -1,5 +1,6 @@
 //! A fictional class taking a fictional paper, generated from a seed, with known flaws planted on
 //! purpose: tests check that the analysis finds each of them, and only them, every time.
+//! `cohort` builds its own paper; `simulate` has a class sit any paper, such as the website demo.
 //!
 //! Students answer by a logistic model: the stronger the student and the easier the question, the
 //! likelier the right answer; otherwise a distractor, some more tempting than others.
@@ -13,6 +14,8 @@ use mcq_model::{
 pub struct Planted {
     /// Marked with the wrong key: strong students pick another option.
     pub faulty_question: String,
+    /// The option strong students pick on it, the right one in truth.
+    pub faulty_answer: String,
     /// A distractor that pulls far more students than the others.
     pub trap_question: String,
     pub trap_option: String,
@@ -24,6 +27,17 @@ pub struct Planted {
     pub distracted: String,
     /// A student far past the time limit.
     pub late: String,
+}
+
+/// A class sitting a paper, with what is planted in its copies.
+pub struct Class<'a> {
+    pub paper: &'a Paper,
+    pub paper_id: [u8; 16],
+    /// One per question, in the paper's order: 0 is middling, higher is harder.
+    pub difficulty: &'a [f64],
+    /// One per student, in the order of the copies.
+    pub names: &'a [String],
+    pub planted: &'a Planted,
 }
 
 /// SplitMix64: small, fast, reproducible on every platform.
@@ -120,6 +134,7 @@ pub fn cohort(seed: u64, students: usize) -> (Paper, Vec<Submission>, Planted) {
     difficulty[PER_THEME + 1] = 0.4; // arrays-2
     let planted = Planted {
         faulty_question: "loops-3".into(),
+        faulty_answer: "loops-3-o2".into(),
         trap_question: "arrays-2".into(),
         trap_option: "arrays-2-o3".into(),
         weak_theme: "pointers".into(),
@@ -127,42 +142,80 @@ pub fn cohort(seed: u64, students: usize) -> (Paper, Vec<Submission>, Planted) {
         distracted: "Student 05".into(),
         late: "Student 06".into(),
     };
+    let names: Vec<String> = (0..students)
+        .map(|s| format!("Student {:02}", s + 1))
+        .collect();
+    let class = Class {
+        paper: &paper,
+        paper_id: PAPER_ID,
+        difficulty: &difficulty,
+        names: &names,
+        planted: &planted,
+    };
+    let copies = sit(&class, &mut rng);
+    (paper, copies, planted)
+}
 
+/// The copies of a class, the same for the same seed.
+pub fn simulate(class: &Class<'_>, seed: u64) -> Vec<Submission> {
+    sit(class, &mut Rng(seed))
+}
+
+fn sit(class: &Class<'_>, rng: &mut Rng) -> Vec<Submission> {
+    let (paper, planted) = (class.paper, class.planted);
+    let duration = paper.duration_minutes * 60;
     let mut copies: Vec<Submission> = Vec::new();
-    for s in 0..students {
-        let name = format!("Student {:02}", s + 1);
+    for name in class.names {
         // The copied pair are weak students, so their shared mistakes stand out.
-        let ability = if s == 1 || s == 2 { -1.2 } else { rng.normal() };
+        let ability = if *name == planted.copied.0 || *name == planted.copied.1 {
+            -1.2
+        } else {
+            rng.normal()
+        };
         let mut answers = Vec::new();
         let mut log = Vec::new();
         let mut clock = 0;
         for (q, question) in paper.questions.iter().enumerate() {
-            let seconds = 20 + (rng.unit() * 60.0) as u32;
+            let planned = question.estimated_seconds;
+            let seconds = if planned == 0 {
+                20 + (rng.unit() * 60.0) as u32
+            } else {
+                planned / 2 + (rng.unit() * f64::from(planned)) as u32
+            };
             clock += seconds;
-            let p_right = 1.0 / (1.0 + (-1.7 * (ability - difficulty[q])).exp());
+            let p_right = 1.0 / (1.0 + (-1.7 * (ability - class.difficulty[q])).exp());
             let blank = rng.unit() < 0.04 * (1.0 - p_right);
-            // The faulty question's real answer is the second option, marked wrong in the key.
-            let right = if question.id == planted.faulty_question {
-                1
+            // The faulty question's real answer is another option, marked wrong in the key.
+            let right: Vec<&str> = if question.id == planted.faulty_question {
+                vec![planted.faulty_answer.as_str()]
             } else {
-                0
+                question
+                    .options
+                    .iter()
+                    .filter(|o| o.is_correct)
+                    .map(|o| o.id.as_str())
+                    .collect()
             };
-            let mut weights = [1.0; OPTIONS];
-            weights[right] = 0.0;
-            if question.id == planted.trap_question {
-                weights[2] = 8.0;
-            }
-            let pick = if rng.unit() < p_right {
-                right
+            let weights: Vec<f64> = question
+                .options
+                .iter()
+                .map(|o| {
+                    if right.contains(&o.id.as_str()) {
+                        0.0
+                    } else if o.id == planted.trap_option {
+                        8.0
+                    } else {
+                        1.0
+                    }
+                })
+                .collect();
+            let picked: Vec<String> = if rng.unit() < p_right {
+                right.iter().map(|id| (*id).to_string()).collect()
             } else {
-                rng.weighted(&weights)
+                vec![question.options[rng.weighted(&weights)].id.clone()]
             };
-            let selected = if blank {
-                Vec::new()
-            } else {
-                vec![question.options[pick].id.clone()]
-            };
-            if let Some(option) = selected.first() {
+            let selected = if blank { Vec::new() } else { picked };
+            for option in &selected {
                 log.push(LogEntry::new(clock, LogKind::Tick, &question.id, option));
             }
             answers.push(mcq_model::Answer {
@@ -172,18 +225,20 @@ pub fn cohort(seed: u64, students: usize) -> (Paper, Vec<Submission>, Planted) {
             });
         }
         let mut copy = Submission {
-            paper_id: PAPER_ID,
+            paper_id: class.paper_id,
             student_name: name.clone(),
             answers,
-            elapsed_seconds: clock.min(DURATION_MINUTES * 60 - 30),
+            elapsed_seconds: clock.min(duration - 30),
             log,
             ..Submission::default()
         };
-        if name == planted.copied.1 {
-            copy.answers = copies[1].answers.clone();
-            copy.log = copies[1].log.clone();
+        if *name == planted.copied.1
+            && let Some(first) = copies.iter().find(|c| c.student_name == planted.copied.0)
+        {
+            copy.answers = first.answers.clone();
+            copy.log = first.log.clone();
         }
-        if name == planted.distracted {
+        if *name == planted.distracted {
             copy.focus_losses = 9;
             copy.seconds_away = 240;
             // Nine exits spread over the exam, 240 s away in all, as the player journals them.
@@ -197,12 +252,12 @@ pub fn cohort(seed: u64, students: usize) -> (Paper, Vec<Submission>, Planted) {
                     .push(LogEntry::new(left + away, LogKind::FocusBack, "", ""));
             }
         }
-        if name == planted.late {
-            copy.elapsed_seconds = DURATION_MINUTES * 60 + 420;
+        if *name == planted.late {
+            copy.elapsed_seconds = duration + 420;
         }
         copy.log
             .push(LogEntry::new(copy.elapsed_seconds, LogKind::Submit, "", ""));
         copies.push(copy);
     }
-    (paper, copies, planted)
+    copies
 }

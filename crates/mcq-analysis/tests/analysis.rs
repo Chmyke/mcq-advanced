@@ -260,7 +260,7 @@ fn planted_findings(report: &Report, planted: &synth::Planted) -> Vec<String> {
         matches!(f,
         Finding::KeyDoubt { question, rival, .. }
             if *question == planted.faulty_question
-                && rival.as_deref() == Some(&*format!("{}-o2", planted.faulty_question)))
+                && rival.as_deref() == Some(&*planted.faulty_answer))
     }) {
         missing.push("doubtful key".to_string());
     }

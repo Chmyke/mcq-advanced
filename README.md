@@ -115,8 +115,16 @@ the draft would be lost.
 [`examples/demo`](examples/demo) holds a fictional six-question practice paper in English and
 French: a formula, a picture, coloured code, a multiple-answer question and a true or false.
 `crates/mcq-demo` builds its packages and `.qcmz` files byte for byte the same at every build, with
-a public demo identity that signs practice packages only, and its tests keep both languages
+a public demo identity that signs demo packages only, and its tests keep both languages
 identical in structure and free of validator warnings.
+
+The teacher demo, `studio/?demo=teacher&lang=en` (or `fr`), opens a fictional twelve-question
+paper in the Studio with the sealed copies of a fictional class of 32 already in the Correct space,
+and a short tour of what to try. The Studio builds it in the browser from
+[`examples/demo`](examples/demo); the copies are made to reveal a key ticked by mistake, a shared
+confusion, a theme to reteach, two identical copies, a student who often left the window and one
+past the time limit, and tests check that the analysis finds exactly those. The demo identity only
+opens these copies: it never becomes the teacher's identity, so nothing real is published with it.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-site.ps1 -Out <folder>

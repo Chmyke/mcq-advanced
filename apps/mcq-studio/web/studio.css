@@ -144,3 +144,11 @@ body.dropping .studio-main { outline: 3px dashed var(--accent); outline-offset: 
 .timeline-list .tl-change.bad { color: var(--ko); }
 .timeline-list .tl-away { color: var(--warn); }
 .timeline-list .tl-change.good { color: var(--ok); }
+
+/* The teacher demo tour, above the spaces. */
+.tour { box-sizing: border-box; width: calc(100% - 2rem); max-width: 88rem; margin: .25rem auto .5rem; }
+.tour summary { cursor: pointer; }
+.tour-steps { margin: .4rem 0; padding-left: 1.4rem; display: grid; gap: .3rem; }
+.tour-steps button.link { font-weight: 600; padding: 0; }
+.tour-steps button.link[aria-pressed="true"] { text-decoration: underline; }
+@media (min-width: 70rem) { .tour-steps { grid-template-columns: 1fr 1fr; column-gap: 2.5rem; } }

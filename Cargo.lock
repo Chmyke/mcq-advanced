@@ -3249,6 +3249,7 @@ dependencies = [
 name = "mcq-demo"
 version = "0.1.0"
 dependencies = [
+ "mcq-analysis",
  "mcq-crypto",
  "mcq-edit",
  "mcq-format",
