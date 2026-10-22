@@ -9,12 +9,15 @@
 //! and focus losses are additions.
 
 pub mod csv;
+pub mod decision;
 pub mod sheet;
 pub mod stats;
 pub mod synth;
 
 use mcq_grade::{GradeResult, Mastery, Status};
-use mcq_model::{LogKind, Paper, Submission};
+use mcq_model::{Answer, LogKind, Paper, Submission};
+
+pub use decision::{Adjustment, Decision};
 
 /// Share of students in the upper and lower groups (Kelley's 27 %), rounded down.
 pub const GROUP_FRACTION: f64 = 0.27;
@@ -241,11 +244,43 @@ pub struct Report {
     pub small_cohort: bool,
     /// At least `MIN_COPIES_FOR_ITEMS` copies: item indices were computed.
     pub items_computed: bool,
+    /// The teacher's decisions that took effect, in the order given.
+    pub adjustments: Vec<Adjustment>,
+}
+
+impl Report {
+    pub fn decision(&self, question: &str) -> Option<&Decision> {
+        self.adjustments
+            .iter()
+            .find(|a| a.question == question)
+            .map(|a| &a.decision)
+    }
 }
 
 /// Analyses the copies of one package against its answer key.
 pub fn analyse(paper: &Paper, paper_id: [u8; 16], copies: &[Copy]) -> Report {
-    let mut report = Report::default();
+    analyse_with(paper, paper_id, copies, &[])
+}
+
+/// Analyses the copies once the teacher's decisions are applied to the answer key: a neutralized
+/// question still has its statistics but counts in no mark, no total and no finding.
+pub fn analyse_with(
+    paper: &Paper,
+    paper_id: [u8; 16],
+    copies: &[Copy],
+    adjustments: &[Adjustment],
+) -> Report {
+    let (key, adjustments) = decision::apply(paper, adjustments);
+    let paper = &key;
+    let graded: Vec<bool> = paper
+        .questions
+        .iter()
+        .map(|q| !decision::is_neutralized(&adjustments, &q.id))
+        .collect();
+    let mut report = Report {
+        adjustments,
+        ..Report::default()
+    };
     let mut kept: Vec<&Copy> = Vec::new();
     for copy in copies {
         if copy.submission.paper_id == paper_id {
@@ -269,7 +304,13 @@ pub fn analyse(paper: &Paper, paper_id: [u8; 16], copies: &[Copy]) -> Report {
         .iter()
         .map(|copy| {
             let s = &copy.submission;
-            let grade = mcq_grade::grade(paper, &s.answers, s.elapsed_seconds);
+            let answers: Vec<Answer> = s
+                .answers
+                .iter()
+                .filter(|a| !decision::is_neutralized(&report.adjustments, &a.question_id))
+                .cloned()
+                .collect();
+            let grade = mcq_grade::grade(paper, &answers, s.elapsed_seconds);
             StudentResult {
                 name: s.student_name.clone(),
                 receipt: copy.receipt.clone(),
@@ -293,33 +334,45 @@ pub fn analyse(paper: &Paper, paper_id: [u8; 16], copies: &[Copy]) -> Report {
         .collect();
     report.mean_seconds = stats::mean(&elapsed);
 
-    // Item scores: credit per student and question, 0 when the question was not asked.
-    let credits: Vec<Vec<f64>> = report
-        .students
+    // Item scores: credit per student and question, 0 when the question was not asked. A
+    // neutralized question has its column, out of the totals and the reliability.
+    let credits: Vec<Vec<f64>> = kept
         .iter()
-        .map(|s| {
+        .map(|copy| {
             paper
                 .questions
                 .iter()
                 .map(|q| {
-                    s.grade
-                        .outcomes
+                    copy.submission
+                        .answers
                         .iter()
-                        .find(|o| o.question_id == q.id)
-                        .map_or(0.0, |o| f64::from(o.credit))
+                        .find(|a| a.question_id == q.id)
+                        .map_or(0.0, |a| {
+                            f64::from(mcq_grade::score(q, &a.selected, paper.scoring).1)
+                        })
                 })
                 .collect()
         })
         .collect();
-    let totals: Vec<f64> = credits.iter().map(|row| row.iter().sum()).collect();
+    let graded_only = |row: &Vec<f64>| -> Vec<f64> {
+        row.iter()
+            .zip(&graded)
+            .filter(|(_, g)| **g)
+            .map(|(c, _)| *c)
+            .collect()
+    };
+    let totals: Vec<f64> = credits
+        .iter()
+        .map(|row| graded_only(row).iter().sum())
+        .collect();
     let (lower, upper) = stats::extreme_groups(&totals, GROUP_FRACTION);
     if report.items_computed {
-        report.reliability = stats::kr20(&credits);
+        report.reliability = stats::kr20(&credits.iter().map(graded_only).collect::<Vec<_>>());
     }
     for (q, question) in paper.questions.iter().enumerate() {
         report.questions.push(question_stats(
             question,
-            q,
+            (q, graded[q]),
             &kept,
             &credits,
             &totals,
@@ -336,7 +389,8 @@ pub fn analyse(paper: &Paper, paper_id: [u8; 16], copies: &[Copy]) -> Report {
             questions: paper
                 .questions
                 .iter()
-                .filter(|q| q.theme_id == theme.id)
+                .zip(&graded)
+                .filter(|(q, g)| **g && q.theme_id == theme.id)
                 .count(),
             mean_rate: 0.0,
             acquired: 0,
@@ -375,7 +429,7 @@ fn share(count: u32, of: usize) -> f64 {
 
 fn question_stats(
     question: &mcq_model::Question,
-    q: usize,
+    (q, graded): (usize, bool),
     kept: &[&Copy],
     credits: &[Vec<f64>],
     totals: &[f64],
@@ -418,7 +472,12 @@ fn question_stats(
             group.iter().map(|&i| column[i]).sum::<f64>() / group.len() as f64
         }
     };
-    let rest: Vec<f64> = totals.iter().zip(&column).map(|(t, c)| t - c).collect();
+    // The rest of the paper: a graded question is part of the total, a neutralized one is not.
+    let rest: Vec<f64> = totals
+        .iter()
+        .zip(&column)
+        .map(|(t, c)| if graded { t - c } else { *t })
+        .collect();
     let answered = (asked - blank) as usize;
     QuestionStats {
         id: question.id.clone(),
@@ -456,7 +515,12 @@ fn question_stats(
 fn findings(report: &Report) -> Vec<Finding> {
     let mut traps: Vec<Finding> = Vec::new();
     let mut review: Vec<(u8, Finding)> = Vec::new();
-    for q in report.questions.iter().filter(|q| q.asked > 0) {
+    // A neutralized question is settled: nothing more to say about it.
+    for q in report
+        .questions
+        .iter()
+        .filter(|q| q.asked > 0 && !decision::is_neutralized(&report.adjustments, &q.id))
+    {
         let mut doubt = false;
         if let Some(d) = q.discrimination {
             // A good distractor tempts weak students more than strong ones; one that does the

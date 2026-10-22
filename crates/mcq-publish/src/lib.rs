@@ -1,7 +1,8 @@
 //! ROLE:    turns a checked paper into what a class needs: the signed package, its codes, and the
 //!          sheet for the exam room. Shared by the CLI and the Studio.
 //! OWNER:   stateless; the caller provides the identity, the media files and the randomness.
-//! INVARIANTS: a paper with errors is never published; code is coloured once, here; the room
+//! INVARIANTS: a paper with errors is never published; code is coloured and formulas converted
+//!             once, here; formulas of the explanations travel inside the answer key; the room
 //!             sheet never shows the end code, which is revealed only after hand-in.
 
 use mcq_crypto::rand_core::CryptoRng;
@@ -65,8 +66,8 @@ pub fn blocking_issues(paper: &Paper) -> Vec<Issue> {
         .collect()
 }
 
-/// The files a package carries besides the paper: each media file once, and the coloured code.
-/// `read_media` gives the bytes of a path relative to the paper.
+/// The files a package carries besides the paper: each media file once, the coloured code and
+/// the formulas students see. `read_media` gives the bytes of a path relative to the paper.
 pub fn package_files(
     paper: &Paper,
     mut read_media: impl FnMut(&str) -> Result<Vec<u8>, String>,
@@ -93,7 +94,32 @@ pub fn package_files(
             data: encode_code_tokens(&tokens),
         });
     }
+    let formulas = mcq_math::convert_texts(&mcq_math::student_texts(paper));
+    if !formulas.is_empty() {
+        files.push(Entry {
+            path: mcq_math::FORMULAS_FILE.to_string(),
+            data: mcq_math::encode(&formulas),
+        });
+    }
     Ok(files)
+}
+
+/// The files only the answer key carries: the formulas of the explanations that students do not
+/// already have, so none of them leaks before the correction.
+pub fn key_files(paper: &Paper) -> Vec<Entry> {
+    let seen = mcq_math::formulas_in(&mcq_math::student_texts(paper));
+    let formulas: Vec<_> = mcq_math::convert_texts(&mcq_math::key_texts(paper))
+        .into_iter()
+        .filter(|f| !seen.contains(&(f.latex.as_str(), f.display)))
+        .collect();
+    if formulas.is_empty() {
+        Vec::new()
+    } else {
+        vec![Entry {
+            path: mcq_math::FORMULAS_FILE.to_string(),
+            data: mcq_math::encode(&formulas),
+        }]
+    }
 }
 
 /// Checks the paper, generates the codes and builds the signed package.
@@ -122,8 +148,15 @@ pub fn publish(
         end_code: end_code.clone(),
         kdf,
     };
-    let package = mcq_crypto::publish(identity, paper, &files, &options, rng)
-        .map_err(PublishError::Crypto)?;
+    let package = mcq_crypto::publish_with_key_files(
+        identity,
+        paper,
+        &files,
+        &key_files(paper),
+        &options,
+        rng,
+    )
+    .map_err(PublishError::Crypto)?;
     let header = mcq_crypto::inspect(&package).map_err(PublishError::Crypto)?;
     Ok(Published {
         package,

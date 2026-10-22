@@ -4,13 +4,13 @@
 use std::convert::Infallible;
 
 use dioxus::prelude::*;
-use mcq_analysis::{Copy, analyse, synth};
+use mcq_analysis::{Adjustment, Copy, analyse, synth};
 use mcq_crypto::rand_core::{TryCryptoRng, TryRng};
 use mcq_crypto::{Identity, KdfParams};
 use mcq_engine::Session;
 use mcq_publish::{Mode, publish};
-use mcq_studio::correct::{report_view, sheet_view};
-use mcq_studio::correction::{Correction, Refusal};
+use mcq_studio::correct::{ReportAction, report_view, sheet_view};
+use mcq_studio::correction::{Correction, Package, Refusal};
 use mcq_studio::texts::{EN, FR, Lang};
 
 const SAMPLE: &str = include_str!("../../../crates/mcq-format/tests/fixtures/sample.qcm.md");
@@ -173,7 +173,7 @@ fn the_diagnosis_reads_as_sentences_in_the_teachers_order() {
             &paper,
             &FR,
             Lang::Fr,
-            EventHandler::new(|_: String| {}),
+            EventHandler::new(|_: ReportAction| {}),
         )
     });
     let at = |needle: &str| {
@@ -215,7 +215,7 @@ fn a_small_class_is_told_its_figures_are_trends() {
             &paper,
             &EN,
             Lang::En,
-            EventHandler::new(|_: String| {}),
+            EventHandler::new(|_: ReportAction| {}),
         )
     });
     assert!(html.contains("Fewer than 30 copies"), "{html}");
@@ -244,4 +244,69 @@ fn a_revision_sheet_shows_each_mistake_with_the_right_answer() {
     assert!(html.contains("Mes erreurs ("), "{html}");
     assert!(html.contains("La bonne réponse :"), "{html}");
     assert!(html.contains("printable"), "{html}");
+}
+
+#[test]
+fn a_doubtful_key_is_settled_in_one_click_and_undone_in_another() {
+    let (paper, copies) = synthetic();
+    let mut correction = Correction::default();
+    correction.package = Some(Package {
+        file_name: "paper.mcqpack".into(),
+        paper_id: synth::PAPER_ID,
+        key: paper.clone(),
+    });
+    correction.copies = copies;
+    let view = |correction: &Correction| {
+        let report = correction.report().expect("report");
+        let paper = paper.clone();
+        let mut dom = VirtualDom::new_with_props(
+            |(report, paper): (mcq_analysis::Report, mcq_model::Paper)| {
+                report_view(
+                    &report,
+                    &paper,
+                    &FR,
+                    Lang::Fr,
+                    EventHandler::new(|_: ReportAction| {}),
+                )
+            },
+            (report.clone(), paper),
+        );
+        dom.rebuild_in_place();
+        (report, dioxus_ssr::render(&dom))
+    };
+
+    let (before, html) = view(&correction);
+    assert!(html.contains(">Neutraliser</button>"), "{html}");
+    let first = html.find("Accepter «Choice 2 of loops-3»");
+    let other = html.find("Accepter «Choice 3 of loops-3»");
+    assert!(first.is_some() && first < other, "the rival first: {html}");
+
+    correction.decide(Adjustment::rekey("loops-3", &["loops-3-o2"]));
+    let (rekeyed, html) = view(&correction);
+    assert!(rekeyed.mean_mark > before.mean_mark);
+    assert!(
+        html.contains("loops-3 : corrigé rectifié, bonne réponse «Choice 2 of loops-3»"),
+        "{html}"
+    );
+    assert!(
+        !html.contains(">Neutraliser</button>"),
+        "doubt settled: {html}"
+    );
+
+    // A second decision on the same question replaces the first.
+    correction.decide(Adjustment::neutralize("loops-3"));
+    let (neutral, html) = view(&correction);
+    assert_eq!(neutral.adjustments, vec![Adjustment::neutralize("loops-3")]);
+    let n = paper.questions.len() - 1;
+    assert!(
+        html.contains(&format!(
+            "loops-3 neutralisée : hors barème, chaque copie est notée sur {n} questions"
+        )),
+        "{html}"
+    );
+    assert!(html.contains(">Annuler</button>"), "{html}");
+
+    correction.undo("loops-3");
+    let (undone, _) = view(&correction);
+    assert_eq!(undone, before);
 }

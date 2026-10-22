@@ -17,6 +17,7 @@ mcq-format.workspace = true
 mcq-grade.workspace = true
 mcq-crypto.workspace = true
 mcq-engine.workspace = true
+mcq-math.workspace = true
 dioxus = { version = "0.7", default-features = false, features = ["launch", "html", "signals", "hooks", "macro", "document"] }
 getrandom = { version = "0.4", default-features = false, features = ["sys_rng"] }
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
@@ -27,6 +28,7 @@ web-sys = { version = "0.3", optional = true, default-features = false, features
 [dev-dependencies]
 dioxus-ssr = "0.7"
 mcq-highlight.workspace = true
+mcq-publish.workspace = true
 
 [lints]
 workspace = true

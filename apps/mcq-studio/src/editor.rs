@@ -319,6 +319,7 @@ fn question_editor(
                             let lang = studio.read().project.paper.questions.iter().flat_map(|q| q.code_blocks()).last().map(|c| c.language.clone()).unwrap_or_default();
                             studio.write().add_code_block(&id, &lang);
                         } }, "{t.add_code}" }
+                        button { class: "small", onclick: { let id = id.clone(); move |_| studio.write().add_formula_block(&id) }, "{t.add_formula}" }
                         label { class: "file small",
                             "{t.add_media}"
                             input {
@@ -344,6 +345,7 @@ fn question_editor(
                     }
                 }
                 p { class: "muted hint", "{t.drop_hint}" }
+                p { class: "muted hint", "{t.formula_hint}" }
                 for (k, block) in question.body.iter().enumerate() {
                     div { key: "{k}", class: "block",
                         {block_editor(studio, s, &id, k, block, t)}

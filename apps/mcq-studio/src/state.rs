@@ -9,6 +9,9 @@ use mcq_model::{Block, CodeBlock, Issue, Location, Media, MediaKind, Paper, Ques
 use mcq_player::b64;
 use mcq_player::render::mime;
 
+/// What the Formula button inserts: a formula on its own line, to replace.
+pub const FORMULA_EXAMPLE: &str = r"$$\frac{a}{b}$$";
+
 /// The spaces of the Studio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Space {
@@ -248,6 +251,13 @@ impl Studio {
 
     pub fn add_text_block(&mut self, id: &str) {
         self.edit_question(id, |q| q.body.push(Block::Text(String::new())));
+    }
+
+    /// A text block holding an example formula on its own line, ready to be replaced.
+    pub fn add_formula_block(&mut self, id: &str) {
+        self.edit_question(id, |q| {
+            q.body.push(Block::Text(FORMULA_EXAMPLE.to_string()));
+        });
     }
 
     pub fn add_code_block(&mut self, id: &str, language: &str) {

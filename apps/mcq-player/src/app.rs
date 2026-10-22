@@ -33,6 +33,8 @@ struct Loaded {
 struct Graded {
     full: Paper,
     result: GradeResult,
+    /// The student's formulas and those of the explanations.
+    formulas: mcq_math::Formulas,
 }
 
 fn save(session: &Session) {
@@ -263,6 +265,7 @@ pub fn App() -> Element {
             };
             render::intro(
                 &o.paper,
+                &o.formulas,
                 &o.header,
                 t,
                 EventHandler::new(move |()| stage.set(Stage::Exam)),
@@ -398,7 +401,9 @@ pub fn App() -> Element {
                 } else {
                     KeyUnlock::EndCode(&typed)
                 };
-                let Ok(full) = mcq_crypto::open_answer_key(&package.bytes, unlock) else {
+                let Ok((full, key_files)) =
+                    mcq_crypto::open_answer_key_files(&package.bytes, unlock)
+                else {
                     error.set(Some(lang().texts().wrong_code));
                     return;
                 };
@@ -416,7 +421,16 @@ pub fn App() -> Element {
                     .collect();
                 let result = mcq_grade::grade(&full, &copy_answers, s.elapsed_seconds);
                 error.set(None);
-                graded.set(Some(Rc::new(Graded { full, result })));
+                let formulas = opened
+                    .read()
+                    .as_ref()
+                    .map(|o| render::correction_formulas(&o.formulas, &key_files))
+                    .unwrap_or_default();
+                graded.set(Some(Rc::new(Graded {
+                    full,
+                    result,
+                    formulas,
+                })));
                 stage.set(Stage::Review);
             };
             rsx! {
@@ -458,7 +472,11 @@ pub fn App() -> Element {
             ) else {
                 return rsx! {};
             };
-            render::review_view(&g.full, &s, &g.result, t, o.content())
+            let content = render::Content {
+                formulas: &g.formulas,
+                ..o.content()
+            };
+            render::review_view(&g.full, &s, &g.result, t, content)
         }
     };
 

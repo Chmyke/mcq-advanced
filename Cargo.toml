@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-only"
 repository = "https://github.com/Chmyke/mcq-advanced"
-rust-version = "1.85"
+rust-version = "1.96"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -27,6 +27,8 @@ mcq-edit = { path = "crates/mcq-edit" }
 mcq-publish = { path = "crates/mcq-publish" }
 mcq-analysis = { path = "crates/mcq-analysis" }
 mcq-convert = { path = "crates/mcq-convert" }
+# Players only read formulas; the tools that publish add `features = ["convert"]`.
+mcq-math = { path = "crates/mcq-math", default-features = false }
 
 # Cryptography is slow without optimisation; dependencies are optimised even in tests.
 [profile.dev.package."*"]

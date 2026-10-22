@@ -97,6 +97,13 @@ reported and ignored.
   `gif`, `webp`, `svg`, `avif`), sounds (`mp3`, `ogg`, `wav`, `m4a`, `opus`, `flac`, `weba`) and videos
   (`mp4`, `webm`, `ogv`, `mov`). Paths are relative to the paper and stay inside its folder. The
   text alternative is what a student who cannot see or hear the media gets.
+- **Formulas**: LaTeX between dollar signs, in statements, options, explanations and the
+  description. `$x^2$` sits inside a sentence, `$$\frac{a}{b}$$` stands on its own line. An opening
+  `$` is followed by a non-space and a closing `$` follows one and is not followed by a digit, so
+  `$5 and $10` stays text; to be sure, write a dollar sign as `\$`. Dollars inside `` `code` ``
+  are left alone. Formulas are converted to MathML when the paper is published and shown natively
+  by browsers: players run no script for them. A formula that does not convert blocks publishing
+  (`BAD_FORMULA`).
 
 ## Options
 

@@ -18,7 +18,7 @@ pub use hpke::rand_core;
 pub use identity::{Identity, PublicIdentity};
 pub use package::{
     KeyUnlock, Opening, OpeningKind, PAPER_FILE, PackageHeader, PublishOptions, StudentPackage,
-    inspect, open, open_answer_key, publish,
+    inspect, open, open_answer_key, open_answer_key_files, publish, publish_with_key_files,
 };
 pub use primitives::KdfParams;
 pub use result::{SealedResult, open_result, receipt_code, seal_result};

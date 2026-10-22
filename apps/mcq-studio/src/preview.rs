@@ -5,7 +5,8 @@ use std::cell::OnceCell;
 use dioxus::prelude::*;
 use mcq_engine::SessionItem;
 use mcq_highlight::Highlighter;
-use mcq_model::{CodeTokens, Question};
+use mcq_math::Formulas;
+use mcq_model::{Block, CodeTokens, Question};
 use mcq_player::render::{self, Content};
 
 use crate::state::Studio;
@@ -32,6 +33,26 @@ pub fn tokens(question: &Question) -> Vec<CodeTokens> {
     })
 }
 
+/// The formulas of these texts as the package will carry them; those that do not convert show
+/// as source, and the validator says why.
+pub fn formulas(texts: &[&str]) -> Formulas {
+    Formulas::from_package(mcq_math::convert_texts(texts))
+}
+
+/// The texts of a question a student sees: statement and options.
+pub fn student_texts(question: &Question) -> Vec<&str> {
+    let mut texts: Vec<&str> = question
+        .body
+        .iter()
+        .filter_map(|b| match b {
+            Block::Text(text) => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    texts.extend(question.options.iter().map(|o| o.text.as_str()));
+    texts
+}
+
 pub fn question_preview(
     studio: &Studio,
     question: &Question,
@@ -42,10 +63,12 @@ pub fn question_preview(
 ) -> Element {
     let paper = &studio.project.paper;
     let tokens = tokens(question);
+    let formulas = formulas(&student_texts(question));
     let content = Content {
         paper,
         media: studio.media_urls(),
         tokens: &tokens,
+        formulas: &formulas,
     };
     let item = SessionItem {
         question_id: question.id.clone(),

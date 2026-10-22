@@ -2,7 +2,7 @@
 //! opened with the teacher's identity, files waiting for that identity, and files refused.
 
 use mcq_analysis::sheet::{RevisionSheet, revision_sheet};
-use mcq_analysis::{Copy, Report, analyse};
+use mcq_analysis::{Adjustment, Copy, Report, analyse_with};
 use mcq_crypto::{Error, Identity, KeyUnlock};
 use mcq_model::Paper;
 
@@ -34,6 +34,8 @@ pub struct Correction {
     /// Files received before the identity was unlocked, opened as soon as it is.
     pending: Vec<(String, Vec<u8>)>,
     pub refused: Vec<(String, Refusal)>,
+    /// The teacher's decisions on doubtful keys, applied at once to every mark.
+    pub adjustments: Vec<Adjustment>,
 }
 
 impl Correction {
@@ -99,7 +101,25 @@ impl Correction {
     /// The analysis, once a package and at least one copy are in.
     pub fn report(&self) -> Option<Report> {
         let package = self.package.as_ref()?;
-        (!self.copies.is_empty()).then(|| analyse(&package.key, package.paper_id, &self.copies))
+        (!self.copies.is_empty()).then(|| {
+            analyse_with(
+                &package.key,
+                package.paper_id,
+                &self.copies,
+                &self.adjustments,
+            )
+        })
+    }
+
+    /// Records a decision about a question, replacing any earlier one on it.
+    pub fn decide(&mut self, adjustment: Adjustment) {
+        self.undo(&adjustment.question);
+        self.adjustments.push(adjustment);
+    }
+
+    /// Drops the decision about a question: it is graded with its key again.
+    pub fn undo(&mut self, question: &str) {
+        self.adjustments.retain(|a| a.question != question);
     }
 
     /// The revision sheet of the student whose copy has this receipt.

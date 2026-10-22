@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 mcq-model.workspace = true
+mcq-math = { workspace = true, features = ["convert"] }
 
 [lints]
 workspace = true

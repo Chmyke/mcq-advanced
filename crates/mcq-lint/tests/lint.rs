@@ -317,3 +317,36 @@ fn sample_fixture_lints_without_errors() {
     let issues = lint(&paper);
     assert!(!has_errors(&issues), "{issues:#?}");
 }
+
+#[test]
+fn formulas_must_convert_and_dollars_must_be_meant() {
+    let mut paper = clean(4);
+    paper.questions[0].body = vec![Block::Text(
+        r"Which value has $\frac{a}{b}$ when $a = 2b$?".into(),
+    )];
+    assert_eq!(codes(&paper), Vec::<&str>::new(), "a good formula");
+
+    paper.questions[1].options[0].explanation = r"Since $\frac{1}{$ is open.".into();
+    paper.questions[2].body = vec![Block::Text(
+        "Which ripe fruit costs $5 at the market?".into(),
+    )];
+    paper.questions[3].body = vec![Block::Text(
+        r"Which ripe fruit costs \$5 at the market?".into(),
+    )];
+    let issues = lint(&paper);
+    let bad: Vec<_> = issues.iter().filter(|i| i.code == "BAD_FORMULA").collect();
+    assert_eq!(bad.len(), 1, "{issues:#?}");
+    assert_eq!(bad[0].severity, Severity::Error);
+    assert_eq!(bad[0].location, Location::Question("fruit-1".into()));
+    assert!(!bad[0].message.contains(".."), "{}", bad[0].message);
+    assert!(
+        bad[0].message.contains(r"`$\frac{1}{$`"),
+        "{}",
+        bad[0].message
+    );
+    let stray: Vec<_> = issues.iter().filter(|i| i.code == "STRAY_DOLLAR").collect();
+    assert_eq!(stray.len(), 1, "an escaped dollar is fine: {issues:#?}");
+    assert_eq!(stray[0].severity, Severity::Warning);
+    assert_eq!(stray[0].location, Location::Question("fruit-2".into()));
+    assert!(has_errors(&issues));
+}

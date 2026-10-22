@@ -6,8 +6,8 @@ use std::convert::Infallible;
 use mcq_crypto::rand_core::{TryCryptoRng, TryRng};
 use mcq_crypto::{
     Error, Identity, KdfParams, KeyUnlock, Opening, OpeningKind, PAPER_FILE, PublishOptions,
-    generate_code, inspect, normalize_code, open, open_answer_key, open_result, publish,
-    receipt_code, seal_result,
+    generate_code, inspect, normalize_code, open, open_answer_key, open_answer_key_files,
+    open_result, publish, publish_with_key_files, receipt_code, seal_result,
 };
 use mcq_format::binary::Entry;
 use mcq_model::{Answer, Paper, Submission};
@@ -458,4 +458,41 @@ fn test_vectors_are_stable() {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[test]
+fn key_files_open_with_the_answer_key_only() {
+    let mut rng = TestRng::new("key files");
+    let teacher = Identity::generate(&mut rng);
+    let (code, end) = (generate_code(&mut rng), generate_code(&mut rng));
+    let secret = Entry {
+        path: "formulas.mathml".into(),
+        data: b"explanation formulas".to_vec(),
+    };
+    let package = publish_with_key_files(
+        &teacher,
+        &sample_paper(),
+        &[],
+        std::slice::from_ref(&secret),
+        &options(Opening::Code(code.clone()), Some(&end)),
+        &mut rng,
+    )
+    .expect("publish");
+    let student = open(&package, &code).expect("student");
+    assert!(student.media.iter().all(|f| f.path != secret.path));
+    let (paper, files) =
+        open_answer_key_files(&package, KeyUnlock::EndCode(&end)).expect("end code");
+    assert_eq!(paper, without_notes(sample_paper()));
+    assert_eq!(files, vec![secret]);
+    // Without key files, nothing extra.
+    let plain = publish(
+        &teacher,
+        &sample_paper(),
+        &[],
+        &options(Opening::Open, None),
+        &mut rng,
+    )
+    .expect("publish");
+    let (_, files) = open_answer_key_files(&plain, KeyUnlock::Practice).expect("practice");
+    assert!(files.is_empty());
 }

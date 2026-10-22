@@ -6,7 +6,7 @@
 mod duplicates;
 mod text;
 
-use mcq_model::{Issue, Level, Location, Paper, Question, Severity};
+use mcq_model::{Block, Issue, Level, Location, Paper, Question, Severity};
 
 pub use duplicates::{DUPLICATE_THRESHOLD, find_duplicates, find_duplicates_within, similarity};
 
@@ -58,7 +58,21 @@ pub fn lint(paper: &Paper) -> Vec<Issue> {
         check_options(question, &mut out);
         check_stem(question, &mut out);
         check_media(question, &mut out);
+        let mut texts: Vec<&str> = question
+            .body
+            .iter()
+            .filter_map(|b| match b {
+                Block::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        for option in &question.options {
+            texts.push(&option.text);
+            texts.push(&option.explanation);
+        }
+        check_formulas(&texts, at(question), &mut out);
     }
+    check_formulas(&[paper.description.as_str()], Location::Paper, &mut out);
 
     check_duration(paper, &mut out);
     check_levels(paper, &mut out);
@@ -285,6 +299,35 @@ fn check_media(question: &Question, out: &mut Out) {
                 ),
             );
         }
+    }
+}
+
+/// Formulas that would not show, and dollar signs that open none.
+fn check_formulas(texts: &[&str], place: Location, out: &mut Out) {
+    let stray: usize = texts.iter().map(|t| mcq_math::split(t).stray_dollars).sum();
+    for (latex, display) in mcq_math::formulas_in(texts) {
+        if let Err(why) = mcq_math::to_mathml(latex, display) {
+            let shown = if display {
+                format!("$${latex}$$")
+            } else {
+                format!("${latex}$")
+            };
+            out.error(
+                "BAD_FORMULA",
+                place.clone(),
+                format!("`{shown}` cannot be shown: {}.", why.trim_end_matches('.')),
+            );
+        }
+    }
+    if stray > 0 {
+        out.warn(
+            "STRAY_DOLLAR",
+            place,
+            format!(
+                "{stray} `$` open(s) no formula and will show as is: write `\\$` for a dollar \
+                 sign, `$x$` for a formula."
+            ),
+        );
     }
 }
 

@@ -64,6 +64,20 @@ An anomaly is a reason to ask a question, never a verdict, and never changes a m
 Under 30 copies, every figure is shown as a trend to confirm. Under 8 copies, discrimination,
 reliability and dead distractors are not computed.
 
+## Deciding about a doubtful key
+
+Next to a key to check, the teacher decides, and every copy is marked again at once:
+
+- **Neutralize**: the question leaves the marks. A paper of N questions is marked on N-1; the
+  question keeps its statistics but no finding.
+- **Accept an option**: on a single-answer question it becomes the right answer in place of the
+  key; on a multiple-answer one it joins the right answers.
+
+A later decision on the same question replaces the earlier one, and undoing one grades the
+question with its key again. Decisions are shown above the questions to review, in
+`questions.csv` (the alert column says `NEUTRALIZED` or `KEY CORRECTED`, the right rows show the
+key used) and on the revision sheets, which show the key the copies were marked with.
+
 ## Revision sheets
 
 Each student's sheet lists where they stand per theme, each mistake with the right answer, its

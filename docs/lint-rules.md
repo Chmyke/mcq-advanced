@@ -45,6 +45,7 @@ and from classroom use of the earlier tool.
 | `DUPLICATE_OPTION` | error | Two options with the same text. |
 | `ANSWER_COUNT_MISMATCH` | error | `answers N` disagrees with the options marked correct. |
 | `MULTIPLE_CORRECT_OPTIONS` | info | Several correct options: students tick boxes. |
+| `BAD_FORMULA` | error | A `$...$` or `$$...$$` formula is not valid LaTeX, or uses a link, a label or a reference. |
 
 ## Writing advice
 
@@ -56,6 +57,7 @@ and from classroom use of the earlier tool.
 | `MISSING_QUESTION` | warning | The statement never asks anything (no `?`, no final `:`). |
 | `VAGUE_STEM` | warning | "What happens?" with options mixing compiling and running. |
 | `MEDIA_WITHOUT_ALT` | warning | Media without a text alternative. |
+| `STRAY_DOLLAR` | warning | A `$` opens no formula and shows as is: write `\$` for a dollar sign. |
 | `NO_EXPLANATION` | warning | No option is explained. |
 | `PARTIAL_EXPLANATION` | warning | Some options are not explained. |
 | `NO_RULE` | warning | No `RULE:` to remember. |

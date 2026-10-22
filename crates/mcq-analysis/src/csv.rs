@@ -4,7 +4,7 @@
 
 use mcq_model::{Level, Paper};
 
-use crate::{Anomaly, Finding, Report, TOO_EASY, TOO_HARD};
+use crate::{Anomaly, Decision, Finding, Report, TOO_EASY, TOO_HARD};
 
 /// The words of the spreadsheets, in one language.
 pub struct Labels {
@@ -18,6 +18,10 @@ pub struct Labels {
     pub distractor_row: &'static str,
     /// The key may be wrong: see `Finding::KeyDoubt`.
     pub key_doubt: &'static str,
+    /// The teacher took the question out of the grading.
+    pub neutralized: &'static str,
+    /// The teacher replaced the key; the right rows show the new one.
+    pub rekeyed: &'static str,
     pub too_hard: &'static str,
     pub too_easy: &'static str,
     /// Followed by the count.
@@ -76,6 +80,8 @@ pub const EN: Labels = Labels {
     right_row: "  RIGHT",
     distractor_row: "  distractor",
     key_doubt: "KEY TO CHECK: the strongest students avoid it",
+    neutralized: "NEUTRALIZED: out of the marks",
+    rekeyed: "KEY CORRECTED: marked with the right rows below",
     too_hard: "missed by almost everyone",
     too_easy: "succeeded by everyone",
     dead_distractors: "dead distractor(s):",
@@ -133,6 +139,8 @@ pub const FR: Labels = Labels {
     right_row: "  BONNE",
     distractor_row: "  distracteur",
     key_doubt: "CORRIGÉ À VÉRIFIER : les meilleurs l'évitent",
+    neutralized: "NEUTRALISÉE : hors barème",
+    rekeyed: "CORRIGÉ RECTIFIÉ : noté selon les lignes BONNE ci-dessous",
     too_hard: "ratée par presque tout le monde",
     too_easy: "réussie par tout le monde",
     dead_distractors: "distracteur(s) mort(s) :",
@@ -315,7 +323,13 @@ pub fn questions(paper: &Paper, report: &Report, labels: &Labels) -> String {
             .findings
             .iter()
             .any(|f| matches!(f, Finding::KeyDoubt { question, .. } if *question == q.id));
-        let alert = if doubtful {
+        let alert = if let Some(decision) = report.decision(&q.id) {
+            match decision {
+                Decision::Neutralize => labels.neutralized,
+                Decision::Rekey(_) => labels.rekeyed,
+            }
+            .to_string()
+        } else if doubtful {
             labels.key_doubt.to_string()
         } else if stats.asked > 0 && stats.facility <= TOO_HARD {
             labels.too_hard.to_string()

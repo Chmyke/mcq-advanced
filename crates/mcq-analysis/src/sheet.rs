@@ -43,13 +43,16 @@ pub struct RevisionSheet {
     pub start_with: Vec<String>,
 }
 
-/// The sheet of one student; `report` tells which keys are in doubt.
+/// The sheet of one student; `report` tells which keys are in doubt and which the teacher
+/// corrected, so the sheet shows the key the copies were marked with.
 pub fn revision_sheet(
     paper: &Paper,
     report: &Report,
     student: &StudentResult,
     copy: &Copy,
 ) -> RevisionSheet {
+    let (key, _) = crate::decision::apply(paper, &report.adjustments);
+    let paper = &key;
     let themes: Vec<ThemeLine> = student
         .grade
         .themes

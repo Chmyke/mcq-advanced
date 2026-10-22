@@ -172,6 +172,7 @@ fn intro_explains_time_scoring_and_guessing() {
         let opened = opened();
         render::intro(
             &opened.paper,
+            &opened.formulas,
             &opened.header,
             Lang::Fr.texts(),
             EventHandler::new(|()| {}),
@@ -243,4 +244,88 @@ fn welcome_screen_renders() {
     let html = dioxus_ssr::render(&dom);
     assert!(html.contains("Open a paper"), "{html}");
     assert!(html.contains("accept=\".mcqpack\""), "{html}");
+}
+
+#[test]
+fn formulas_show_as_native_mathml_and_explanations_after_hand_in() {
+    let (mut paper, _) = mcq_format::read(SAMPLE);
+    paper.shuffle_options = false;
+    let banana = paper
+        .questions
+        .iter_mut()
+        .find(|q| q.id == "fruit-banana-colour")
+        .expect("q");
+    banana.body.push(mcq_model::Block::Text(
+        r"A ripe banana is $\frac{3}{4}$ yellow, for \$2.".into(),
+    ));
+    banana.options[0].explanation = r"Pigments: $$\sum_i p_i$$".into();
+    let mut rng = CountingRng(9);
+    let teacher = Identity::generate(&mut rng);
+    let bytes = mcq_publish::publish(
+        &teacher,
+        &paper,
+        |path: &str| Ok(path.as_bytes().to_vec()),
+        mcq_publish::Mode::Practice,
+        KdfParams::TESTING,
+        &mut rng,
+    )
+    .expect("publish")
+    .package;
+
+    let html = render(move || {
+        let opened = Opened::from_package(&bytes, "").expect("open");
+        let (full, key_files) =
+            mcq_crypto::open_answer_key_files(&bytes, mcq_crypto::KeyUnlock::Practice)
+                .expect("key");
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        let index = session
+            .items
+            .iter()
+            .position(|i| i.question_id == "fruit-banana-colour")
+            .expect("q");
+        session.go_to(index);
+        let item = session.current_item().expect("item").clone();
+        let question = opened.paper.question("fruit-banana-colour").expect("q");
+        let exam = render::question_view(
+            question,
+            &item,
+            index,
+            session.items.len(),
+            opened.content(),
+            Lang::En.texts(),
+            EventHandler::new(|_: String| {}),
+            EventHandler::new(|()| {}),
+        );
+        let copy = session.submit();
+        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds);
+        let formulas = render::correction_formulas(&opened.formulas, &key_files);
+        let content = render::Content {
+            formulas: &formulas,
+            ..opened.content()
+        };
+        let review = render::review_view(&full, &session, &result, Lang::En.texts(), content);
+        // Before the correction, the explanation's formula is not in the student's table.
+        let early =
+            render::review_view(&full, &session, &result, Lang::En.texts(), opened.content());
+        rsx! { div { id: "exam", {exam} } div { id: "review", {review} } div { id: "early", {early} } }
+    });
+    let part = |id: &str| {
+        let start = html.find(&format!("id=\"{id}\"")).expect(id);
+        html[start..].to_string()
+    };
+    let exam = part("exam");
+    assert!(
+        exam.contains("<math><mfrac><mn>3</mn><mn>4</mn></mfrac></math> yellow, for $2."),
+        "{exam}"
+    );
+    let review = part("review");
+    assert!(
+        review.contains("<math display=\"block\"><munder>"),
+        "{review}"
+    );
+    let early = part("early");
+    assert!(
+        early.contains(r#"<code class="formula-source">$$\sum_i p_i$$</code>"#),
+        "{early}"
+    );
 }

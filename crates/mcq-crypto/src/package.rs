@@ -110,6 +110,19 @@ pub fn publish(
     options: &PublishOptions,
     rng: &mut impl CryptoRng,
 ) -> Result<Vec<u8>, Error> {
+    publish_with_key_files(identity, paper, media, &[], options, rng)
+}
+
+/// `publish`, with files that travel inside the answer key: what only the correction may show,
+/// such as the formulas of the explanations.
+pub fn publish_with_key_files(
+    identity: &Identity,
+    paper: &Paper,
+    media: &[Entry],
+    key_files: &[Entry],
+    options: &PublishOptions,
+    rng: &mut impl CryptoRng,
+) -> Result<Vec<u8>, Error> {
     let kdf = options.kdf.check()?;
     let (flags, opening_secret) = match &options.opening {
         Opening::Code(code) => (0, Some(normalize_code(code).ok_or(Error::BadCode)?)),
@@ -167,10 +180,12 @@ pub fn publish(
     }];
     content_files.extend(media.iter().cloned());
     let content = Zeroizing::new(encode_archive(&content_files));
-    let answers = Zeroizing::new(encode_archive(&[Entry {
+    let mut answer_files = vec![Entry {
         path: PAPER_FILE.to_string(),
         data: mcq_format::write(&paper).into_bytes(),
-    }]));
+    }];
+    answer_files.extend(key_files.iter().filter(|f| f.path != PAPER_FILE).cloned());
+    let answers = Zeroizing::new(encode_archive(&answer_files));
 
     let content_key = Zeroizing::new(primitives::random::<KEY_LEN>(rng));
     let answer_key = Zeroizing::new(primitives::random::<KEY_LEN>(rng));
@@ -271,6 +286,14 @@ pub fn open(package: &[u8], secret: &str) -> Result<StudentPackage, Error> {
 
 /// The full paper, with its answers.
 pub fn open_answer_key(package: &[u8], unlock: KeyUnlock<'_>) -> Result<Paper, Error> {
+    open_answer_key_files(package, unlock).map(|(paper, _)| paper)
+}
+
+/// The full paper and the other files of the answer key.
+pub fn open_answer_key_files(
+    package: &[u8],
+    unlock: KeyUnlock<'_>,
+) -> Result<(Paper, Vec<Entry>), Error> {
     let parsed = Parsed::read(package)?;
     let answer_key: Zeroizing<[u8; KEY_LEN]> = match unlock {
         KeyUnlock::Teacher(identity) => {
@@ -321,12 +344,13 @@ pub fn open_answer_key(package: &[u8], unlock: KeyUnlock<'_>) -> Result<Paper, E
         parsed.answers,
         &aad(&parsed.hash, "answer key"),
     )?;
-    let files = decode_archive(&answers)?;
-    let paper = files
+    let mut files = decode_archive(&answers)?;
+    let at = files
         .iter()
-        .find(|f| f.path == PAPER_FILE)
+        .position(|f| f.path == PAPER_FILE)
         .ok_or(Error::Malformed("no paper in the answer key"))?;
-    read_paper(&paper.data)
+    let paper = read_paper(&files.remove(at).data)?;
+    Ok((paper, files))
 }
 
 fn key_from(bytes: &[u8]) -> Result<Zeroizing<[u8; KEY_LEN]>, Error> {

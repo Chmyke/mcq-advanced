@@ -152,3 +152,36 @@ fn the_room_sheet_shows_the_opening_code_and_never_the_end_code() {
     assert!(html.contains(&later), "{html}");
     assert!(!html.contains("ZZZZ"), "{html}");
 }
+
+#[test]
+fn the_formula_button_adds_a_formula_the_preview_shows_at_once() {
+    let html = render(|s| {
+        s.select("fruit-banana-colour");
+        s.add_formula_block("fruit-banana-colour");
+    });
+    let editor = &html[..html.find("class=\"preview\"").expect("preview")];
+    assert!(editor.contains(">+ Formula</button>"), "{editor}");
+    assert!(editor.contains("$$x^2$$ on their own line"), "{editor}");
+    assert!(
+        editor.contains(r"$$\frac{a}{b}$$"),
+        "the example to replace"
+    );
+    let preview = &html[html.find("class=\"preview\"").expect("preview")..];
+    assert!(
+        preview.contains("<math display=\"block\"><mfrac><mi>a</mi><mi>b</mi></mfrac></math>"),
+        "{preview}"
+    );
+}
+
+#[test]
+fn a_formula_that_does_not_convert_is_explained_and_shown_as_source() {
+    let html = render(|s| {
+        s.select("fruit-banana-colour");
+        s.edit_question("fruit-banana-colour", |q| {
+            q.body
+                .push(mcq_model::Block::Text(r"Is $\frac{1}{$ right?".into()));
+        });
+    });
+    assert!(html.contains("BAD_FORMULA"), "{html}");
+    assert!(html.contains("formula-source"), "{html}");
+}

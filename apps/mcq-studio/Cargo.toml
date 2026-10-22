@@ -22,6 +22,7 @@ mcq-publish.workspace = true
 mcq-analysis.workspace = true
 mcq-convert.workspace = true
 mcq-grade.workspace = true
+mcq-math = { workspace = true, features = ["convert"] }
 # The student look, reused as is for the preview: same rendering, same stylesheet.
 mcq-player = { path = "../mcq-player" }
 dioxus = { version = "0.7", default-features = false, features = ["launch", "html", "signals", "hooks", "macro", "document"] }

@@ -1,0 +1,21 @@
+[package]
+name = "mcq-math"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+# The converter is for the tools that publish (CLI, Studio, linter); the player only reads.
+default = ["convert"]
+convert = ["dep:math-core"]
+
+[dependencies]
+mcq-model.workspace = true
+mcq-format.workspace = true
+math-core = { version = "0.9", default-features = false, features = ["std"], optional = true }
+roxmltree = "0.20"
+
+[lints]
+workspace = true

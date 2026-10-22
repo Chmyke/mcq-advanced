@@ -566,10 +566,11 @@ pub fn line_ranges(lines: &str) -> Vec<u32> {
         let part = part.trim();
         match part.split_once('-') {
             Some((a, b)) => {
-                if let (Ok(a), Ok(b)) = (a.trim().parse::<u32>(), b.trim().parse::<u32>()) {
-                    if a <= b && b - a < 1000 {
-                        highlighted.extend(a..=b);
-                    }
+                if let (Ok(a), Ok(b)) = (a.trim().parse::<u32>(), b.trim().parse::<u32>())
+                    && a <= b
+                    && b - a < 1000
+                {
+                    highlighted.extend(a..=b);
                 }
             }
             None => {

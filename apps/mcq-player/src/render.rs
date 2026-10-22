@@ -10,17 +10,19 @@ use mcq_grade::{GradeResult, GuessAdvice, Mastery, Status};
 use mcq_model::{Block, CodeBlock, CodeTokens, MediaKind, Paper, Question, Scoring};
 
 use mcq_format::binary::{CODE_TOKENS_FILE, decode_code_tokens};
+use mcq_math::{FORMULAS_FILE, Formulas};
 
 use crate::texts::Texts;
 use crate::{b64, markdown};
 
-/// A paper opened with its code: the student copy, its media and its coloured code.
+/// A paper opened with its code: the student copy, its media, its coloured code and formulas.
 pub struct Opened {
     pub header: PackageHeader,
     pub paper: Paper,
     /// Media path to `data:` URL.
     pub media: BTreeMap<String, String>,
     pub tokens: Vec<CodeTokens>,
+    pub formulas: Formulas,
 }
 
 impl Opened {
@@ -29,9 +31,13 @@ impl Opened {
         let student = mcq_crypto::open(bytes, secret)?;
         let mut media = BTreeMap::new();
         let mut tokens = Vec::new();
+        let mut formulas = Formulas::default();
         for entry in student.media {
             if entry.path == CODE_TOKENS_FILE {
                 tokens = decode_code_tokens(&entry.data).unwrap_or_default();
+            } else if entry.path == FORMULAS_FILE {
+                formulas =
+                    Formulas::from_package(mcq_math::decode(&entry.data).unwrap_or_default());
             } else {
                 let url = format!(
                     "data:{};base64,{}",
@@ -46,6 +52,7 @@ impl Opened {
             paper: student.paper,
             media,
             tokens,
+            formulas,
         })
     }
 
@@ -54,17 +61,29 @@ impl Opened {
             paper: &self.paper,
             media: &self.media,
             tokens: &self.tokens,
+            formulas: &self.formulas,
         }
     }
 }
 
-/// What the question views draw from: a paper, its media as `data:` URLs and its coloured code.
-/// The player takes it from an opened package; the Studio's preview from the paper being edited.
+/// The formulas of the correction: the student's, and those of the answer key's files.
+pub fn correction_formulas(opened: &Formulas, key_files: &[mcq_format::binary::Entry]) -> Formulas {
+    let mut all = opened.clone();
+    for entry in key_files.iter().filter(|e| e.path == FORMULAS_FILE) {
+        all.add(mcq_math::decode(&entry.data).unwrap_or_default());
+    }
+    all
+}
+
+/// What the question views draw from: a paper, its media as `data:` URLs, its coloured code and
+/// its formulas. The player takes it from an opened package; the Studio's preview from the paper
+/// being edited.
 #[derive(Clone, Copy)]
 pub struct Content<'a> {
     pub paper: &'a Paper,
     pub media: &'a BTreeMap<String, String>,
     pub tokens: &'a [CodeTokens],
+    pub formulas: &'a Formulas,
 }
 
 impl Content<'_> {
@@ -153,7 +172,7 @@ pub fn body(question: &Question, content: Content<'_>) -> Element {
         .iter()
         .map(|block| match block {
             Block::Text(text) => {
-                let html = markdown::block(text);
+                let html = markdown::block(text, content.formulas);
                 rsx! { div { class: "prose", dangerous_inner_html: "{html}" } }
             }
             Block::Code(code) => {
@@ -227,7 +246,7 @@ pub fn question_view(
             Some((
                 k,
                 id.clone(),
-                markdown::inline(&option.text),
+                markdown::inline(&option.text, content.formulas),
                 item.selected.contains(id),
             ))
         })
@@ -341,6 +360,7 @@ pub fn points(value: f32, t: &Texts) -> String {
 
 pub fn intro(
     paper: &Paper,
+    formulas: &Formulas,
     header: &PackageHeader,
     t: &'static Texts,
     on_start: EventHandler<()>,
@@ -374,7 +394,7 @@ pub fn intro(
         GuessAdvice::AnswerWhenYouHaveAnIdea => t.advice_with_idea,
         GuessAdvice::TickOnlyWhenYouHaveAnIdea => t.advice_tick_only,
     };
-    let description = markdown::block(&paper.description);
+    let description = markdown::block(&paper.description, formulas);
     rsx! {
         section { class: "intro card",
             h1 { "{paper.title}" }
@@ -441,8 +461,8 @@ pub fn review_view(
                     let o = question.option(id)?;
                     Some((
                         id.clone(),
-                        markdown::inline(&o.text),
-                        markdown::block(&o.explanation),
+                        markdown::inline(&o.text, content.formulas),
+                        markdown::block(&o.explanation, content.formulas),
                         o.is_correct,
                         item.selected.contains(id),
                     ))

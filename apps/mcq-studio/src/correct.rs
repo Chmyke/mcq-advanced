@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use mcq_analysis::sheet::RevisionSheet;
-use mcq_analysis::{Anomaly, Finding, Report, csv};
+use mcq_analysis::{Adjustment, Anomaly, Decision, Finding, Report, csv};
 use mcq_crypto::Identity;
 use mcq_grade::Mastery;
 use mcq_model::{Block, Paper};
@@ -50,12 +50,50 @@ fn theme_title(paper: &Paper, id: &str) -> String {
         .map_or_else(|| id.to_string(), |t| t.title.clone())
 }
 
+/// What the teacher can decide about a doubtful key, ready to click.
+struct Choices {
+    question: String,
+    /// Each distractor, the rival first, with the key it would give.
+    accept: Vec<(String, Vec<String>)>,
+}
+
+/// One button per distractor: on a single-answer question it replaces the key, on a multiple
+/// answer one it joins it.
+fn key_choices(paper: &Paper, question: &str, rival: Option<&str>) -> Choices {
+    let mut accept = Vec::new();
+    if let Some(q) = paper.question(question) {
+        let key: Vec<String> = q
+            .options
+            .iter()
+            .filter(|o| o.is_correct)
+            .map(|o| o.id.clone())
+            .collect();
+        let mut distractors: Vec<_> = q.options.iter().filter(|o| !o.is_correct).collect();
+        distractors.sort_by_key(|o| Some(o.id.as_str()) != rival);
+        for option in distractors {
+            let new_key = if key.len() > 1 {
+                let mut joined = key.clone();
+                joined.push(option.id.clone());
+                joined
+            } else {
+                vec![option.id.clone()]
+            };
+            accept.push((option.text.clone(), new_key));
+        }
+    }
+    Choices {
+        question: question.to_string(),
+        accept,
+    }
+}
+
 /// The findings as sentences, by section.
 struct Lines {
     /// Each theme to reteach, with the doubtful keys to check first.
     reteach: Vec<(String, Option<String>)>,
     traps: Vec<String>,
-    review: Vec<String>,
+    /// A doubtful key comes with its choices.
+    review: Vec<(String, Option<Choices>)>,
 }
 
 /// One sentence per finding of a kind, in the report's order.
@@ -115,37 +153,49 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                 question,
                 rival,
                 discrimination,
-            } => review.push(match rival {
-                Some(rival) => fill(
-                    c.key_doubt_rival,
-                    &[
-                        ("question", question.clone()),
-                        ("rival", option_text(paper, question, rival)),
-                        ("d", d(*discrimination)),
-                    ],
-                ),
-                None => fill(
-                    c.key_doubt,
-                    &[("question", question.clone()), ("d", d(*discrimination))],
-                ),
-            }),
-            Finding::TooHard { question, facility } => review.push(fill(
-                c.too_hard,
-                &[("question", question.clone()), ("pct", pct(1.0 - facility))],
+            } => review.push((
+                match rival {
+                    Some(rival) => fill(
+                        c.key_doubt_rival,
+                        &[
+                            ("question", question.clone()),
+                            ("rival", option_text(paper, question, rival)),
+                            ("d", d(*discrimination)),
+                        ],
+                    ),
+                    None => fill(
+                        c.key_doubt,
+                        &[("question", question.clone()), ("d", d(*discrimination))],
+                    ),
+                },
+                Some(key_choices(paper, question, rival.as_deref())),
             )),
-            Finding::DeadDistractors { question, count } => review.push(fill(
-                c.dead,
-                &[("question", question.clone()), ("n", count.to_string())],
+            Finding::TooHard { question, facility } => review.push((
+                fill(
+                    c.too_hard,
+                    &[("question", question.clone()), ("pct", pct(1.0 - facility))],
+                ),
+                None,
+            )),
+            Finding::DeadDistractors { question, count } => review.push((
+                fill(
+                    c.dead,
+                    &[("question", question.clone()), ("n", count.to_string())],
+                ),
+                None,
             )),
             Finding::TooEasy { question, .. } => {
-                review.push(fill(c.too_easy, &[("question", question.clone())]));
+                review.push((fill(c.too_easy, &[("question", question.clone())]), None));
             }
             Finding::WeakDiscrimination {
                 question,
                 discrimination,
-            } => review.push(fill(
-                c.weak,
-                &[("question", question.clone()), ("d", d(*discrimination))],
+            } => review.push((
+                fill(
+                    c.weak,
+                    &[("question", question.clone()), ("d", d(*discrimination))],
+                ),
+                None,
             )),
         }
     }
@@ -224,15 +274,61 @@ fn reliability_line(value: f64, c: &CorrectTexts, lang: Lang) -> String {
     )
 }
 
+/// The decisions in force, one sentence each with the question they are about.
+fn decision_lines(report: &Report, paper: &Paper, c: &CorrectTexts) -> Vec<(String, String)> {
+    let neutralized = report
+        .adjustments
+        .iter()
+        .filter(|a| a.decision == Decision::Neutralize)
+        .count();
+    let graded = paper.questions.len().saturating_sub(neutralized);
+    report
+        .adjustments
+        .iter()
+        .map(|a| {
+            let line = match &a.decision {
+                Decision::Neutralize => fill(
+                    c.decided_neutral,
+                    &[("question", a.question.clone()), ("n", graded.to_string())],
+                ),
+                Decision::Rekey(options) => fill(
+                    c.decided_rekey,
+                    &[
+                        ("question", a.question.clone()),
+                        (
+                            "options",
+                            options
+                                .iter()
+                                .map(|o| option_text(paper, &a.question, o))
+                                .collect::<Vec<_>>()
+                                .join("», «"),
+                        ),
+                    ],
+                ),
+            };
+            (a.question.clone(), line)
+        })
+        .collect()
+}
+
+/// What the report view hands back: a revision sheet to open, or a decision on the key.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReportAction {
+    Sheet(String),
+    Decide(Adjustment),
+    Undo(String),
+}
+
 /// The whole diagnosis, as text lines a test can read and a teacher can act on.
 pub fn report_view(
     report: &Report,
     paper: &Paper,
     t: &'static Texts,
     lang: Lang,
-    on_sheet: EventHandler<String>,
+    on_action: EventHandler<ReportAction>,
 ) -> Element {
     let c = t.correction;
+    let decisions = decision_lines(report, paper, c);
     let summary = fill(
         c.summary,
         &[
@@ -311,8 +407,42 @@ pub fn report_view(
         }
         section { class: "card finding-group",
             h2 { "{c.review_title}" }
+            if !decisions.is_empty() {
+                div { class: "decisions",
+                    h3 { "{c.decisions_title}" }
+                    ul {
+                        for (question, line) in decisions {
+                            li { key: "{question}", class: "decision", "{line} "
+                                button { class: "small", onclick: { let q = question.clone(); move |_| on_action.call(ReportAction::Undo(q.clone())) }, "{c.undo}" }
+                            }
+                        }
+                    }
+                }
+            }
             if review.is_empty() { p { class: "ok-note", "{c.review_none}" } }
-            ul { for (k, line) in review.into_iter().enumerate() { li { key: "{k}", "{line}" } } }
+            ul {
+                for (k, (line, choices)) in review.into_iter().enumerate() {
+                    li { key: "{k}", "{line}"
+                        if let Some(choices) = choices {
+                            div { class: "key-choices",
+                                p { class: "muted", "{c.decide_hint}" }
+                                div { class: "actions",
+                                    button { class: "small", onclick: { let q = choices.question.clone(); move |_| on_action.call(ReportAction::Decide(Adjustment::neutralize(&q))) }, "{c.neutralize}" }
+                                    for (j, (text, key)) in choices.accept.into_iter().enumerate() {
+                                        button { key: "{j}", class: "small",
+                                            onclick: {
+                                                let q = choices.question.clone();
+                                                move |_| on_action.call(ReportAction::Decide(Adjustment { question: q.clone(), decision: Decision::Rekey(key.clone()) }))
+                                            },
+                                            {fill(c.accept, &[("option", text)])}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         if !anomalies.is_empty() {
             section { class: "card finding-group",
@@ -336,7 +466,7 @@ pub fn report_view(
                                 td { class: "num", "{blank}" }
                                 td { class: "num", "{mins}" }
                                 td { class: "mono", "{receipt}" }
-                                td { button { class: "small", onclick: { let receipt = receipt.clone(); move |_| on_sheet.call(receipt.clone()) }, "{c.open_sheet}" } }
+                                td { button { class: "small", onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Sheet(receipt.clone())) }, "{c.open_sheet}" } }
                             }
                         }
                     }
@@ -370,13 +500,16 @@ pub fn sheet_view(sheet: &RevisionSheet, t: &'static Texts, lang: Lang) -> Eleme
         .map(|m| {
             let q = &m.question;
             let tokens = preview::tokens(q);
+            let mut texts = preview::student_texts(q);
+            texts.extend(q.options.iter().map(|o| o.explanation.as_str()));
+            let formulas = preview::formulas(&texts);
             let mut code_index = 0;
             let body: Vec<Element> = q
                 .body
                 .iter()
                 .filter_map(|block| match block {
                     Block::Text(text) => {
-                        let html = markdown::block(text);
+                        let html = markdown::block(text, &formulas);
                         Some(rsx! { div { class: "prose", dangerous_inner_html: "{html}" } })
                     }
                     Block::Code(code) => {
@@ -391,13 +524,18 @@ pub fn sheet_view(sheet: &RevisionSheet, t: &'static Texts, lang: Lang) -> Eleme
                 .chosen
                 .iter()
                 .filter_map(|id| q.option(id))
-                .map(|o| markdown::inline(&o.text))
+                .map(|o| markdown::inline(&o.text, &formulas))
                 .collect();
             let right: Vec<(String, String)> = q
                 .options
                 .iter()
                 .filter(|o| o.is_correct)
-                .map(|o| (markdown::inline(&o.text), markdown::block(&o.explanation)))
+                .map(|o| {
+                    (
+                        markdown::inline(&o.text, &formulas),
+                        markdown::block(&o.explanation, &formulas),
+                    )
+                })
                 .collect();
             let rule = q.rule.clone();
             let review = q.course_ref.clone();
@@ -566,7 +704,11 @@ pub fn CorrectSpace(
                     button { onclick: { let r = report.clone(); move |_| download_text("themes.csv", &csv::themes(&r, labels)) }, "{c.export_themes}" }
                     button { onclick: { let (r, p) = (report.clone(), paper.clone()); move |_| download_text("questions.csv", &csv::questions(&p, &r, labels)) }, "{c.export_questions}" }
                 }
-                {report_view(&report, &paper, t, lang, EventHandler::new(move |receipt: String| sheet_for.set(Some(receipt))))}
+                {report_view(&report, &paper, t, lang, EventHandler::new(move |action: ReportAction| match action {
+                    ReportAction::Sheet(receipt) => sheet_for.set(Some(receipt)),
+                    ReportAction::Decide(adjustment) => correction.write().decide(adjustment),
+                    ReportAction::Undo(question) => correction.write().undo(&question),
+                }))}
             }
         }
     }

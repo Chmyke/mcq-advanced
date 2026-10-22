@@ -88,6 +88,10 @@ label { font-weight: 600; display: block; }
 .badge { font-size: .85em; padding: .15rem .6rem; border-radius: 999px; border: 1px solid var(--border); }
 .badge.multi { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
 .prose p { margin: .4em 0; }
+/* Formulas: native MathML, converted when the paper was published. */
+math { font-size: 1.1em; }
+math[display="block"] { margin: .5em 0; overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+.formula-source { color: var(--warn); }
 .prose code, .option-text code, .review code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: .05em .35em; border-radius: 4px; font-size: .92em; }
 .media { max-width: 100%; border-radius: 8px; margin: .5rem 0; }
 figure.media { margin: .5rem 0; }

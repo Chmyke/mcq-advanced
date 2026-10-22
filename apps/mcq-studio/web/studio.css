@@ -101,6 +101,10 @@ button.recording { background: var(--ko); color: #fff; border-color: var(--ko); 
 .big-line { font-size: 1.1em; font-weight: 600; }
 .finding-group ul { padding-left: 1.2em; }
 .finding-group li { margin: .3rem 0; }
+.key-choices { margin: .35rem 0 .6rem; }
+.key-choices .muted { margin: .2rem 0 .35rem; }
+.decisions { border-left: 3px solid var(--accent); padding: .1rem 0 .1rem .75rem; margin-bottom: .75rem; }
+.decisions h3 { margin: .2rem 0; font-size: 1em; }
 .table-scroll { overflow-x: auto; }
 table.marks { border-collapse: collapse; width: 100%; font-size: .95em; }
 table.marks th, table.marks td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--border); }

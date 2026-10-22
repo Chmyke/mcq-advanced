@@ -1,7 +1,9 @@
 //! The class analysis: the earlier tool's tests, carried over, and a synthetic class whose planted
 //! flaws must be found, every one and nothing else.
 
-use mcq_analysis::{Anomaly, Copy, Finding, Report, analyse, csv, sheet, synth};
+use mcq_analysis::{
+    Adjustment, Anomaly, Copy, Finding, Report, analyse, analyse_with, csv, sheet, synth,
+};
 use mcq_model::{Answer, AnswerOption, Level, Paper, Question, Submission, Theme};
 
 const ID: [u8; 16] = [1; 16];
@@ -378,4 +380,113 @@ fn planted_flaws_are_found_whatever_the_seed() {
             "seed {seed}"
         );
     }
+}
+
+#[test]
+fn a_neutralized_question_leaves_the_marks_not_the_statistics() {
+    let p = paper(6, 2);
+    // Everyone misses q5: graded on the five others.
+    let copies = [scored(&p, "A", 5), scored(&p, "B", 2)];
+    let report = analyse_with(&p, ID, &copies, &[Adjustment::neutralize("q5")]);
+    let marks: Vec<f32> = report.students.iter().map(|s| s.mark).collect();
+    assert_eq!(marks, vec![20.0, 8.0]);
+    assert_eq!(report.students[0].grade.total, 5);
+    let q5 = &report.questions[5];
+    assert_eq!((q5.asked, q5.facility), (2, 0.0), "statistics kept");
+    assert!(
+        !report
+            .findings
+            .iter()
+            .any(|f| format!("{f:?}").contains("\"q5\"")),
+        "{:#?}",
+        report.findings
+    );
+    // Theme 1 holds q1, q3, q5: two questions left in the grading.
+    assert_eq!(report.themes[1].questions, 2);
+    let questions = csv::questions(&p, &report, &csv::FR);
+    assert!(
+        questions.contains("QUESTION;q5;t1;3;0,0;0;30,0;;;NEUTRALISÉE : hors barème;"),
+        "{questions}"
+    );
+    let sheet = sheet::revision_sheet(&p, &report, &report.students[1], &copies[1]);
+    assert!(sheet.mistakes.iter().all(|m| m.question.id != "q5"));
+
+    // Undoing is dropping the decision: the report is the plain one again.
+    assert_eq!(analyse_with(&p, ID, &copies, &[]), analyse(&p, ID, &copies));
+}
+
+#[test]
+fn a_corrected_key_marks_every_copy_again() {
+    let (paper, submissions, planted) = synth::cohort(2026, 40);
+    let copies: Vec<Copy> = submissions
+        .into_iter()
+        .map(|submission| Copy {
+            receipt: submission.student_name.clone(),
+            submission,
+        })
+        .collect();
+    let faulty = planted.faulty_question.as_str();
+    let rival = format!("{faulty}-o2");
+    let before = analyse(&paper, synth::PAPER_ID, &copies);
+    let after = analyse_with(
+        &paper,
+        synth::PAPER_ID,
+        &copies,
+        &[Adjustment::rekey(faulty, &[&rival])],
+    );
+    assert_eq!(after.adjustments.len(), 1);
+    // The strong students were right: with their answer as the key, the doubt is gone and the
+    // class does better.
+    assert!(
+        !after
+            .findings
+            .iter()
+            .any(|f| matches!(f, Finding::KeyDoubt { .. })),
+        "{:#?}",
+        after.findings
+    );
+    assert!(after.mean_mark > before.mean_mark);
+    let stats = after.questions.iter().find(|q| q.id == faulty);
+    let right: Vec<&str> = stats
+        .map(|q| {
+            q.options
+                .iter()
+                .filter(|o| o.is_correct)
+                .map(|o| o.id.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert_eq!(right, vec![rival.as_str()]);
+    assert!(
+        csv::questions(&paper, &after, &csv::EN).contains("KEY CORRECTED"),
+        "the spreadsheet says so"
+    );
+
+    // A sheet shows the key the copy was marked with, and no longer doubts it.
+    for (student, copy) in after.students.iter().zip({
+        let mut sorted: Vec<&Copy> = copies.iter().collect();
+        sorted.sort_by_key(|c| c.submission.student_name.to_lowercase());
+        sorted
+    }) {
+        let s = sheet::revision_sheet(&paper, &after, student, copy);
+        for m in s.mistakes.iter().filter(|m| m.question.id == faulty) {
+            assert!(!m.key_in_doubt);
+            assert!(m.question.option(&rival).is_some_and(|o| o.is_correct));
+        }
+    }
+
+    // Neutralizing it instead: no finding on it, and the paper stays reliable.
+    let neutral = analyse_with(
+        &paper,
+        synth::PAPER_ID,
+        &copies,
+        &[Adjustment::neutralize(faulty)],
+    );
+    assert!(
+        neutral
+            .students
+            .iter()
+            .all(|s| s.grade.total as usize == paper.questions.len() - 1)
+    );
+    assert!(neutral.reliability.unwrap_or(0.0) >= before.reliability.unwrap_or(1.0));
 }

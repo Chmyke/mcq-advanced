@@ -12,6 +12,7 @@ mcq-format.workspace = true
 mcq-lint.workspace = true
 mcq-crypto.workspace = true
 mcq-highlight.workspace = true
+mcq-math = { workspace = true, features = ["convert"] }
 
 [lints]
 workspace = true

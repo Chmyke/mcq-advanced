@@ -138,3 +138,60 @@ fn unfinished_papers_and_missing_media_are_refused() {
         other => panic!("expected errors, got {other:?}"),
     }
 }
+
+#[test]
+fn formulas_are_converted_once_and_explanations_wait_for_the_end_code() {
+    let (mut paper, _) = mcq_format::read(SAMPLE);
+    paper.questions[0]
+        .body
+        .push(mcq_model::Block::Text(r"Given $x^2 = 4$:".into()));
+    paper.questions[0].options[0].explanation = r"Because $$x = \pm 2$$.".into();
+    let mut rng = CountingRng(5);
+    let teacher = Identity::generate(&mut rng);
+    let published = publish(
+        &teacher,
+        &paper,
+        media,
+        Mode::Exam { end_code: true },
+        KdfParams::TESTING,
+        &mut rng,
+    )
+    .expect("publish");
+    let student = mcq_crypto::open(
+        &published.package,
+        published.opening_code.as_deref().expect("code"),
+    )
+    .expect("open");
+    let file = student
+        .media
+        .iter()
+        .find(|f| f.path == mcq_math::FORMULAS_FILE)
+        .expect("formulas for students");
+    let seen = mcq_math::decode(&file.data).expect("decode");
+    assert_eq!(seen.len(), 1);
+    assert_eq!(
+        (seen[0].latex.as_str(), seen[0].display),
+        ("x^2 = 4", false)
+    );
+    assert!(seen[0].mathml.starts_with("<math"));
+    // The explanation's formula is nowhere in what the opening code opens.
+    let needle = r"\pm".as_bytes();
+    assert!(
+        student
+            .media
+            .iter()
+            .all(|f| !f.data.windows(needle.len()).any(|w| w == needle))
+    );
+
+    let (_, files) = mcq_crypto::open_answer_key_files(
+        &published.package,
+        KeyUnlock::EndCode(published.end_code.as_deref().expect("end code")),
+    )
+    .expect("answer key");
+    let key = mcq_math::decode(&files[0].data).expect("decode");
+    assert_eq!(key.len(), 1);
+    assert_eq!(
+        (key[0].latex.as_str(), key[0].display),
+        (r"x = \pm 2", true)
+    );
+}
