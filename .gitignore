@@ -1,0 +1,26 @@
+# Build outputs
+/target/
+/dist/
+node_modules/
+
+# Real exam content never lives in this repository: subjects, answer keys, results, keys.
+# tools/guard-content.ps1 enforces it on every commit and in the check.
+*.qcmpack
+*.qcmres
+*.qcmsource
+*.key
+*.secret
+*.pem
+*.p12
+*.pfx
+Sujets/
+Resultats/
+
+# Editors and systems
+.vs/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+Desktop.ini
