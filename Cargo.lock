@@ -284,6 +284,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcq-engine"
+version = "0.1.0"
+dependencies = [
+ "mcq-format",
+ "mcq-model",
+ "sha2",
+]
+
+[[package]]
 name = "mcq-format"
 version = "0.1.0"
 dependencies = [

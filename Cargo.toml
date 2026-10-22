@@ -21,6 +21,7 @@ mcq-format = { path = "crates/mcq-format" }
 mcq-grade = { path = "crates/mcq-grade" }
 mcq-lint = { path = "crates/mcq-lint" }
 mcq-crypto = { path = "crates/mcq-crypto" }
+mcq-engine = { path = "crates/mcq-engine" }
 
 # Cryptography is slow without optimisation; dependencies are optimised even in tests.
 [profile.dev.package."*"]

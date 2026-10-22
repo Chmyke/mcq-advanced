@@ -3,7 +3,7 @@
 //! Little-endian integers, `u32` length prefixes. Decoding never panics and never trusts a
 //! length: every read is bounded by the bytes actually present.
 
-use mcq_model::{Answer, Submission};
+use mcq_model::{Answer, LogEntry, LogKind, Submission};
 
 /// Why bytes could not be decoded.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -238,6 +238,13 @@ pub fn encode_submission(s: &Submission) -> Vec<u8> {
             w.str(id);
         }
     }
+    w.u32(u32::try_from(s.log.len()).expect("fewer than 4 billion events"));
+    for entry in &s.log {
+        w.u32(entry.seconds)
+            .u8(entry.kind.code())
+            .str(&entry.question_id)
+            .str(&entry.option_id);
+    }
     w.into_vec()
 }
 
@@ -268,6 +275,18 @@ pub fn decode_submission(data: &[u8]) -> Result<Submission, DecodeError> {
             seconds_spent,
         });
     }
+    let count = r.count(13)?;
+    let mut log = Vec::with_capacity(count);
+    for _ in 0..count {
+        let seconds = r.u32()?;
+        let kind = LogKind::from_code(r.u8()?).ok_or(DecodeError::Invalid("unknown event"))?;
+        log.push(LogEntry {
+            seconds,
+            kind,
+            question_id: r.str()?.to_string(),
+            option_id: r.str()?.to_string(),
+        });
+    }
     r.finish()?;
     Ok(Submission {
         paper_id,
@@ -276,6 +295,7 @@ pub fn decode_submission(data: &[u8]) -> Result<Submission, DecodeError> {
         elapsed_seconds,
         focus_losses,
         seconds_away,
+        log,
     })
 }
 
@@ -302,6 +322,10 @@ mod tests {
             elapsed_seconds: 300,
             focus_losses: 1,
             seconds_away: 4,
+            log: vec![
+                LogEntry::new(10, LogKind::Tick, "q1", "q1-o2"),
+                LogEntry::new(40, LogKind::FocusLost, "", ""),
+            ],
         }
     }
 

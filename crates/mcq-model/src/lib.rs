@@ -342,6 +342,62 @@ pub struct Submission {
     /// Times the exam window lost focus, recorded and reported, never judged.
     pub focus_losses: u32,
     pub seconds_away: u32,
+    /// Every answer change and focus event, in order.
+    pub log: Vec<LogEntry>,
+}
+
+/// What happened, for the teacher's anomaly report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogKind {
+    Tick,
+    Untick,
+    FocusLost,
+    FocusBack,
+    Submit,
+}
+
+impl LogKind {
+    pub fn code(self) -> u8 {
+        match self {
+            LogKind::Tick => 1,
+            LogKind::Untick => 2,
+            LogKind::FocusLost => 3,
+            LogKind::FocusBack => 4,
+            LogKind::Submit => 5,
+        }
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        match code {
+            1 => Some(LogKind::Tick),
+            2 => Some(LogKind::Untick),
+            3 => Some(LogKind::FocusLost),
+            4 => Some(LogKind::FocusBack),
+            5 => Some(LogKind::Submit),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogEntry {
+    /// Exam seconds elapsed when it happened.
+    pub seconds: u32,
+    pub kind: LogKind,
+    /// Empty for focus and submit events.
+    pub question_id: String,
+    pub option_id: String,
+}
+
+impl LogEntry {
+    pub fn new(seconds: u32, kind: LogKind, question_id: &str, option_id: &str) -> Self {
+        Self {
+            seconds,
+            kind,
+            question_id: question_id.to_string(),
+            option_id: option_id.to_string(),
+        }
+    }
 }
 
 #[cfg(test)]

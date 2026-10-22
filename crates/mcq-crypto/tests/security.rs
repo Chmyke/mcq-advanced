@@ -353,6 +353,7 @@ fn submission(paper_id: [u8; 16]) -> Submission {
         elapsed_seconds: 120,
         focus_losses: 0,
         seconds_away: 0,
+        log: Vec::new(),
     }
 }
 
