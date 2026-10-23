@@ -40,6 +40,12 @@ fn only_an_untouched_demo_is_replaced_without_asking() {
         let (student, _) = mcq_edit::qcmz::import(&built.qcmz).expect("import");
         assert!(is_untouched_demo(&student), "{}", source.lang);
     }
+    // A gallery model, as its "open in the editor" link imports it.
+    for model in &mcq_demo::GALLERY {
+        let built = mcq_demo::build_model(model).expect("gallery model");
+        let (opened, _) = mcq_edit::qcmz::import(&built.qcmz).expect("import");
+        assert!(is_untouched_demo(&opened), "{}", model.stem);
+    }
     let mut edited = french.clone();
     edited.paper.title.push('!');
     assert!(!is_untouched_demo(&edited));

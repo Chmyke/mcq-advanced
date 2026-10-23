@@ -93,6 +93,22 @@ pub struct Imported {
     pub issues: Vec<Issue>,
 }
 
+/// One sentence of a report, in English and French, before it becomes part of an `Issue`.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Note {
+    pub en: String,
+    pub fr: String,
+}
+
+impl Note {
+    pub fn new(en: impl Into<String>, fr: impl Into<String>) -> Self {
+        Self {
+            en: en.into(),
+            fr: fr.into(),
+        }
+    }
+}
+
 /// Imports a question bank.
 pub fn import(source: Source, text: &str, options: &ImportOptions) -> Imported {
     match source {

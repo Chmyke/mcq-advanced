@@ -45,7 +45,7 @@ fn Harness() -> Element {
     let dark = use_signal(|| false);
     let space = studio.read().space;
     match space {
-        Space::Write => editor::write_space(studio, &EN, recording, notice, phone, dark),
+        Space::Write => editor::write_space(studio, &EN, recording, notice, phone, dark, None),
         Space::Settings => settings::settings_space(studio, &FR),
         Space::Publish | Space::Correct => rsx! {},
     }

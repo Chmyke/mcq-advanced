@@ -56,7 +56,12 @@ impl Reader {
     fn run(&mut self, source: &str) {
         self.paper = Paper::new();
         if source.trim().is_empty() {
-            self.error("EMPTY_SOURCE", Location::Paper, "The file is empty.");
+            self.error(
+                "EMPTY_SOURCE",
+                Location::Paper,
+                "The file is empty.",
+                "Le fichier est vide.",
+            );
             return;
         }
         let source = source.strip_prefix('\u{feff}').unwrap_or(source);
@@ -71,6 +76,7 @@ impl Reader {
                 "UNCLOSED_CODE_FENCE",
                 Location::Line(fence.start_line),
                 "A code block is never closed: check the ``` fences.",
+                "Un bloc de code n'est jamais fermé : vérifiez les clôtures ```.",
             );
             self.close_fence(fence);
         }
@@ -87,6 +93,7 @@ impl Reader {
                 "NO_FRONTMATTER",
                 Location::Line(first + 1),
                 "The file must start with a `---` header holding at least `title:`.",
+                "Le fichier doit commencer par un en-tête `---` contenant au moins `title:`.",
             );
             return first;
         }
@@ -109,6 +116,7 @@ impl Reader {
             "UNCLOSED_FRONTMATTER",
             Location::Line(first + 1),
             "The `---` header is never closed.",
+            "L'en-tête `---` n'est jamais fermé.",
         );
         lines.len()
     }
@@ -139,6 +147,7 @@ impl Reader {
                     "UNKNOWN_KEY",
                     Location::Line(line),
                     format!("Unknown header key `{key}`: ignored."),
+                    format!("Clé d'en-tête `{key}` inconnue : ignorée."),
                 );
                 return;
             }
@@ -148,6 +157,7 @@ impl Reader {
                 "BAD_VALUE",
                 Location::Line(line),
                 format!("Value `{value}` is not valid for `{key}`: the default is kept."),
+                format!("La valeur `{value}` n'est pas valide pour `{key}` : la valeur par défaut est conservée."),
             );
         }
     }
@@ -228,6 +238,7 @@ impl Reader {
                 "CODE_OUTSIDE_QUESTION",
                 Location::Line(line_no),
                 "Code block outside a question: ignored.",
+                "Bloc de code hors d'une question : ignoré.",
             );
             None
         };
@@ -257,6 +268,7 @@ impl Reader {
                 "THEME_WITHOUT_ID",
                 Location::Line(line_no),
                 "Expected `# THEME id | title`.",
+                "Forme attendue : `# THEME id | titre`.",
             );
             self.theme = None;
             return;
@@ -266,6 +278,7 @@ impl Reader {
                 "DUPLICATE_THEME",
                 Location::Line(line_no),
                 format!("Theme `{id}` is declared twice."),
+                format!("Le thème `{id}` est déclaré deux fois."),
             );
             self.theme = Some(index);
             return;
@@ -319,6 +332,10 @@ impl Reader {
                     "BAD_LEVEL",
                     Location::Line(line_no),
                     format!("Level `{}` is not between 1 and 5.", value.trim()),
+                    format!(
+                        "Le niveau `{}` n'est pas compris entre 1 et 5.",
+                        value.trim()
+                    ),
                 ),
             }
             return;
@@ -330,6 +347,7 @@ impl Reader {
                     "UNKNOWN_ATTRIBUTE",
                     Location::Line(line_no),
                     format!("`answers {}` needs a count from 1.", value.trim()),
+                    format!("`answers {}` attend un nombre à partir de 1.", value.trim()),
                 ),
             }
             return;
@@ -345,6 +363,7 @@ impl Reader {
             "UNKNOWN_ATTRIBUTE",
             Location::Line(line_no),
             format!("Attribute `{attribute}` is not understood: ignored."),
+            format!("Attribut `{attribute}` non compris : ignoré."),
         );
     }
 
@@ -374,6 +393,7 @@ impl Reader {
                 "OPTION_WITHOUT_QUESTION",
                 Location::Line(line_no),
                 "Option outside a question.",
+                "Réponse hors d'une question.",
             );
             return;
         };
@@ -398,6 +418,7 @@ impl Reader {
                 "ORPHAN_EXPLANATION",
                 Location::Line(line_no),
                 "Explanation line `>` not directly under an option: ignored.",
+                "Ligne d'explication `>` pas juste sous une réponse : ignorée.",
             );
             return;
         };
@@ -424,6 +445,9 @@ impl Reader {
                 "UNKNOWN_MEDIA",
                 Location::Line(line_no),
                 format!("`{path}` is not a supported image, sound or video: ignored."),
+                format!(
+                    "`{path}` n'est pas une image, un son ou une vidéo pris en charge : ignoré."
+                ),
             );
             return;
         };
@@ -444,14 +468,26 @@ impl Reader {
         self.paper.questions.push(draft.question);
     }
 
-    fn error(&mut self, code: &'static str, location: Location, message: impl Into<String>) {
+    fn error(
+        &mut self,
+        code: &'static str,
+        location: Location,
+        en: impl Into<String>,
+        fr: impl Into<String>,
+    ) {
         self.issues
-            .push(Issue::new(Severity::Error, code, location, message));
+            .push(Issue::new(Severity::Error, code, location, en, fr));
     }
 
-    fn warn(&mut self, code: &'static str, location: Location, message: impl Into<String>) {
+    fn warn(
+        &mut self,
+        code: &'static str,
+        location: Location,
+        en: impl Into<String>,
+        fr: impl Into<String>,
+    ) {
         self.issues
-            .push(Issue::new(Severity::Warning, code, location, message));
+            .push(Issue::new(Severity::Warning, code, location, en, fr));
     }
 }
 

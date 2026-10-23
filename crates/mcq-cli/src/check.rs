@@ -87,13 +87,22 @@ pub(crate) fn missing_media(paper: &Paper, path: &Path) -> Vec<Issue> {
                 || relative
                     .components()
                     .any(|c| matches!(c, std::path::Component::ParentDir));
-            let message = if escapes {
-                format!(
-                    "`{}` must stay inside the paper folder (a relative path, no `..`).",
-                    media.path
+            let (en, fr) = if escapes {
+                (
+                    format!(
+                        "`{}` must stay inside the paper folder (a relative path, no `..`).",
+                        media.path
+                    ),
+                    format!(
+                        "`{}` doit rester dans le dossier du sujet (un chemin relatif, sans `..`).",
+                        media.path
+                    ),
                 )
             } else if !folder.join(relative).is_file() {
-                format!("`{}` is not found next to the paper.", media.path)
+                (
+                    format!("`{}` is not found next to the paper.", media.path),
+                    format!("`{}` est introuvable à côté du sujet.", media.path),
+                )
             } else {
                 continue;
             };
@@ -101,7 +110,8 @@ pub(crate) fn missing_media(paper: &Paper, path: &Path) -> Vec<Issue> {
                 Severity::Error,
                 "MEDIA_NOT_FOUND",
                 Location::Question(question.id.clone()),
-                message,
+                en,
+                fr,
             ));
         }
     }

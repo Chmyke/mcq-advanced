@@ -5,13 +5,62 @@
 use dioxus::prelude::*;
 use mcq_edit::ops::{self, IdError, Kind};
 use mcq_model::{Block, Issue, Level, MediaKind, Question, Severity};
+use mcq_player::markdown;
 
+use crate::class_stats::{self, ClassResults};
 use crate::state::{self, Studio, View};
-use crate::texts::Texts;
+use crate::texts::{Lang, Texts, fill};
 use crate::{actions, preview};
 
-/// Where the rules are explained, for the validator's links.
+/// Where every check is listed, for the validator's links that have no guide section.
 pub const RULES_GUIDE: &str = "https://github.com/Chmyke/mcq-advanced/blob/main/docs/lint-rules.md";
+
+/// The website's "Writing a good test" guide, per interface language.
+const WRITING_GUIDE_EN: &str = "https://mickaelmancini.com/mcq-advanced/en/guide/";
+const WRITING_GUIDE_FR: &str = "https://mickaelmancini.com/mcq-advanced/guide/";
+
+/// The writing advice the guide explains, each at the anchor named after its code
+/// (`LENGTH_BIAS` at `#length-bias`): every warning of docs/lint-rules.md that is about writing,
+/// not reading the file. The website's check (tools/check-mcq-advanced.py) holds the same list.
+pub const GUIDE_CODES: [&str; 24] = [
+    "MISSING_QUESTION",
+    "VAGUE_STEM",
+    "NEGATIVE_STEM",
+    "TOO_MANY_OPTIONS",
+    "META_OPTION",
+    "LENGTH_BIAS",
+    "LENGTH_RANK_BIAS",
+    "ANSWER_POSITION_BIAS",
+    "NO_EXPLANATION",
+    "PARTIAL_EXPLANATION",
+    "NO_RULE",
+    "NO_COURSE_REF",
+    "DUPLICATE_QUESTION",
+    "LEVEL_MISSING",
+    "TOO_MUCH_RECALL",
+    "NOT_ENOUGH_APPLY",
+    "EMPTY_THEME",
+    "THIN_THEME",
+    "TOO_LONG",
+    "DURATION_MISMATCH",
+    "MEDIA_WITHOUT_ALT",
+    "HEAVY_MEDIA",
+    "HEAVY_PAPER",
+    "STRAY_DOLLAR",
+];
+
+/// Where a validator code is explained: its section of the writing guide, in the interface
+/// language, or the list of every check.
+pub fn rule_link(code: &str, lang: Lang) -> String {
+    if !GUIDE_CODES.contains(&code) {
+        return RULES_GUIDE.to_string();
+    }
+    let guide = match lang {
+        Lang::Fr => WRITING_GUIDE_FR,
+        Lang::En => WRITING_GUIDE_EN,
+    };
+    format!("{guide}#{}", code.to_ascii_lowercase().replace('_', "-"))
+}
 
 fn level_number(level: Level) -> u32 {
     match level {
@@ -36,25 +85,40 @@ pub fn issue_list(issues: &[&Issue], t: &'static Texts, with_location: bool) -> 
     if issues.is_empty() {
         return rsx! { p { class: "ok-note", "{t.no_issue}" } };
     }
-    let rows: Vec<(String, &'static str, &'static str, &'static str, String)> = issues
+    let rows: Vec<(
+        String,
+        &'static str,
+        &'static str,
+        &'static str,
+        String,
+        String,
+    )> = issues
         .iter()
         .map(|issue| {
             let (class, label) = severity_label(issue.severity, t);
             let place = if with_location {
-                format!("{}: ", issue.location)
+                t.place(&issue.location)
             } else {
                 String::new()
             };
-            (place, class, label, issue.code, issue.message.clone())
+            let link = rule_link(issue.code, t.lang);
+            (
+                place,
+                class,
+                label,
+                issue.code,
+                t.issue(issue).to_string(),
+                link,
+            )
         })
         .collect();
     rsx! {
         ul { class: "issues",
-            for (k, (place, class, label, code, message)) in rows.into_iter().enumerate() {
+            for (k, (place, class, label, code, message, link)) in rows.into_iter().enumerate() {
                 li { key: "{k}", class: "issue {class}",
                     span { class: "issue-level", "{label}" }
                     span { "{place}{message} " }
-                    a { class: "issue-code", href: "{RULES_GUIDE}", target: "_blank", rel: "noopener", "{code}" }
+                    a { class: "issue-code", href: "{link}", target: "_blank", rel: "noopener", "{code}" }
                 }
             }
         }
@@ -68,6 +132,7 @@ pub fn write_space(
     notice: Signal<Option<String>>,
     phone: Signal<bool>,
     dark: Signal<bool>,
+    class: Option<&ClassResults>,
 ) -> Element {
     let s = studio.read();
     let issues = s.issues();
@@ -84,7 +149,7 @@ pub fn write_space(
                     {source_view(studio, &s, &issues, t)}
                 } else {
                     match s.selected_question() {
-                        Some(question) => question_editor(studio, &s, question, &issues, t, recording, notice, phone, dark),
+                        Some(question) => question_editor(studio, &s, question, &issues, t, recording, notice, phone, dark, class),
                         None => rsx! { p { class: "card muted", "{t.empty_paper}" } },
                     }
                 }
@@ -273,6 +338,7 @@ fn question_editor(
     notice: Signal<Option<String>>,
     phone: Signal<bool>,
     dark: Signal<bool>,
+    class: Option<&ClassResults>,
 ) -> Element {
     let paper = &s.project.paper;
     let id = question.id.clone();
@@ -296,6 +362,7 @@ fn question_editor(
         (Kind::TrueFalse, t.kind_true_false),
     ];
     let preview = preview::question_preview(s, question, index, t, phone, dark);
+    let results = class.and_then(|c| class_stats::for_question(c, question));
     rsx! {
         article { class: "editor card", "aria-labelledby": "editor-title",
             header { class: "editor-head",
@@ -457,7 +524,12 @@ fn question_editor(
 
             section { class: "advice", "aria-labelledby": "advice-title",
                 h2 { id: "advice-title", "{t.validator}" }
+                // Read out when the count changes, not at every keystroke: the list itself is not live.
+                p { class: "sr-only", role: "status", "{t.issue_count(&mine)}" }
                 {issue_list(&mine, t, false)}
+            }
+            if let Some(results) = results {
+                {class_results(question, &results, t)}
             }
         }
         {preview}
@@ -562,6 +634,69 @@ fn IdField(
                 },
             }
             if let Some(message) = error() { p { id: "q-id-error", class: "error small-text", role: "alert", "{message}" } }
+        }
+    }
+}
+
+/// The class's figures for the question, under the validator's advice: what the copies say about
+/// the question as written now.
+fn class_results(
+    question: &Question,
+    results: &class_stats::QuestionResults,
+    t: &'static Texts,
+) -> Element {
+    let summary = fill(
+        t.class_summary,
+        &[
+            ("percent", results.percent.to_string()),
+            ("asked", results.asked.to_string()),
+            ("blank", results.blank.to_string()),
+            ("seconds", results.mean_seconds.to_string()),
+        ],
+    );
+    // Each answer as the student saw it: formulas and code drawn, the rest as safe text.
+    let texts: Vec<&str> = question.options.iter().map(|o| o.text.as_str()).collect();
+    let formulas = preview::formulas(&texts);
+    let rows: Vec<(char, String, Option<class_stats::AnswerShare>)> = question
+        .options
+        .iter()
+        .zip(&results.answers)
+        .enumerate()
+        .map(|(k, (option, share))| {
+            let letter = char::from(b'A' + (k % 26) as u8);
+            (letter, markdown::inline(&option.text, &formulas), *share)
+        })
+        .collect();
+    let figure = |a: class_stats::AnswerShare| {
+        fill(
+            t.class_answer,
+            &[
+                ("percent", a.percent.to_string()),
+                ("picked", a.picked.to_string()),
+            ],
+        )
+    };
+    rsx! {
+        section { class: "class-results", "aria-labelledby": "class-results-title",
+            h2 { id: "class-results-title", "{t.class_results}" }
+            p { class: "muted", "{summary}" }
+            if results.small_cohort { p { class: "muted", "{t.class_small}" } }
+            ul { class: "class-answers",
+                for (k, (letter, text, share)) in rows.into_iter().enumerate() {
+                    li { key: "{k}",
+                        span { class: "class-letter", "{letter}" }
+                        span { class: "class-text quoted", dangerous_inner_html: "{text}" }
+                        match share {
+                            Some(a) => rsx! {
+                                span { class: if a.correct { "class-bar correct" } else { "class-bar" }, style: "--share: {a.percent}%" }
+                                span { class: "class-figure", "{figure(a)}" }
+                                if a.correct { span { class: "sr-only", "{t.class_correct}" } }
+                            },
+                            None => rsx! { span { class: "class-figure muted", "{t.class_unmatched}" } },
+                        }
+                    }
+                }
+            }
         }
     }
 }

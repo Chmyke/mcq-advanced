@@ -1,8 +1,10 @@
 # Builds what the website serves for the demo into one folder: player/ and studio/ (the web
-# builds, side by side so the player's "open in the editor" finds the Studio) and demo/ (the
-# practice packages and the .qcmz sources, the same bytes at every build).
+# builds, side by side so the player's "open in the editor" finds the Studio), demo/ (the
+# practice packages and the .qcmz sources, the same bytes at every build) and shots/ (the
+# tutorial's screenshots, taken from this very Studio by tools/tutorial-shots.mjs; needs Node
+# and Microsoft Edge).
 # Run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-site.ps1 -Out <folder>
-# The three subfolders of <folder> are replaced; nothing else in it is touched.
+# The four subfolders of <folder> are replaced; nothing else in it is touched.
 # Keep this file pure ASCII.
 param([Parameter(Mandatory = $true)][string]$Out)
 $ErrorActionPreference = 'Stop'
@@ -28,4 +30,8 @@ foreach ($part in 'player', 'studio', 'demo') {
     if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
     Copy-Item -LiteralPath (Join-Path $root "target/web/$part") $target -Recurse
 }
-Write-Output "Site demo: $Out (player, studio, demo)"
+$shots = Join-Path $Out 'shots'
+if (Test-Path -LiteralPath $shots) { Remove-Item -LiteralPath $shots -Recurse -Force }
+& node (Join-Path $PSScriptRoot 'tutorial-shots.mjs') $Out $shots
+if ($LASTEXITCODE -ne 0) { throw 'Tutorial screenshots failed' }
+Write-Output "Site demo: $Out (player, studio, demo, shots)"

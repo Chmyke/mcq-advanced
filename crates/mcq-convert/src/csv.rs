@@ -194,18 +194,24 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
     let source = source.trim_start_matches('\u{feff}');
     let all = rows(source, guess_separator(source));
     let Some(((_, header), data)) = all.split_first() else {
-        return b.unreadable("The file is empty.".into());
+        return b.unreadable("The file is empty.".into(), "Le fichier est vide.".into());
     };
     let columns = Columns::find(header);
     let Some(question_column) = columns.question else {
         return b.unreadable(
             "No `question` column: the first row must name the columns (see the import guide)."
                 .into(),
+            "Pas de colonne `question` : la première ligne doit nommer les colonnes (voir le \
+             guide d'import)."
+                .into(),
         );
     };
     if columns.options.len() < 2 {
         return b.unreadable(
             "Fewer than two option columns: name them `option 1`, `option 2`... or `A`, `B`..."
+                .into(),
+            "Moins de deux colonnes de réponses : nommez-les `option 1`, `option 2`... ou `A`, \
+             `B`..."
                 .into(),
         );
     }
@@ -224,6 +230,7 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
             b.skip(
                 at,
                 format!("Line {line}, `{label}`: the type `{kind}` is not imported."),
+                format!("Ligne {line}, `{label}` : le type `{kind}` n'est pas importé."),
             );
             continue;
         }
@@ -237,6 +244,7 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
             b.skip(
                 at,
                 format!("Line {line}: a question and at least two options are needed."),
+                format!("Ligne {line} : il faut une question et au moins deux réponses."),
             );
             continue;
         }
@@ -245,6 +253,10 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
             b.skip(
                 at,
                 format!("Line {line}, `{label}`: the correct answer column names no option."),
+                format!(
+                    "Ligne {line}, `{label}` : la colonne de la bonne réponse ne désigne aucune \
+                     réponse."
+                ),
             );
             continue;
         }

@@ -50,21 +50,36 @@ pub struct Issue {
     pub severity: Severity,
     pub code: &'static str,
     pub location: Location,
+    /// English text, used by the command line and the docs.
     pub message: String,
+    /// The same text in French, for interfaces shown in French.
+    pub fr: String,
 }
 
 impl Issue {
+    /// Both languages are required so that no reported problem lacks its French text.
     pub fn new(
         severity: Severity,
         code: &'static str,
         location: Location,
         message: impl Into<String>,
+        fr: impl Into<String>,
     ) -> Self {
         Self {
             severity,
             code,
             location,
             message: message.into(),
+            fr: fr.into(),
+        }
+    }
+
+    /// The text in French when asked and available, else in English.
+    pub fn message_in(&self, french: bool) -> &str {
+        if french && !self.fr.is_empty() {
+            &self.fr
+        } else {
+            &self.message
         }
     }
 }

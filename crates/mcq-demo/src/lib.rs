@@ -1,7 +1,9 @@
-//! ROLE:    builds the website demos from `examples/demo`. Student demo: per language, the
-//!          practice package the player opens and the `.qcmz` the Studio opens. Teacher demo: a
-//!          paper with an exam package and the sealed copies of a fictional class, which the
-//!          Studio builds in the browser so a visitor can try writing and correcting at once.
+//! ROLE:    builds the website demos from `examples/demo` and `examples/gallery`. Student demo:
+//!          per language, the practice package the player opens and the `.qcmz` the Studio opens.
+//!          Gallery: fictional model papers, one per subject and language, built the same way, with
+//!          an index the website lists them from. Teacher demo: a paper with an exam package and
+//!          the sealed copies of a fictional class, which the Studio builds in the browser so a
+//!          visitor can try writing and correcting at once.
 //! OWNER:   stateless; the papers and their media are compiled in.
 //! INVARIANTS: the output is the same byte for byte at every build (fixed seed, no clock), so a
 //!             published demo can be checked against its source; the demo identity is public by
@@ -44,6 +46,47 @@ pub const TEACHER: [Source; 2] = [
         lang: "fr",
         paper: include_str!("../../../examples/demo/teacher-fr.qcm.md"),
     },
+];
+
+/// One paper of the gallery: a fictional model a visitor can take or open in the editor.
+pub struct Model {
+    /// Subject, shared by the languages of one model: the files are `<stem>-<lang>.*`.
+    pub stem: &'static str,
+    pub source: Source,
+}
+
+macro_rules! model {
+    ($stem:literal, $lang:literal) => {
+        Model {
+            stem: $stem,
+            source: Source {
+                lang: $lang,
+                paper: include_str!(concat!(
+                    "../../../examples/gallery/",
+                    $stem,
+                    "-",
+                    $lang,
+                    ".qcm.md"
+                )),
+            },
+        }
+    };
+}
+
+/// The gallery, sorted by stem then language: each subject in English and in French.
+pub const GALLERY: [Model; 12] = [
+    model!("computing", "en"),
+    model!("computing", "fr"),
+    model!("foreign-language", "en"),
+    model!("foreign-language", "fr"),
+    model!("history", "en"),
+    model!("history", "fr"),
+    model!("language", "en"),
+    model!("language", "fr"),
+    model!("maths", "en"),
+    model!("maths", "fr"),
+    model!("physics", "en"),
+    model!("physics", "fr"),
 ];
 
 /// The media the papers use, by path relative to the paper.
@@ -157,9 +200,16 @@ fn publish(
 
 /// Builds one language: the practice package and the `.qcmz`.
 pub fn build(source: &Source) -> Result<Built, String> {
+    practice(
+        source,
+        &format!("MCQ Advanced demo package {}", source.lang),
+    )
+}
+
+/// The practice package, its randomness drawn from `label`, and the `.qcmz`.
+fn practice(source: &Source, label: &str) -> Result<Built, String> {
     let project = project(source);
-    let label = format!("MCQ Advanced demo package {}", source.lang);
-    let published = publish(&project, &identity(), Mode::Practice, &label)?;
+    let published = publish(&project, &identity(), Mode::Practice, label)?;
     let qcmz = qcmz::export(&project).map_err(|e| e.to_string())?;
     Ok(Built {
         lang: source.lang,
@@ -172,6 +222,51 @@ pub fn build(source: &Source) -> Result<Built, String> {
 /// Every language of the demo.
 pub fn build_all() -> Result<Vec<Built>, String> {
     SOURCES.iter().map(build).collect()
+}
+
+/// Builds one model of the gallery, like a language of the student demo.
+pub fn build_model(model: &Model) -> Result<Built, String> {
+    let label = format!(
+        "MCQ Advanced gallery package {}-{}",
+        model.stem, model.source.lang
+    );
+    practice(&model.source, &label)
+}
+
+/// The gallery as the website lists it: a JSON array, one object per model in `GALLERY` order,
+/// with what a card shows. Written by hand so its bytes stay the same at every build.
+pub fn gallery_index() -> String {
+    let entries: Vec<String> = GALLERY
+        .iter()
+        .map(|model| {
+            let paper = &project(&model.source).paper;
+            format!(
+                "  {{\"stem\": {}, \"lang\": {}, \"title\": {}, \"description\": {}, \
+                 \"questions\": {}, \"duration\": {}}}",
+                json_string(model.stem),
+                json_string(model.source.lang),
+                json_string(&paper.title),
+                json_string(&paper.description),
+                paper.questions.len(),
+                paper.duration_minutes
+            )
+        })
+        .collect();
+    format!("[\n{}\n]\n", entries.join(",\n"))
+}
+
+fn json_string(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if u32::from(c) < 0x20 => out.push_str(&format!("\\u{:04x}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// The class of the teacher demo: fictional first names, the same in both languages.

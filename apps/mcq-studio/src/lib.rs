@@ -6,6 +6,7 @@
 
 pub mod actions;
 pub mod app;
+pub mod class_stats;
 pub mod correct;
 pub mod correction;
 pub mod demo;

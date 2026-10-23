@@ -350,3 +350,85 @@ fn formulas_must_convert_and_dollars_must_be_meant() {
     assert_eq!(stray[0].location, Location::Question("fruit-2".into()));
     assert!(has_errors(&issues));
 }
+
+/// A paper damaged in every way the linter knows, written for this test.
+const DAMAGED: &str = r"---
+duration: 1
+---
+## Q
+Before any theme, without an id?
+- [x] Yes
+- [ ] No
+
+# THEME fruit | Fruit
+# THEME empty | Empty
+
+## Q dup | level 1 | 6000s | answers 3
+Which fruit is not yellow? It costs $5.
+- [x] Banana
+- [x] Lemon
+- [ ] Banana
+- [ ] Cherry
+- [ ] All of the above
+
+## Q dup
+- [ ]
+
+## Q vague | level 2
+Here is some code. What happens?
+- [x] It compiles
+> Nothing stops it.
+- [ ] It prints 3
+RULE: Read before running.
+REVIEW: Chapter 2
+
+## Q mute | level 3
+A picture of the orchard.
+![](media/orchard.png)
+- [x] Apples $\frac{1}{$
+- [x] Pears
+
+## Q none | level 3
+Which tree gives figs?
+- [ ] Oak
+- [ ] Pine
+
+# THEME veg | Vegetables
+
+## Q long | level 1
+Which vegetable is a root?
+- [x] The carrot, because we eat the part that grows underground
+- [ ] Leek
+";
+
+#[test]
+fn every_issue_has_its_french_text() {
+    let (mut paper, _) = mcq_format::read(DAMAGED);
+    if let Some(q) = paper.questions.iter_mut().find(|q| q.id == "none") {
+        q.theme_id = "ghost".into();
+    }
+    let mut issues = lint(&paper);
+    issues.extend(find_duplicates_within(&paper));
+    issues.extend(find_duplicates(&paper, &paper.clone(), "orchard.qcm.md"));
+
+    // Ten questions or more for the paper-wide patterns: the correct answer first and longest.
+    let mut biased = clean(12);
+    for question in &mut biased.questions {
+        for (k, option) in question.options.iter_mut().enumerate() {
+            option.is_correct = k == 0;
+        }
+        question.options[0].text = "Golden yellow".into();
+    }
+    issues.extend(lint(&biased));
+
+    let mut found: Vec<&str> = issues.iter().map(|i| i.code).collect();
+    found.sort_unstable();
+    found.dedup();
+    assert!(found.len() >= 35, "{} codes: {found:?}", found.len());
+    for issue in &issues {
+        assert!(!issue.fr.trim().is_empty(), "{issue:#?}");
+        assert_ne!(issue.fr, issue.message, "{issue:#?}");
+        assert_eq!(issue.message_in(true), issue.fr);
+        assert_eq!(issue.message_in(false), issue.message);
+    }
+}

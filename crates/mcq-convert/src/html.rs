@@ -7,6 +7,7 @@
 use mcq_model::{Block, CodeBlock, Media, MediaKind};
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
 
+use crate::Note;
 use crate::text::{escape_inline, flush, neutral_line};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -219,7 +220,7 @@ pub type Resolve<'a> = &'a mut dyn FnMut(&str) -> Option<String>;
 pub struct Converted {
     pub blocks: Vec<Block>,
     /// Plain sentences, one per thing lost.
-    pub lost: Vec<String>,
+    pub lost: Vec<Note>,
 }
 
 struct Mark {
@@ -551,10 +552,18 @@ impl Converter<'_> {
                     .push(Block::Media(Media { kind, path, alt }));
             }
             None => {
-                self.out.lost.push(format!(
-                    "the {} `{}` is not inside the file: its text alternative is kept",
-                    if embed.tag == "img" { "image" } else { "media" },
-                    embed.src
+                let image = embed.tag == "img";
+                self.out.lost.push(Note::new(
+                    format!(
+                        "the {} `{}` is not inside the file: its text alternative is kept",
+                        if image { "image" } else { "media" },
+                        embed.src
+                    ),
+                    format!(
+                        "{} `{}` n'est pas dans le fichier : son texte alternatif est conservé",
+                        if image { "l'image" } else { "le média" },
+                        embed.src
+                    ),
                 ));
                 if !alt.is_empty() {
                     self.text(&format!("[{alt}] "));

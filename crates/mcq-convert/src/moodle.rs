@@ -15,7 +15,7 @@ use roxmltree::{Document, Node, ParsingOptions};
 use crate::build::{Builder, Choice, Draft, category_path};
 use crate::html::{self, Converted};
 use crate::text;
-use crate::{ImportOptions, Imported};
+use crate::{ImportOptions, Imported, Note};
 
 const PLUGINFILE: &str = "@@PLUGINFILE@@/";
 /// Marks the general feedback paragraph that holds the review pointer.
@@ -31,11 +31,20 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
     };
     let doc = match Document::parse_with_options(source.trim_start_matches('\u{feff}'), parsing) {
         Ok(doc) => doc,
-        Err(e) => return b.unreadable(format!("This is not a readable XML file: {e}.")),
+        Err(e) => {
+            return b.unreadable(
+                format!("This is not a readable XML file: {e}."),
+                format!("Ce fichier XML est illisible : {e}."),
+            );
+        }
     };
     let root = doc.root_element();
     if root.tag_name().name() != "quiz" {
-        return b.unreadable("This XML file is not a Moodle question bank: no <quiz> root.".into());
+        return b.unreadable(
+            "This XML file is not a Moodle question bank: no <quiz> root.".into(),
+            "Ce fichier XML n'est pas une banque de questions Moodle : pas de racine <quiz>."
+                .into(),
+        );
     }
 
     let mut categories: Vec<Category> = Vec::new();
@@ -51,17 +60,24 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
         }
         let name = child_text(node, &["name", "text"]);
         if kind != "multichoice" && kind != "truefalse" {
-            let what = if kind == "description" {
-                "a description, not a question".to_string()
+            let (en, fr) = if kind == "description" {
+                (
+                    format!("`{name}` is a description, not a question."),
+                    format!("`{name}` est une description, pas une question."),
+                )
             } else {
-                format!(
-                    "of type `{kind}`: only single, multiple and true or false questions come in"
+                (
+                    format!(
+                        "`{name}` is of type `{kind}`: only single, multiple and true or false \
+                         questions come in."
+                    ),
+                    format!(
+                        "`{name}` est de type `{kind}` : seules les questions à choix unique, à \
+                         choix multiples et vrai ou faux sont importées."
+                    ),
                 )
             };
-            b.skip(
-                Location::Question(name.clone()),
-                format!("`{name}` is {what}."),
-            );
+            b.skip(Location::Question(name.clone()), en, fr);
             continue;
         }
         let theme_id = match current.map(|k| &categories[k]) {
@@ -158,7 +174,7 @@ fn import_question(
     let name = child_text(node, &["name", "text"]);
     let idnumber = child_text(node, &["idnumber"]);
     let at = Location::Question(name.clone());
-    let mut lost: Vec<String> = Vec::new();
+    let mut lost: Vec<Note> = Vec::new();
 
     let question_text = child(node, "questiontext");
     let format = question_text
@@ -204,7 +220,13 @@ fn import_question(
     if let Ok(grade) = grade.parse::<f64>()
         && (grade - 1.0).abs() > 1e-6
     {
-        lost.push(format!("it is worth {grade} points in Moodle, 1 here"));
+        lost.push(Note::new(
+            format!("it is worth {grade} points in Moodle, 1 here"),
+            format!(
+                "elle vaut {} points dans Moodle, 1 ici",
+                grade.to_string().replace('.', ",")
+            ),
+        ));
     }
 
     let mut draft = Draft {
@@ -230,16 +252,20 @@ fn import_question(
         draft.choices(&answers, single, &mut lost);
     }
     if draft.question.options.len() < 2 {
-        b.skip(at, format!("`{name}` has fewer than two answers."));
+        b.skip(
+            at,
+            format!("`{name}` has fewer than two answers."),
+            format!("`{name}` a moins de deux réponses."),
+        );
         return;
     }
     b.question(theme_id, draft);
     for what in lost {
-        b.simplified(at.clone(), format!("`{name}`: {what}."));
+        b.simplified(at.clone(), &name, what);
     }
 }
 
-fn read_choice(node: Node, question_format: &str, lost: &mut Vec<String>) -> Choice {
+fn read_choice(node: Node, question_format: &str, lost: &mut Vec<Note>) -> Choice {
     let format = node.attribute("format").unwrap_or(question_format);
     let text = child_text(node, &["text"]);
     let feedback = child(node, "feedback")
@@ -302,12 +328,12 @@ fn convert(source: &str, format: &str, resolve: html::Resolve<'_>) -> Converted 
 }
 
 /// One line of text; what could not be kept goes to `lost`.
-fn inline_of(converted: Converted, lost: &mut Vec<String>) -> String {
+fn inline_of(converted: Converted, lost: &mut Vec<Note>) -> String {
     lost.extend(converted.lost);
     text::blocks_inline(&converted.blocks)
 }
 
-fn paragraphs_of(converted: Converted, lost: &mut Vec<String>) -> String {
+fn paragraphs_of(converted: Converted, lost: &mut Vec<Note>) -> String {
     lost.extend(converted.lost);
     text::blocks_paragraphs(&converted.blocks)
 }
@@ -495,6 +521,8 @@ fn write_question(
             at.clone(),
             "Moodle offers answer weights for up to 10 correct answers: check this question \
              after the import.",
+            "Moodle propose des pondérations pour 10 bonnes réponses au plus : vérifiez cette \
+             question après l'import.",
         ));
     }
 
@@ -642,6 +670,10 @@ fn body_html(project: &Project, question: &Question, issues: &mut Vec<Issue>) ->
                             "`{}` is not in the paper folder: it is not embedded.",
                             media.path
                         ),
+                        format!(
+                            "`{}` n'est pas dans le dossier du sujet : il n'est pas intégré.",
+                            media.path
+                        ),
                     )),
                 }
             }
@@ -675,20 +707,23 @@ fn text_element(value: &str) -> String {
 /// Quiz settings are not part of a question bank: say which ones stay behind.
 fn report_settings(paper: &Paper, issues: &mut Vec<Issue>) {
     let defaults = Paper::new();
-    let mut left = Vec::new();
+    // (English, French) names of the settings left behind.
+    let mut left: Vec<(&str, &str)> = Vec::new();
     if paper.duration_minutes != 0 {
-        left.push("duration");
+        left.push(("duration", "la durée"));
     }
     if paper.penalty != 0.0 || paper.unanswered_penalty != 0.0 {
-        left.push("penalties");
+        left.push(("penalties", "les pénalités"));
     }
     if paper.shuffle_questions != defaults.shuffle_questions {
-        left.push("question order");
+        left.push(("question order", "l'ordre des questions"));
     }
     if !paper.notes.is_empty() || paper.themes.iter().any(|t| !t.notes.is_empty()) {
-        left.push("author notes");
+        left.push(("author notes", "les notes d'auteur"));
     }
     if !left.is_empty() {
+        let en: Vec<&str> = left.iter().map(|(en, _)| *en).collect();
+        let fr: Vec<&str> = left.iter().map(|(_, fr)| *fr).collect();
         issues.push(Issue::new(
             Severity::Info,
             "EXPORT_SETTINGS",
@@ -696,7 +731,12 @@ fn report_settings(paper: &Paper, issues: &mut Vec<Issue>) {
             format!(
                 "A Moodle question bank holds questions, not quiz settings: {} stay behind. Set \
                  them in the Moodle quiz.",
-                left.join(", ")
+                en.join(", ")
+            ),
+            format!(
+                "Une banque de questions Moodle contient des questions, pas les réglages du test : \
+                 {} restent en arrière. Réglez-les dans le test Moodle.",
+                fr.join(", ")
             ),
         ));
     }
@@ -708,6 +748,8 @@ fn report_settings(paper: &Paper, issues: &mut Vec<Issue>) {
             Location::Paper,
             "Moodle gives partial credit on multiple-answer questions; this paper grades them all \
              or nothing.",
+            "Moodle donne un crédit partiel aux questions à choix multiples ; ce sujet les note en \
+             tout ou rien.",
         ));
     }
 }

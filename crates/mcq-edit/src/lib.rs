@@ -73,6 +73,7 @@ impl Project {
                         "MEDIA_NOT_FOUND",
                         Location::Question(question.id.clone()),
                         format!("`{}` is not in the paper's media.", media.path),
+                        format!("`{}` ne fait pas partie des médias du sujet.", media.path),
                     ));
                 }
             }
@@ -89,6 +90,11 @@ impl Project {
                         "`{path}` weighs {}: every student downloads it. Compress it or shorten it.",
                         size_label(data.len())
                     ),
+                    format!(
+                        "`{path}` pèse {} : chaque étudiant le télécharge. Compressez-le ou \
+                         raccourcissez-le.",
+                        size_label_fr(data.len())
+                    ),
                 ));
             }
         }
@@ -100,6 +106,11 @@ impl Project {
                 format!(
                     "The media weigh {} in all: slow to open on a phone or a busy network.",
                     size_label(total)
+                ),
+                format!(
+                    "Les médias pèsent {} en tout : lents à ouvrir sur un téléphone ou un réseau \
+                     chargé.",
+                    size_label_fr(total)
                 ),
             ));
         }
@@ -212,6 +223,14 @@ pub fn size_label(bytes: usize) -> String {
     }
 }
 
+/// `size_label` as written in French: `Ko`, `Mo` and a decimal comma.
+pub fn size_label_fr(bytes: usize) -> String {
+    size_label(bytes)
+        .replace('.', ",")
+        .replace("KB", "Ko")
+        .replace("MB", "Mo")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,5 +274,6 @@ mod tests {
     fn sizes_read_like_a_file_manager() {
         assert_eq!(size_label(1000), "1 KB");
         assert_eq!(size_label(3 * 1024 * 1024 + 200_000), "3.2 MB");
+        assert_eq!(size_label_fr(3 * 1024 * 1024 + 200_000), "3,2 Mo");
     }
 }

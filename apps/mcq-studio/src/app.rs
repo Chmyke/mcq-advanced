@@ -9,6 +9,7 @@ use mcq_edit::{Project, qcmz};
 use mcq_player::b64;
 
 use crate::actions;
+use crate::class_stats::ClassResults;
 use crate::correct::CorrectSpace;
 use crate::correction::{Correction, is_correction_file};
 use crate::demo::{self, Tour};
@@ -38,6 +39,8 @@ pub fn App() -> Element {
     let done = use_signal(|| None::<Rc<Done>>);
     let mut correction = use_signal(Correction::default);
     let tour = use_signal(|| false);
+    // Analysed again only when the copies or the decisions change, not at every keystroke.
+    let class = use_memo(move || ClassResults::from_correction(&correction.read()));
 
     use_effect(move || {
         let tag = if lang() == Lang::Fr { "fr" } else { "en" };
@@ -178,7 +181,7 @@ pub fn App() -> Element {
                     button { onclick: move |_| actions::export_qcmz(studio), "{t.export_qcmz}" }
                     button { onclick: move |_| actions::export_source(studio), "{t.export_source}" }
                     button { onclick: move |_| actions::export_student(studio), "{t.export_student}" }
-                    button { onclick: move |_| actions::export_moodle(studio, notice), "{t.export_moodle}" }
+                    button { onclick: move |_| actions::export_moodle(studio, notice, t), "{t.export_moodle}" }
                     button {
                         "aria-pressed": if theme == "dark" { "true" } else { "false" },
                         onclick: move |_| dark.set(Some(!dark().unwrap_or(false))),
@@ -200,7 +203,7 @@ pub fn App() -> Element {
             if ready() {
                 div { class: "studio-main",
                     match space {
-                        Space::Write => write_space(studio, t, recording, notice, phone, preview_dark),
+                        Space::Write => write_space(studio, t, recording, notice, phone, preview_dark, class.read().as_ref()),
                         Space::Settings => settings_space(studio, t),
                         Space::Publish => rsx! { PublishSpace { studio, identity, done, t } },
                         Space::Correct => rsx! { CorrectSpace { correction, identity, done, lang: lang(), t } },

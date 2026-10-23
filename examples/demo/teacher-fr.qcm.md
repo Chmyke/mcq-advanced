@@ -34,11 +34,11 @@ REVIEW: Mathématiques, chapitre 3, équations
 ## Q somme-fractions | level 3 | 40s
 Combien vaut $\frac{1}{2} + \frac{1}{3}$ ?
 
-- [ ] 5/6
+- [ ] $\frac{5}{6}$
   > Au même dénominateur : $\frac{3}{6} + \frac{2}{6} = \frac{5}{6}$.
-- [x] 1/6
+- [x] $\frac{1}{6}$
   > C'est la différence des deux fractions, pas leur somme.
-- [ ] 2/5
+- [ ] $\frac{2}{5}$
   > On n'additionne jamais les dénominateurs.
 
 RULE: Pour additionner deux fractions, on les met d'abord au même dénominateur.

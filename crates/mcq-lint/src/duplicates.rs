@@ -26,7 +26,7 @@ pub fn find_duplicates_within(paper: &Paper) -> Vec<Issue> {
     let mut issues = Vec::new();
     for (j, later) in paper.questions.iter().enumerate() {
         for earlier in &paper.questions[..j] {
-            if let Some(issue) = compare(later, earlier, "this paper") {
+            if let Some(issue) = compare(later, earlier, None) {
                 issues.push(issue);
             }
         }
@@ -39,7 +39,7 @@ pub fn find_duplicates(paper: &Paper, other: &Paper, other_name: &str) -> Vec<Is
     let mut issues = Vec::new();
     for question in &paper.questions {
         for candidate in &other.questions {
-            if let Some(issue) = compare(question, candidate, other_name) {
+            if let Some(issue) = compare(question, candidate, Some(other_name)) {
                 issues.push(issue);
             }
         }
@@ -47,17 +47,26 @@ pub fn find_duplicates(paper: &Paper, other: &Paper, other_name: &str) -> Vec<Is
     issues
 }
 
-fn compare(question: &Question, candidate: &Question, source: &str) -> Option<Issue> {
+/// `source` names the other paper, `None` for the same paper.
+fn compare(question: &Question, candidate: &Question, source: Option<&str>) -> Option<Issue> {
     let score = similarity(question, candidate);
     (score >= DUPLICATE_THRESHOLD).then(|| {
+        let percent = (score * 100.0).round() as u32;
+        let (en_source, fr_source) = match source {
+            Some(name) => (name.to_string(), name.to_string()),
+            None => ("this paper".to_string(), "ce sujet".to_string()),
+        };
         Issue::new(
             Severity::Warning,
             "DUPLICATE_QUESTION",
             Location::Question(question.id.clone()),
             format!(
-                "Very close to question `{}` in {source} ({} % shared words).",
-                candidate.id,
-                (score * 100.0).round() as u32
+                "Very close to question `{}` in {en_source} ({percent} % shared words).",
+                candidate.id
+            ),
+            format!(
+                "Très proche de la question `{}` de {fr_source} ({percent} % de mots en commun).",
+                candidate.id
             ),
         )
     })

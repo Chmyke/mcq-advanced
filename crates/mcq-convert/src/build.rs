@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use mcq_edit::{Project, ops, slug};
 use mcq_model::{AnswerOption, Issue, Location, Paper, Question, Scoring, Severity, Theme};
 
-use crate::{ImportOptions, Imported};
+use crate::{ImportOptions, Imported, Note};
 
 /// The file cannot be read at all.
 pub const UNREADABLE: &str = "IMPORT_UNREADABLE";
@@ -40,7 +40,7 @@ impl Draft {
     /// Options from weighted answers. A single-answer question keeps its best answers as correct;
     /// a multiple-answer one every answer that earns credit. What partial credit cannot keep
     /// goes to `lost`.
-    pub fn choices(&mut self, choices: &[Choice], single: bool, lost: &mut Vec<String>) {
+    pub fn choices(&mut self, choices: &[Choice], single: bool, lost: &mut Vec<Note>) {
         let best = choices.iter().map(|c| c.fraction).fold(0.0, f64::max);
         for choice in choices {
             let is_correct = if single {
@@ -56,15 +56,18 @@ impl Draft {
                 .iter()
                 .any(|c| c.fraction > 0.0 && (c.fraction - best).abs() >= 1e-6)
             {
-                lost.push(
-                    "partial credit on some answers is dropped: only the best answer counts".into(),
-                );
+                lost.push(Note::new(
+                    "partial credit on some answers is dropped: only the best answer counts",
+                    "le crédit partiel de certaines réponses est abandonné : seule la meilleure \
+                     réponse compte",
+                ));
             }
             if correct > 1 {
-                lost.push(
-                    "the source accepts any one of its best answers; here they must all be ticked"
-                        .into(),
-                );
+                lost.push(Note::new(
+                    "the source accepts any one of its best answers; here they must all be ticked",
+                    "la source accepte n'importe laquelle de ses meilleures réponses ; ici, il \
+                     faut toutes les cocher",
+                ));
             }
         } else if correct > 0 {
             let share = 100.0 / correct as f64;
@@ -73,7 +76,10 @@ impl Draft {
                 f.abs() < 1e-6 || (f - share).abs() < 0.01 || (f + share).abs() < 0.01
             });
             if !standard {
-                lost.push("its own answer weights become standard partial credit".into());
+                lost.push(Note::new(
+                    "its own answer weights become standard partial credit",
+                    "ses propres pondérations deviennent un crédit partiel standard",
+                ));
             }
         }
     }
@@ -198,20 +204,31 @@ impl Builder {
         path
     }
 
-    pub fn report(&mut self, severity: Severity, code: &'static str, at: Location, text: String) {
-        self.issues.push(Issue::new(severity, code, at, text));
+    pub fn report(&mut self, severity: Severity, code: &'static str, at: Location, text: Note) {
+        self.issues
+            .push(Issue::new(severity, code, at, text.en, text.fr));
     }
 
-    pub fn skip(&mut self, at: Location, text: String) {
-        self.report(Severity::Warning, SKIPPED, at, text);
+    pub fn skip(&mut self, at: Location, en: String, fr: String) {
+        self.report(Severity::Warning, SKIPPED, at, Note { en, fr });
     }
 
-    pub fn simplified(&mut self, at: Location, text: String) {
+    /// `what` was lost on the question named `label`.
+    pub fn simplified(&mut self, at: Location, label: &str, what: Note) {
+        let text = Note::new(
+            format!("`{label}`: {}.", what.en),
+            format!("`{label}` : {}.", what.fr),
+        );
         self.report(Severity::Warning, SIMPLIFIED, at, text);
     }
 
-    pub fn unreadable(mut self, text: String) -> Imported {
-        self.report(Severity::Error, UNREADABLE, Location::Paper, text);
+    pub fn unreadable(mut self, en: String, fr: String) -> Imported {
+        self.report(
+            Severity::Error,
+            UNREADABLE,
+            Location::Paper,
+            Note { en, fr },
+        );
         self.finish()
     }
 
@@ -225,9 +242,12 @@ impl Builder {
                 Severity::Info,
                 SUMMARY,
                 Location::Paper,
-                "Some questions have several correct answers: the paper uses partial credit, as \
-                 Moodle does."
-                    .to_string(),
+                Note::new(
+                    "Some questions have several correct answers: the paper uses partial credit, \
+                     as Moodle does.",
+                    "Certaines questions ont plusieurs bonnes réponses : le sujet utilise le \
+                     crédit partiel, comme Moodle.",
+                ),
             );
         }
         let count = self.paper.questions.len();
@@ -237,7 +257,10 @@ impl Builder {
                     Severity::Error,
                     EMPTY,
                     Location::Paper,
-                    "No question could be imported from this file.".to_string(),
+                    Note::new(
+                        "No question could be imported from this file.",
+                        "Aucune question n'a pu être importée depuis ce fichier.",
+                    ),
                 );
             }
         } else {
@@ -246,7 +269,10 @@ impl Builder {
                 Severity::Info,
                 SUMMARY,
                 Location::Paper,
-                format!("{count} question(s) imported in {themes} theme(s)."),
+                Note::new(
+                    format!("{count} question(s) imported in {themes} theme(s)."),
+                    format!("{count} question(s) importée(s) dans {themes} thème(s)."),
+                ),
             );
         }
         // Themes created for questions that were skipped afterwards would stay empty.

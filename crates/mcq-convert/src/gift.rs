@@ -7,7 +7,7 @@ use mcq_model::{Block, Level, Location, Question};
 use crate::build::{Builder, Choice, Draft, category_path};
 use crate::html;
 use crate::text;
-use crate::{ImportOptions, Imported};
+use crate::{ImportOptions, Imported, Note};
 
 /// Escaped characters stand in the private use area while the question is cut up.
 const ESCAPES: [(&str, char, &str); 8] = [
@@ -116,6 +116,7 @@ fn import_question(b: &mut Builder, chunk: &Chunk, text: &str, theme_id: &str, a
             b.skip(
                 at,
                 format!("`{label}` has no answers: a description, not a question."),
+                format!("`{label}` n'a pas de réponses : une description, pas une question."),
             );
             return;
         }
@@ -124,6 +125,7 @@ fn import_question(b: &mut Builder, chunk: &Chunk, text: &str, theme_id: &str, a
             b.skip(
                 at,
                 format!("`{label}`: the answer braces `{{ }}` do not match."),
+                format!("`{label}` : les accolades de réponses `{{ }}` ne correspondent pas."),
             );
             return;
         }
@@ -173,18 +175,19 @@ fn import_question(b: &mut Builder, chunk: &Chunk, text: &str, theme_id: &str, a
         || trimmed.starts_with('#')
         || (!trimmed.contains('~') && trimmed.contains("->"))
     {
-        let kind = if trimmed.is_empty() {
-            "an essay"
+        let (kind, kind_fr) = if trimmed.is_empty() {
+            ("an essay", "une question ouverte")
         } else if trimmed.starts_with('#') {
-            "a numerical question"
+            ("a numerical question", "une question numérique")
         } else {
-            "a matching question"
+            ("a matching question", "une question d'appariement")
         };
         b.skip(
             at,
             format!(
                 "`{label}` is {kind}: only single, multiple and true or false questions come in."
             ),
+            format!("`{label}` est {kind_fr} : {ONLY_CHOICE_FR}"),
         );
         return;
     }
@@ -198,7 +201,11 @@ fn import_question(b: &mut Builder, chunk: &Chunk, text: &str, theme_id: &str, a
             .map(|answer| choice(answer, format, &mut lost))
             .collect();
         if choices.len() < 2 {
-            b.skip(at, format!("`{label}` has fewer than two answers."));
+            b.skip(
+                at,
+                format!("`{label}` has fewer than two answers."),
+                format!("`{label}` a moins de deux réponses."),
+            );
             return;
         }
         draft.choices(&choices, single, &mut lost);
@@ -221,17 +228,28 @@ fn import_question(b: &mut Builder, chunk: &Chunk, text: &str, theme_id: &str, a
         draft.option(yes.to_string(), is_true, on_true);
         draft.option(no.to_string(), !is_true, on_false);
     } else {
-        b.skip(at, format!("`{label}` is a short answer question: only single, multiple and true or false questions come in."));
+        b.skip(
+            at,
+            format!(
+                "`{label}` is a short answer question: only single, multiple and true or false \
+                 questions come in."
+            ),
+            format!("`{label}` est une question à réponse courte : {ONLY_CHOICE_FR}"),
+        );
         return;
     }
     b.question(theme_id, draft);
     for what in lost {
-        b.simplified(at.clone(), format!("`{label}`: {what}."));
+        b.simplified(at.clone(), &label, what);
     }
 }
 
+/// End of the French sentences that skip an unsupported question type.
+const ONLY_CHOICE_FR: &str =
+    "seules les questions à choix unique, à choix multiples et vrai ou faux sont importées.";
+
 /// `=answer#feedback`, `~%50%answer`, `~answer`.
-fn choice(answer: &str, format: &str, lost: &mut Vec<String>) -> Choice {
+fn choice(answer: &str, format: &str, lost: &mut Vec<Note>) -> Choice {
     let (fraction, rest) = if let Some(rest) = answer.strip_prefix('=') {
         (100.0, rest)
     } else {
@@ -273,7 +291,7 @@ fn split_format<'a>(text: &'a str, default: &'a str) -> (&'a str, &'a str) {
     (default, text)
 }
 
-fn blocks(raw: &str, format: &str, lost: &mut Vec<String>) -> Vec<Block> {
+fn blocks(raw: &str, format: &str, lost: &mut Vec<Note>) -> Vec<Block> {
     let plain = restore(raw);
     match format {
         "plain" => text::plain_blocks(&plain),

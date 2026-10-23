@@ -9,7 +9,7 @@ use mcq_player::b64;
 
 use crate::platform::{self, RECORD_SCRIPT, STOP_RECORDING_SCRIPT};
 use crate::state::Studio;
-use crate::texts::Texts;
+use crate::texts::{Lang, Texts};
 
 pub fn add_media(
     mut studio: Signal<Studio>,
@@ -72,11 +72,13 @@ pub fn is_paper_file(name: &str) -> bool {
 }
 
 /// Reads a `.qcmz` (or any zip of a paper folder), a `.qcm.md`, or a GIFT, Moodle XML, Aiken or
-/// CSV bank, whose import report comes back as the issues.
+/// CSV bank, whose import report comes back as the issues. `lang` is the paper's language;
+/// `french` picks the language of the reason given when a bank cannot be imported.
 pub fn read_paper(
     name: &str,
     bytes: Vec<u8>,
     lang: &str,
+    french: bool,
 ) -> Result<(Project, Vec<mcq_model::Issue>), String> {
     if bytes.starts_with(b"PK") {
         return qcmz::import(&bytes).map_err(|e| e.to_string());
@@ -103,7 +105,7 @@ pub fn read_paper(
             .issues
             .iter()
             .find(|i| i.severity == Severity::Error)
-            .map(|i| i.message.trim_end_matches('.').to_string())
+            .map(|i| i.message_in(french).trim_end_matches('.').to_string())
             .unwrap_or_default();
         return Err(reason);
     }
@@ -122,15 +124,19 @@ pub async fn open_paper(
     bytes: Vec<u8>,
 ) {
     let lang = studio.read().project.paper.lang.clone();
-    let (project, issues) = match read_paper(name, bytes, &lang) {
+    let (project, issues) = match read_paper(name, bytes, &lang, t.lang == Lang::Fr) {
         Ok(read) => read,
         Err(e) => {
             notice.set(Some(format!("{}: {e}.", t.not_a_paper)));
             return;
         }
     };
-    let blank = studio.read().is_blank();
-    if !blank && !platform::confirm(t.confirm_replace).await {
+    // Nothing to lose over a blank draft or a demo paper as it was opened.
+    let replaceable = {
+        let s = studio.read();
+        s.is_blank() || crate::demo::is_untouched_demo(&s.project)
+    };
+    if !replaceable && !platform::confirm(t.confirm_replace).await {
         return;
     }
     // The import report says what stayed behind; it belongs to no question of the paper.
@@ -140,7 +146,7 @@ pub async fn open_paper(
     let said: Vec<&str> = report
         .iter()
         .filter(|i| i.severity == Severity::Warning)
-        .map(|i| i.message.as_str())
+        .map(|i| t.issue(i))
         .collect();
     let mut text = t.imported.to_string();
     for message in said.iter().take(REPORTED) {
@@ -178,12 +184,16 @@ pub fn export_student(studio: Signal<Studio>) {
 }
 
 /// A Moodle XML question bank; what a bank cannot hold is said in the notice.
-pub fn export_moodle(studio: Signal<Studio>, mut notice: Signal<Option<String>>) {
+pub fn export_moodle(
+    studio: Signal<Studio>,
+    mut notice: Signal<Option<String>>,
+    t: &'static Texts,
+) {
     let s = studio.read();
     let exported = moodle::export(&s.project);
     let name = format!("{}.xml", qcmz::file_stem(&s.project));
     platform::download(&name, &b64::encode(exported.xml.as_bytes()));
-    let said: Vec<&str> = exported.issues.iter().map(|i| i.message.as_str()).collect();
+    let said: Vec<&str> = exported.issues.iter().map(|i| t.issue(i)).collect();
     if !said.is_empty() {
         notice.set(Some(said.join(" ")));
     }

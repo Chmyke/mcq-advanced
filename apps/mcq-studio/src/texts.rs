@@ -1,6 +1,8 @@
 //! Interface texts of the Studio, in English and French. The paper's own text is never translated;
-//! the validator's messages come from `mcq-lint`, in English, with a link to the rules guide.
+//! the validator's messages come from the core crates in both languages, shown in the interface
+//! language with a link to the rules guide.
 
+use mcq_model::{Issue, Location, Severity};
 pub use mcq_player::texts::Lang;
 
 #[derive(PartialEq)]
@@ -92,10 +94,23 @@ pub struct Texts {
     pub review: &'static str,
 
     pub validator: &'static str,
+    pub class_results: &'static str,
+    /// `{percent}`, `{asked}`, `{blank}`, `{seconds}`.
+    pub class_summary: &'static str,
+    pub class_small: &'static str,
+    /// `{percent}`, `{picked}`.
+    pub class_answer: &'static str,
+    pub class_correct: &'static str,
+    pub class_unmatched: &'static str,
     pub no_issue: &'static str,
     pub severity_error: &'static str,
     pub severity_warning: &'static str,
     pub severity_info: &'static str,
+    /// Names of the places an issue points to: the paper, a line, a question, a theme.
+    pub at_paper: &'static str,
+    pub at_line: &'static str,
+    pub at_question: &'static str,
+    pub at_theme: &'static str,
     pub rules_guide: &'static str,
 
     pub preview: &'static str,
@@ -164,7 +179,60 @@ pub struct Texts {
     pub space_correct: &'static str,
     pub correction: &'static CorrectTexts,
     pub demo: &'static DemoTexts,
+    /// Picks the language of the validator's messages.
+    pub lang: Lang,
 }
+
+impl Texts {
+    /// A validator message in the interface language.
+    pub fn issue<'a>(&self, issue: &'a Issue) -> &'a str {
+        issue.message_in(self.lang == Lang::Fr)
+    }
+
+    /// How many errors and warnings the validator reports, as a screen reader announces it.
+    pub fn issue_count(&self, issues: &[&Issue]) -> String {
+        let count = |severity| issues.iter().filter(|i| i.severity == severity).count();
+        let (errors, warnings) = (count(Severity::Error), count(Severity::Warning));
+        let words = match self.lang {
+            Lang::Fr => [
+                ("aucune erreur", "erreur", "erreurs"),
+                ("aucun avertissement", "avertissement", "avertissements"),
+            ],
+            Lang::En => [
+                ("no error", "error", "errors"),
+                ("no warning", "warning", "warnings"),
+            ],
+        };
+        let say = |n: usize, (none, one, many): (&str, &str, &str)| match n {
+            0 => none.to_string(),
+            1 => format!("1 {one}"),
+            n => format!("{n} {many}"),
+        };
+        let text = format!("{}, {}", say(errors, words[0]), say(warnings, words[1]));
+        // A sentence starts with a capital.
+        let mut chars = text.chars();
+        chars.next().map_or(text.clone(), |first| {
+            first.to_uppercase().chain(chars).collect()
+        })
+    }
+
+    /// Where an issue was found, in the interface language, as the prefix of its message.
+    pub fn place(&self, location: &Location) -> String {
+        let place = match location {
+            Location::Paper => self.at_paper.to_string(),
+            Location::Line(n) => format!("{} {n}", self.at_line),
+            Location::Question(id) => format!("{} {id}", self.at_question),
+            Location::Theme(id) => format!("{} {id}", self.at_theme),
+        };
+        // French puts a space before the colon.
+        let colon = if self.lang == Lang::Fr { " :" } else { ":" };
+        format!("{place}{colon} ")
+    }
+}
+
+/// The desktop window keeps the draft in its own web view's storage, on this computer: no browser
+/// for the teacher to think of.
+const ON_DESKTOP: bool = cfg!(feature = "desktop");
 
 /// The Studio's texts in the interface language.
 pub fn texts(lang: Lang) -> &'static Texts {
@@ -189,14 +257,22 @@ pub static EN: Texts = Texts {
     export_moodle: "Export Moodle XML",
     theme_light: "Light",
     theme_dark: "Dark",
-    restored: "Your draft was restored from this browser.",
+    restored: if ON_DESKTOP {
+        "Your draft was restored from this computer."
+    } else {
+        "Your draft was restored from this browser."
+    },
     imported: "Paper imported.",
     link_failed: "The paper named by the link could not be loaded.",
     not_a_paper: "This file is neither a paper (.qcmz, .qcm.md) nor a bank (GIFT, Moodle XML, Aiken, CSV)",
     not_a_media: "Only images, sounds and videos can be added to a statement.",
     no_question_for_media: "Select a question before adding media.",
     mic_unavailable: "The microphone is not available (refused or missing).",
-    saved_locally: "Saved in this browser",
+    saved_locally: if ON_DESKTOP {
+        "Saved on this computer"
+    } else {
+        "Saved in this browser"
+    },
     close: "Close",
 
     questions: "Questions",
@@ -269,10 +345,20 @@ pub static EN: Texts = Texts {
     review: "Where to revise",
 
     validator: "Validator",
+    class_results: "The class's results",
+    class_summary: "Got right by {percent} % of {asked} copies · {blank} blank · {seconds} s on average",
+    class_small: "Small class: a tendency to confirm.",
+    class_answer: "{percent} % ({picked})",
+    class_correct: "correct in the key",
+    class_unmatched: "new answer, no figure",
     no_issue: "Nothing to fix.",
     severity_error: "Error",
     severity_warning: "Warning",
     severity_info: "Info",
+    at_paper: "paper",
+    at_line: "line",
+    at_question: "question",
+    at_theme: "theme",
     rules_guide: "Rules guide",
 
     preview: "Student preview",
@@ -346,6 +432,7 @@ pub static EN: Texts = Texts {
     space_correct: "Correct",
     correction: &CORRECT_EN,
     demo: &DEMO_EN,
+    lang: Lang::En,
 };
 
 pub static FR: Texts = Texts {
@@ -363,14 +450,22 @@ pub static FR: Texts = Texts {
     export_moodle: "Exporter Moodle XML",
     theme_light: "Clair",
     theme_dark: "Sombre",
-    restored: "Votre brouillon a été restauré depuis ce navigateur.",
+    restored: if ON_DESKTOP {
+        "Votre brouillon a été restauré depuis cet ordinateur."
+    } else {
+        "Votre brouillon a été restauré depuis ce navigateur."
+    },
     imported: "Sujet importé.",
     link_failed: "Le sujet indiqué par le lien n'a pas pu être chargé.",
     not_a_paper: "Ce fichier n'est ni un sujet (.qcmz, .qcm.md) ni une banque (GIFT, Moodle XML, Aiken, CSV)",
     not_a_media: "Seuls les images, sons et vidéos s'ajoutent à un énoncé.",
     no_question_for_media: "Choisissez une question avant d'ajouter un média.",
     mic_unavailable: "Le micro n'est pas disponible (refusé ou absent).",
-    saved_locally: "Enregistré dans ce navigateur",
+    saved_locally: if ON_DESKTOP {
+        "Enregistré sur cet ordinateur"
+    } else {
+        "Enregistré dans ce navigateur"
+    },
     close: "Fermer",
 
     questions: "Questions",
@@ -443,10 +538,20 @@ pub static FR: Texts = Texts {
     review: "Où réviser",
 
     validator: "Validateur",
+    class_results: "Résultats de la classe",
+    class_summary: "Réussie par {percent} % de {asked} copies · {blank} sans réponse · {seconds} s en moyenne",
+    class_small: "Petite classe : tendance à confirmer.",
+    class_answer: "{percent} % ({picked})",
+    class_correct: "juste dans le corrigé",
+    class_unmatched: "réponse nouvelle, sans chiffre",
     no_issue: "Rien à corriger.",
     severity_error: "Erreur",
     severity_warning: "Avertissement",
     severity_info: "Info",
+    at_paper: "sujet",
+    at_line: "ligne",
+    at_question: "question",
+    at_theme: "thème",
     rules_guide: "Guide des règles",
 
     preview: "Aperçu étudiant",
@@ -520,6 +625,7 @@ pub static FR: Texts = Texts {
     space_correct: "Corriger",
     correction: &CORRECT_FR,
     demo: &DEMO_FR,
+    lang: Lang::Fr,
 };
 
 /// Puts values in a template: `{name}` becomes the value given for `name`.

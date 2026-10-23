@@ -217,3 +217,24 @@ fn reader_never_panics_on_odd_input() {
         let _ = read(src);
     }
 }
+
+#[test]
+fn every_reader_issue_has_its_french_text() {
+    let mut issues = read("  \n").1;
+    issues.extend(read("title: T\n").1);
+    issues.extend(read("---\ntitle: T\n").1);
+    let (_, more) = read(
+        "---\ntitle: T\ncolour: red\nduration: soon\n---\n- [x] Lost\n```cs\nx\n```\n\
+         # THEME\n# THEME a\n# THEME a\n> Alone\n## Q q | level 9 | answers 0 | loud\n\
+         Which one?\n![x](notes.txt)\n```cs\nopen",
+    );
+    issues.extend(more);
+    let mut found = codes(&issues);
+    found.sort_unstable();
+    found.dedup();
+    assert_eq!(found.len(), 14, "{found:?}");
+    for issue in &issues {
+        assert!(!issue.fr.trim().is_empty(), "{issue:#?}");
+        assert_ne!(issue.fr, issue.message, "{issue:#?}");
+    }
+}

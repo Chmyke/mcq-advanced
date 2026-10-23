@@ -80,6 +80,14 @@ button.recording { background: var(--ko); color: var(--accent-text); border-colo
 .answer.correct { border-color: var(--ok); }
 .explanation-text { font-size: .9em; }
 .issues { list-style: none; padding: 0; margin: .3rem 0; display: grid; gap: .3rem; }
+.class-answers { list-style: none; padding: 0; margin: .5rem 0 0; display: grid; gap: .35rem; }
+.class-answers li { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) minmax(4rem, 10rem) 5.5rem; gap: .6rem; align-items: center; }
+.class-letter { color: var(--muted); font-weight: 600; }
+.class-text { overflow-wrap: anywhere; }
+.class-bar { height: .6rem; border-radius: .3rem; background: linear-gradient(to right, var(--muted) var(--share), var(--border) var(--share)); }
+.class-bar.correct { background: linear-gradient(to right, var(--ok) var(--share), var(--border) var(--share)); }
+.class-figure { font-variant-numeric: tabular-nums; text-align: right; }
+.class-answers li > .class-figure.muted { grid-column: 3 / 5; text-align: left; }
 .issue { border-left: 4px solid var(--border); padding: .3rem .6rem; background: var(--bg); border-radius: 0 6px 6px 0; font-size: .92em; }
 .issue.error { border-left-color: var(--ko); } .issue.warning { border-left-color: var(--part); } .issue.info { border-left-color: var(--accent); }
 .issue-level { font-weight: 700; margin-right: .5rem; }

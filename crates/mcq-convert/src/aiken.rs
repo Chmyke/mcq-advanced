@@ -34,6 +34,7 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
                 b.skip(
                     at,
                     format!("Line {}: an option before any question.", index + 1),
+                    format!("Ligne {} : une réponse avant toute question.", index + 1),
                 );
             } else {
                 pending.options.push(option.to_string());
@@ -44,6 +45,7 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
                 b.skip(
                     Location::Line(line),
                     format!("The question of line {line} has no `ANSWER:` line."),
+                    format!("La question de la ligne {line} n'a pas de ligne `ANSWER:`."),
                 );
                 pending = Pending::default();
             }
@@ -58,6 +60,7 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
         b.skip(
             Location::Line(line),
             format!("The question of line {line} has no `ANSWER:` line."),
+            format!("La question de la ligne {line} n'a pas de ligne `ANSWER:`."),
         );
     }
     b.finish()
@@ -79,6 +82,10 @@ fn finish_question(b: &mut Builder, pending: Pending, answer: &str, at: Location
                 "The question of line {} has fewer than two options.",
                 pending.line
             ),
+            format!(
+                "La question de la ligne {} a moins de deux réponses.",
+                pending.line
+            ),
         );
         return;
     }
@@ -92,6 +99,10 @@ fn finish_question(b: &mut Builder, pending: Pending, answer: &str, at: Location
             at,
             format!(
                 "The question of line {}: `ANSWER:{answer}` names no option of the question.",
+                pending.line
+            ),
+            format!(
+                "La question de la ligne {} : `ANSWER:{answer}` ne désigne aucune de ses réponses.",
                 pending.line
             ),
         );

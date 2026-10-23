@@ -1,63 +1,77 @@
 //! The website demos: clean papers, the same in both languages, rebuilt identical, and readable
-//! by the player and the Studio; the teacher demo's class reveals what was planted, and only that.
+//! by the player and the Studio, the gallery's models as much as the student demo; the teacher
+//! demo's class reveals what was planted, and only that.
 
 use mcq_analysis::{Adjustment, Anomaly, Copy, Decision, Finding, analyse, analyse_with};
 use mcq_crypto::{KeyUnlock, OpeningKind};
-use mcq_demo::{SOURCES, STUDENTS, TEACHER, build, build_all, class, identity, project};
+use mcq_demo::{
+    GALLERY, SOURCES, STUDENTS, TEACHER, build, build_all, build_model, class, gallery_index,
+    identity, project,
+};
 use mcq_edit::qcmz;
-use mcq_model::{Paper, Severity};
+use mcq_model::{Level, Paper, Severity};
 
 fn paper(source: &mcq_demo::Source) -> Paper {
     mcq_format::read(source.paper).0
 }
 
-fn every_paper() -> impl Iterator<Item = &'static mcq_demo::Source> {
-    SOURCES.iter().chain(TEACHER.iter())
+/// Every paper with a name for messages: the demos by language, the gallery by file stem.
+fn every_paper() -> impl Iterator<Item = (String, &'static mcq_demo::Source)> {
+    let demos = SOURCES.iter().chain(TEACHER.iter());
+    demos.map(|s| (s.lang.to_string(), s)).chain(
+        GALLERY
+            .iter()
+            .map(|m| (format!("{}-{}", m.stem, m.source.lang), &m.source)),
+    )
+}
+
+/// What both languages of a paper share: per theme, each question's level, time, key and media.
+type Shape = Vec<Vec<(Level, u32, Vec<bool>, usize)>>;
+
+fn shape(p: &Paper) -> Shape {
+    p.themes
+        .iter()
+        .map(|t| {
+            p.questions
+                .iter()
+                .filter(|q| q.theme_id == t.id)
+                .map(|q| {
+                    let correct: Vec<bool> = q.options.iter().map(|o| o.is_correct).collect();
+                    (q.level, q.estimated_seconds, correct, q.media().count())
+                })
+                .collect()
+        })
+        .collect()
 }
 
 #[test]
 fn papers_have_no_warning() {
-    for source in every_paper() {
+    for (name, source) in every_paper() {
         let issues: Vec<_> = mcq_lint::lint(&paper(source))
             .into_iter()
             .filter(|i| i.severity != Severity::Info)
             .collect();
-        assert!(issues.is_empty(), "{}: {issues:?}", source.lang);
+        assert!(issues.is_empty(), "{name}: {issues:?}");
     }
 }
 
 #[test]
 fn sources_are_written_as_the_studio_writes_them() {
     // The visitor opens the paper in the Studio: its source view must show this very file.
-    for source in every_paper() {
+    for (name, source) in every_paper() {
         let canonical = mcq_format::write(&paper(source));
         let differs = canonical
             .lines()
             .zip(source.paper.lines())
             .enumerate()
             .find(|(_, (a, b))| a != b);
-        assert!(differs.is_none(), "{}: {differs:?}", source.lang);
-        assert_eq!(canonical, source.paper, "{}", source.lang);
+        assert!(differs.is_none(), "{name}: {differs:?}");
+        assert_eq!(canonical, source.paper, "{name}");
     }
 }
 
 #[test]
 fn languages_share_one_structure() {
-    let shape = |p: &Paper| {
-        p.themes
-            .iter()
-            .map(|t| {
-                p.questions
-                    .iter()
-                    .filter(|q| q.theme_id == t.id)
-                    .map(|q| {
-                        let correct: Vec<bool> = q.options.iter().map(|o| o.is_correct).collect();
-                        (q.level, q.estimated_seconds, correct, q.media().count())
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>()
-    };
     for sources in [&SOURCES, &TEACHER] {
         let papers: Vec<Paper> = sources.iter().map(paper).collect();
         assert_eq!(shape(&papers[0]), shape(&papers[1]));
@@ -119,6 +133,91 @@ fn qcmz_opens_in_the_studio_unchanged() {
         assert_eq!(imported, expected);
         assert!(!imported.media.is_empty());
         assert_eq!(imported.source(), source.paper);
+    }
+}
+
+#[test]
+fn gallery_models_come_in_both_languages_with_one_structure() {
+    let mut stems: Vec<&str> = GALLERY.iter().map(|m| m.stem).collect();
+    stems.dedup();
+    assert_eq!(
+        stems.len() * 2,
+        GALLERY.len(),
+        "one English and one French per stem"
+    );
+    for pair in GALLERY.chunks(2) {
+        let [en, fr] = pair else { unreachable!() };
+        assert_eq!((en.stem, en.source.lang), (fr.stem, "en"), "{}", fr.stem);
+        assert_eq!(fr.source.lang, "fr", "{}", fr.stem);
+        let (a, b) = (paper(&en.source), paper(&fr.source));
+        assert_eq!(shape(&a), shape(&b), "{}", en.stem);
+        assert_eq!(a.duration_minutes, b.duration_minutes, "{}", en.stem);
+        assert_eq!(
+            (a.lang.as_str(), b.lang.as_str()),
+            ("en", "fr"),
+            "{}",
+            en.stem
+        );
+        for p in [&a, &b] {
+            assert!(!p.notes.trim().is_empty(), "{}: author notes", en.stem);
+            assert!(p.duration_minutes > 0, "{}: duration", en.stem);
+        }
+    }
+}
+
+#[test]
+fn gallery_is_rebuilt_identical_and_opens_without_a_code() {
+    let fingerprint = build(&SOURCES[0]).expect("build").fingerprint;
+    for model in &GALLERY {
+        let name = format!("{}-{}", model.stem, model.source.lang);
+        let (built, again) = (
+            build_model(model).expect("build"),
+            build_model(model).expect("build"),
+        );
+        assert!(built.package == again.package, "{name} package differs");
+        assert!(built.qcmz == again.qcmz, "{name} qcmz differs");
+        assert_eq!(
+            built.fingerprint, fingerprint,
+            "{name}: signed by the demo identity"
+        );
+
+        let header = mcq_crypto::inspect(&built.package).expect("signature");
+        assert_eq!(header.opening, OpeningKind::Open, "{name}");
+        mcq_crypto::open(&built.package, "").expect("open without code");
+        let key = mcq_crypto::open_answer_key(&built.package, KeyUnlock::Practice).expect("key");
+        assert_eq!(key.questions.len(), paper(&model.source).questions.len());
+
+        let (imported, issues) = qcmz::import(&built.qcmz).expect("import");
+        assert!(issues.is_empty(), "{name}: {issues:?}");
+        assert_eq!(imported, project(&model.source), "{name}");
+        assert_eq!(imported.source(), model.source.paper, "{name}");
+    }
+}
+
+#[test]
+fn gallery_index_lists_every_model_in_order() {
+    let index = gallery_index();
+    assert_eq!(index, gallery_index());
+    let lines: Vec<&str> = index.lines().collect();
+    assert_eq!(lines.len(), GALLERY.len() + 2);
+    assert_eq!((lines[0], lines[lines.len() - 1]), ("[", "]"));
+    let mut keys: Vec<(&str, &str)> = GALLERY.iter().map(|m| (m.stem, m.source.lang)).collect();
+    let listed = keys.clone();
+    keys.sort_unstable();
+    assert_eq!(keys, listed, "GALLERY is sorted by stem then language");
+    for (line, model) in lines[1..].iter().zip(&GALLERY) {
+        let p = paper(&model.source);
+        let expected = format!(
+            "  {{\"stem\": \"{}\", \"lang\": \"{}\", \"title\": \"{}\", ",
+            model.stem, model.source.lang, p.title
+        );
+        assert!(line.starts_with(&expected), "{line}");
+        let tail = format!(
+            "\"questions\": {}, \"duration\": {}}}",
+            p.questions.len(),
+            p.duration_minutes
+        );
+        assert!(line.trim_end_matches(',').ends_with(&tail), "{line}");
     }
 }
 

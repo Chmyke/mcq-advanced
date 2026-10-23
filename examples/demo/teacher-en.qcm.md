@@ -33,11 +33,11 @@ REVIEW: Mathematics, chapter 3, equations
 ## Q adding-fractions | level 3 | 40s
 What is $\frac{1}{2} + \frac{1}{3}$?
 
-- [ ] 5/6
+- [ ] $\frac{5}{6}$
   > Over the same denominator: $\frac{3}{6} + \frac{2}{6} = \frac{5}{6}$.
-- [x] 1/6
+- [x] $\frac{1}{6}$
   > That is the difference of the two fractions, not their sum.
-- [ ] 2/5
+- [ ] $\frac{2}{5}$
   > Denominators are never added.
 
 RULE: To add two fractions, first put them over the same denominator.
