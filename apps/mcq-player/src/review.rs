@@ -5,6 +5,7 @@
 use std::collections::BTreeSet;
 
 use dioxus::prelude::*;
+use mcq_crypto::OpeningKind;
 use mcq_engine::{Session, format_duration};
 use mcq_grade::{GradeResult, MIN_DIAGNOSTIC_QUESTIONS, Mastery, Status};
 use mcq_model::{Block, Level, Paper};
@@ -12,6 +13,56 @@ use mcq_model::{Block, Level, Paper};
 use crate::markdown;
 use crate::render::{self, Content};
 use crate::texts::Texts;
+
+/// True when handing in opens the correction at once: practice papers carry an open key, while
+/// an exam waits for the end code its teacher gives once every copy is in.
+pub fn correction_on_hand_in(opening: OpeningKind) -> bool {
+    opening == OpeningKind::Open
+}
+
+/// What the bar above the correction offers.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ResultActions {
+    /// The sealed copy's receipt, when there is a copy to save.
+    pub receipt: Option<String>,
+    /// The paper came from a link that others can open.
+    pub can_share: bool,
+    /// What the last share did, read out to the student.
+    pub shared: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResultAction {
+    SaveCopy,
+    Share,
+}
+
+/// The bar above the correction: save the result, share the paper. Nothing when neither applies.
+pub fn result_actions(
+    actions: &ResultActions,
+    t: &'static Texts,
+    on: EventHandler<ResultAction>,
+) -> Element {
+    if actions.receipt.is_none() && !actions.can_share {
+        return rsx! {};
+    }
+    rsx! {
+        div { class: "result-actions card", role: "group", "aria-label": "{t.result_actions}",
+            div { class: "result-buttons",
+                if actions.receipt.is_some() {
+                    button { class: "primary", onclick: move |_| on.call(ResultAction::SaveCopy), "{t.save_result}" }
+                }
+                if actions.can_share {
+                    button { onclick: move |_| on.call(ResultAction::Share), "{t.share_paper}" }
+                }
+            }
+            if let Some(receipt) = actions.receipt.clone() {
+                p { class: "muted", "{t.receipt} " span { class: "mono", "{receipt}" } }
+            }
+            p { class: "muted", role: "status", {actions.shared.unwrap_or_default()} }
+        }
+    }
+}
 
 /// Which questions the review walks through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

@@ -173,6 +173,11 @@ figcaption { color: var(--muted); font-size: .9em; }
 .segmented button + button { border-left: 1px solid var(--border); }
 .segmented button:focus-visible { outline-offset: -3px; }
 .segmented button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+/* Above the correction: what to do with the result, first thing on the page. */
+.result-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+.result-actions .result-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
+.result-actions p { margin: 0; }
+.result-actions p:empty { display: none; }
 .score .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
 .review .ok-note { color: var(--ok); }
 

@@ -11,7 +11,7 @@ use mcq_model::{Paper, TimeExtension};
 
 use crate::platform::{self, EVENTS_SCRIPT};
 use crate::render::{self, Opened};
-use crate::review::{ReviewAction, ReviewState};
+use crate::review::{ResultAction, ReviewAction, ReviewState};
 use crate::texts::{Lang, Texts};
 use crate::{STYLE, b64};
 
@@ -68,6 +68,48 @@ pub fn App() -> Element {
     let mut review = use_signal(ReviewState::default);
     // The paper's source on this site, for "open in the editor"; empty when the link gave none.
     let mut source = use_signal(String::new);
+    // The paper came from a `?paper=` link, so the page's address can be passed on.
+    let mut shareable = use_signal(|| false);
+    let mut shared = use_signal(|| None::<&'static str>);
+    // Grades the handed-in copy with the unlocked key and opens the correction; false when the
+    // key stays locked.
+    let mut open_correction = move |unlock: KeyUnlock| -> bool {
+        let Some(package) = loaded.read().as_ref().map(Rc::clone) else {
+            return false;
+        };
+        let Ok((full, key_files)) = mcq_crypto::open_answer_key_files(&package.bytes, unlock)
+        else {
+            return false;
+        };
+        let Some(s) = session.read().clone() else {
+            return false;
+        };
+        let copy_answers: Vec<_> = s
+            .items
+            .iter()
+            .map(|i| mcq_model::Answer {
+                question_id: i.question_id.clone(),
+                selected: i.selected.clone(),
+                seconds_spent: i.seconds_spent,
+            })
+            .collect();
+        let result = mcq_grade::grade(&full, &copy_answers, s.elapsed_seconds, s.extension);
+        review.set(ReviewState::default());
+        shared.set(None);
+        let formulas = opened
+            .read()
+            .as_ref()
+            .map(|o| render::correction_formulas(&o.formulas, &key_files))
+            .unwrap_or_default();
+        graded.set(Some(Rc::new(Graded {
+            full,
+            result,
+            formulas,
+        })));
+        stage.set(Stage::Review);
+        let _ = document::eval("setTimeout(() => window.scrollTo(0, 0), 0);");
+        true
+    };
     // The question just left, for the pace view.
     let mut left = use_signal(|| None::<usize>);
     let mut last_current = use_signal(|| 0_usize);
@@ -106,6 +148,7 @@ pub fn App() -> Element {
             match mcq_crypto::inspect(&bytes) {
                 Ok(header) => {
                     loaded.set(Some(Rc::new(Loaded { bytes, header })));
+                    shareable.set(true);
                     stage.set(Stage::Identify);
                 }
                 Err(_) => error.set(Some(lang().texts().not_a_package)),
@@ -239,6 +282,7 @@ pub fn App() -> Element {
                             match mcq_crypto::inspect(&bytes) {
                                 Ok(header) => {
                                     loaded.set(Some(Rc::new(Loaded { bytes: bytes.to_vec(), header })));
+                                    shareable.set(false);
                                     error.set(None);
                                     stage.set(Stage::Identify);
                                 }
@@ -443,7 +487,12 @@ pub fn App() -> Element {
                                         if let Ok(result) = mcq_crypto::seal_result(&o.header, &copy, &mut platform::rng()) {
                                             sealed.set(Some(result));
                                         }
-                                        stage.set(Stage::Submitted);
+                                        // Practice opens on the correction; an exam waits for its end code.
+                                        if !(crate::review::correction_on_hand_in(o.header.opening)
+                                            && open_correction(KeyUnlock::Practice))
+                                        {
+                                            stage.set(Stage::Submitted);
+                                        }
                                     },
                                     "{t.confirm_submit}"
                                 }
@@ -482,53 +531,19 @@ pub fn App() -> Element {
             let practice = o.header.opening == OpeningKind::Open;
             let has_end_code = o.header.has_end_code;
             let receipt = sealed.read().as_ref().map(|r| r.receipt.clone());
-            let file_name = session
-                .read()
-                .as_ref()
-                .map(|s| format!("{}.mcqres", s.student_name))
-                .unwrap_or_else(|| "copy.mcqres".to_string());
+            let file_name = copy_file_name(session);
             let show = move |_| {
-                let Some(package) = loaded.read().as_ref().map(Rc::clone) else {
-                    return;
-                };
                 let typed = end_code();
                 let unlock = if practice {
                     KeyUnlock::Practice
                 } else {
                     KeyUnlock::EndCode(&typed)
                 };
-                let Ok((full, key_files)) =
-                    mcq_crypto::open_answer_key_files(&package.bytes, unlock)
-                else {
+                if open_correction(unlock) {
+                    error.set(None);
+                } else {
                     error.set(Some(lang().texts().wrong_code));
-                    return;
-                };
-                let Some(s) = session.read().clone() else {
-                    return;
-                };
-                let copy_answers: Vec<_> = s
-                    .items
-                    .iter()
-                    .map(|i| mcq_model::Answer {
-                        question_id: i.question_id.clone(),
-                        selected: i.selected.clone(),
-                        seconds_spent: i.seconds_spent,
-                    })
-                    .collect();
-                let result = mcq_grade::grade(&full, &copy_answers, s.elapsed_seconds, s.extension);
-                error.set(None);
-                review.set(ReviewState::default());
-                let formulas = opened
-                    .read()
-                    .as_ref()
-                    .map(|o| render::correction_formulas(&o.formulas, &key_files))
-                    .unwrap_or_default();
-                graded.set(Some(Rc::new(Graded {
-                    full,
-                    result,
-                    formulas,
-                })));
-                stage.set(Stage::Review);
+                }
             };
             rsx! {
                 section { class: "submitted card",
@@ -596,7 +611,31 @@ pub fn App() -> Element {
                     }
                 })
             };
+            let actions = crate::review::ResultActions {
+                receipt: sealed.read().as_ref().map(|r| r.receipt.clone()),
+                can_share: shareable(),
+                shared: shared(),
+            };
+            let act = EventHandler::new(move |action: ResultAction| match action {
+                ResultAction::SaveCopy => {
+                    if let Some(r) = sealed.read().as_ref() {
+                        platform::download(&copy_file_name(session), &b64::encode(&r.bytes));
+                    }
+                }
+                ResultAction::Share => {
+                    spawn(async move {
+                        let texts = lang().texts();
+                        shared.set(match platform::share_link().await {
+                            platform::Shared::Sent => Some(texts.share_sent),
+                            platform::Shared::Cancelled => None,
+                            platform::Shared::Copied => Some(texts.share_copied),
+                            platform::Shared::Failed => Some(texts.share_failed),
+                        });
+                    });
+                }
+            });
             rsx! {
+                {crate::review::result_actions(&actions, t, act)}
                 {crate::review::review_screen(&g.full, &s, &g.result, &state, t, content, on)}
                 {render::editor_link(&source.read(), t)}
             }
@@ -632,6 +671,15 @@ pub fn App() -> Element {
             main { lang: paper_lang, {content} }
         }
     }
+}
+
+/// The sealed copy's file name, after the student.
+fn copy_file_name(session: Signal<Option<Session>>) -> String {
+    session
+        .read()
+        .as_ref()
+        .map(|s| format!("{}.mcqres", s.student_name))
+        .unwrap_or_else(|| "copy.mcqres".to_string())
 }
 
 fn go_to(mut session: Signal<Option<Session>>, index: usize) {
