@@ -7,6 +7,7 @@ use mcq_engine::SessionItem;
 use mcq_highlight::Highlighter;
 use mcq_math::Formulas;
 use mcq_model::{Block, CodeTokens, Question};
+use mcq_player::icon::{Icon, IconButton};
 use mcq_player::render::{self, Content};
 
 use crate::state::Studio;
@@ -93,12 +94,12 @@ pub fn question_preview(
             div { class: "preview-bar",
                 h2 { "{t.preview}" }
                 div { class: "segmented",
-                    button { "aria-pressed": "{!phone()}", onclick: move |_| phone.set(false), "{t.preview_computer}" }
-                    button { "aria-pressed": "{phone()}", onclick: move |_| phone.set(true), "{t.preview_phone}" }
+                    IconButton { icon: Icon::Monitor, label: t.preview_computer, tip: t.tip_preview_computer, aria_pressed: "{!phone()}", onclick: move |_| phone.set(false) }
+                    IconButton { icon: Icon::Phone, label: t.preview_phone, tip: t.tip_preview_phone, aria_pressed: "{phone()}", onclick: move |_| phone.set(true) }
                 }
                 div { class: "segmented",
-                    button { "aria-pressed": "{!dark()}", onclick: move |_| dark.set(false), "{t.theme_light}" }
-                    button { "aria-pressed": "{dark()}", onclick: move |_| dark.set(true), "{t.theme_dark}" }
+                    IconButton { icon: Icon::Sun, label: t.theme_light, tip: t.tip_preview_light, aria_pressed: "{!dark()}", onclick: move |_| dark.set(false) }
+                    IconButton { icon: Icon::Moon, label: t.theme_dark, tip: t.tip_preview_dark, aria_pressed: "{dark()}", onclick: move |_| dark.set(true) }
                 }
             }
             div { class: if phone() { "app preview-frame phone" } else { "app preview-frame" }, "data-theme": "{theme}",

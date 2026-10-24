@@ -211,7 +211,14 @@ fn the_diagnosis_reads_as_sentences_in_the_teachers_order() {
     );
     assert!(html.contains("Fiabilité du sujet (KR-20) : 0,"), "{html}");
     assert!(!html.contains("Moins de 30 copies"), "40 copies: {html}");
-    assert_eq!(html.matches("Fiche de révision").count(), 40);
+    assert_eq!(
+        html.matches("aria-label=\"Fiche de révision de cet élève\"")
+            .count(),
+        40,
+        "one sheet per copy"
+    );
+    let faults = mcq_player::icon::contract_faults(&html);
+    assert!(faults.is_empty(), "{faults:#?}");
 }
 
 #[test]
@@ -316,7 +323,10 @@ fn a_doubtful_key_is_settled_in_one_click_and_undone_in_another() {
         )),
         "{html}"
     );
-    assert!(html.contains(">Annuler</button>"), "{html}");
+    assert!(
+        html.contains("aria-label=\"Annuler cette décision\""),
+        "{html}"
+    );
 
     correction.undo("loops-3");
     let (undone, _) = view(&correction);

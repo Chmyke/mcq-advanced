@@ -7,6 +7,7 @@ use dioxus::prelude::*;
 use mcq_crypto::{Identity, KdfParams};
 use mcq_edit::qcmz;
 use mcq_player::b64;
+use mcq_player::icon::{Glyph, Icon, IconButton};
 use mcq_publish::{Mode, Published, RoomSheet};
 
 use crate::identity::IdentityCard;
@@ -135,10 +136,13 @@ pub fn PublishSpace(
                     input { r#type: "radio", name: "mode", checked: practice(), onchange: move |_| practice.set(true) }
                     "{t.mode_practice}"
                 }
+                // A decisive action: the word stays, the icon only echoes the Publish space.
                 button {
                     class: "primary",
+                    "data-icon": "text",
                     disabled: busy() || blocking > 0 || identity.read().is_none(),
                     onclick: publish,
+                    Glyph { icon: Icon::Send }
                     "{t.publish}"
                 }
                 if busy() { p { class: "muted", role: "status", "{t.working}" } }
@@ -154,11 +158,11 @@ pub fn PublishSpace(
                         }
                     }
                     div { class: "actions",
-                        button { class: "primary", onclick: move |_| platform::print(), "{t.print_sheet}" }
-                        button { onclick: {
+                        IconButton { class: "primary", icon: Icon::Print, label: t.print, tip: t.print_sheet, onclick: move |_| platform::print() }
+                        IconButton { icon: Icon::Download, label: t.download, tip: t.tip_download_again, onclick: {
                             let last = Rc::clone(&last);
                             move |_| platform::download(&last.file_name, &b64::encode(&last.published.package))
-                        }, "{t.download_again}" }
+                        } }
                     }
                 }
                 {room_sheet(&last.sheet, t)}

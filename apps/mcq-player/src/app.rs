@@ -9,6 +9,7 @@ use mcq_engine::{Session, decode_session, encode_session};
 use mcq_grade::GradeResult;
 use mcq_model::{Paper, TimeExtension};
 
+use crate::icon::{Icon, IconButton};
 use crate::platform::{self, EVENTS_SCRIPT};
 use crate::render::{self, Opened};
 use crate::review::{ReviewAction, ReviewState};
@@ -113,6 +114,7 @@ pub fn App() -> Element {
         }
     });
 
+    crate::icon::use_keep_in_view();
     use_future(move || async move {
         let mut events = document::eval(EVENTS_SCRIPT);
         while let Ok(message) = events.recv::<String>().await {
@@ -419,7 +421,7 @@ pub fn App() -> Element {
                         if let Some(message) = notice() {
                             p { class: "notice",
                                 "{message} "
-                                button { class: "link", "aria-label": "{t.close}", title: "{t.close}", onclick: move |_| notice.set(None), "×" }
+                                IconButton { class: "link", icon: Icon::Close, label: t.close, onclick: move |_| notice.set(None) }
                             }
                         }
                     }
@@ -454,22 +456,19 @@ pub fn App() -> Element {
                     // Fixed to the bottom of the window: the buttons never move with the question's length.
                     div { class: "exam-nav",
                         div { class: "exam-nav-inner",
-                            button { disabled: current == 0, "aria-label": "{t.previous}", title: "{t.previous}", onclick: move |_| go(Session::previous),
-                                "← " span { class: "nav-label", "{t.previous}" }
-                            }
+                            IconButton { disabled: current == 0, icon: Icon::ArrowLeft, label: t.previous, tip: t.previous_tip, shown: true,
+                                onclick: move |_| go(Session::previous) }
                             div { class: "exam-nav-middle",
                                 if flagged > 0 {
-                                    button { class: "jump", "aria-label": "{t.next_flagged}", title: "{t.next_flagged}", onclick: move |_| go(|s| { s.next_flagged(); }),
-                                        span { class: "nav-icon", "aria-hidden": "true", "⚑ " } span { class: "nav-label", "{t.next_flagged}" }
-                                    }
+                                    IconButton { class: "jump", icon: Icon::Flag, label: t.flagged_short, tip: t.next_flagged,
+                                        onclick: move |_| go(|s| { s.next_flagged(); }) }
                                 }
                                 button { id: "finish", class: if current + 1 == total { "end primary" } else { "end" },
                                     onclick: move |_| open_confirm(stage), "{t.finish}"
                                 }
                             }
-                            button { class: "primary", disabled: current + 1 == total, "aria-label": "{t.next}", title: "{t.next}", onclick: move |_| go(Session::next),
-                                span { class: "nav-label", "{t.next}" } " →"
-                            }
+                            IconButton { class: "primary next", disabled: current + 1 == total, icon: Icon::ArrowRight, label: t.next, tip: t.next_tip, shown: true,
+                                onclick: move |_| go(Session::next) }
                         }
                     }
                 }
@@ -611,18 +610,17 @@ pub fn App() -> Element {
             header { class: "top",
                 span { class: "brand", "{header_title}" }
                 div { class: "prefs",
-                    button { "aria-label": if dark() == Some(true) { t.theme_light } else { t.theme_dark },
-                        title: if dark() == Some(true) { t.theme_light } else { t.theme_dark },
-                        onclick: move |_| dark.set(Some(dark() != Some(true))),
-                        if dark() == Some(true) { "☀" } else { "☾" }
+                    if dark() == Some(true) {
+                        IconButton { icon: Icon::Sun, label: t.light_short, tip: t.theme_light, onclick: move |_| dark.set(Some(false)) }
+                    } else {
+                        IconButton { icon: Icon::Moon, label: t.dark_short, tip: t.theme_dark, onclick: move |_| dark.set(Some(true)) }
                     }
-                    button { "aria-label": "{t.text_smaller}", title: "{t.text_smaller}",
-                        onclick: move |_| text_scale.set(text_scale().saturating_sub(10).max(80)), "A−" }
-                    button { "aria-label": "{t.text_larger}", title: "{t.text_larger}",
-                        onclick: move |_| text_scale.set((text_scale() + 10).min(160)), "A+" }
-                    button { "aria-pressed": "{shortcuts()}", "aria-label": "{t.shortcuts}", title: "{t.shortcuts}",
-                        onclick: move |_| shortcuts.set(!shortcuts()), "⌨"
-                    }
+                    IconButton { icon: Icon::TextSmaller, label: t.smaller_short, tip: t.text_smaller,
+                        onclick: move |_| text_scale.set(text_scale().saturating_sub(10).max(80)) }
+                    IconButton { icon: Icon::TextLarger, label: t.larger_short, tip: t.text_larger,
+                        onclick: move |_| text_scale.set((text_scale() + 10).min(160)) }
+                    IconButton { icon: Icon::Keyboard, label: t.shortcuts_short, tip: t.shortcuts, aria_pressed: "{shortcuts()}",
+                        onclick: move |_| shortcuts.set(!shortcuts()) }
                     button { "aria-label": "{t.language_name}", title: "{t.language_name}",
                         lang: if lang() == Lang::Fr { "en" } else { "fr" },
                         onclick: move |_| lang.set(if lang() == Lang::Fr { Lang::En } else { Lang::Fr }),

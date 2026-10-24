@@ -9,6 +9,7 @@ use mcq_engine::{Session, format_duration};
 use mcq_grade::{GradeResult, MIN_DIAGNOSTIC_QUESTIONS, Mastery, Status};
 use mcq_model::{Block, Level, Paper};
 
+use crate::icon::{Icon, IconButton};
 use crate::markdown;
 use crate::render::{self, Content};
 use crate::texts::Texts;
@@ -522,8 +523,8 @@ pub fn review_screen(
                     }
                 }
                 div { class: "actions no-print",
-                    button { onclick: move |_| on.call(ReviewAction::DownloadSheet), "{t.download_sheet}" }
-                    button { onclick: move |_| on.call(ReviewAction::Print), "{t.print_correction}" }
+                    IconButton { icon: Icon::Download, label: t.sheet_short, tip: t.download_sheet, onclick: move |_| on.call(ReviewAction::DownloadSheet) }
+                    IconButton { icon: Icon::Print, label: t.print_short, tip: t.print_correction, onclick: move |_| on.call(ReviewAction::Print) }
                 }
             }
             div { class: "review-guide no-print",
@@ -547,10 +548,12 @@ pub fn review_screen(
                     p { class: "muted position", "{position + 1} / {count}" }
                     {question}
                     div { class: "nav",
-                        button { disabled: position == 0, onclick: move |_| on.call(ReviewAction::Previous), "← {t.previous}" }
+                        IconButton { disabled: position == 0, icon: Icon::ArrowLeft, label: t.previous, tip: t.previous_tip, shown: true,
+                            onclick: move |_| on.call(ReviewAction::Previous) }
                         button { class: if understood { "understood on" } else { "understood" }, "aria-pressed": "{understood}",
                             onclick: move |_| on.call(ReviewAction::Understood), "{t.understood}" }
-                        button { class: "primary", disabled: position + 1 >= count, onclick: move |_| on.call(ReviewAction::Next), "{t.next} →" }
+                        IconButton { class: "primary next", disabled: position + 1 >= count, icon: Icon::ArrowRight, label: t.next, tip: t.next_tip, shown: true,
+                            onclick: move |_| on.call(ReviewAction::Next) }
                     }
                     p { class: "muted", "{t.review_keys}" }
                 } else {

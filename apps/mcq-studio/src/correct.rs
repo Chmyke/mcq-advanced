@@ -12,6 +12,7 @@ use mcq_crypto::Identity;
 use mcq_grade::Mastery;
 use mcq_math::Formulas;
 use mcq_model::{Block, Paper, TimeExtension};
+use mcq_player::icon::{Icon, IconButton, IconMenu};
 use mcq_player::{b64, markdown, render};
 
 use crate::correction::{Correction, Refusal};
@@ -493,7 +494,7 @@ pub fn report_view(
                     ul {
                         for (question, line) in decisions {
                             li { key: "{question}", class: "decision", {sentence_view(line)} " "
-                                button { class: "small", onclick: { let q = question.clone(); move |_| on_action.call(ReportAction::Undo(q.clone())) }, "{c.undo}" }
+                                IconButton { icon: Icon::Undo, label: c.undo, tip: c.tip_undo, onclick: { let q = question.clone(); move |_| on_action.call(ReportAction::Undo(q.clone())) } }
                             }
                         }
                     }
@@ -547,8 +548,8 @@ pub fn report_view(
                                 td { class: "num", "{mins}" }
                                 td { class: "mono", "{receipt}" }
                                 td { class: "row-actions",
-                                    button { class: "small", onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Sheet(receipt.clone())) }, "{c.open_sheet}" }
-                                    button { class: "small", onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Timeline(receipt.clone())) }, "{c.open_timeline}" }
+                                    IconButton { icon: Icon::Sheet, label: c.open_sheet, tip: c.tip_open_sheet, onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Sheet(receipt.clone())) } }
+                                    IconButton { icon: Icon::Clock, label: c.open_timeline, tip: c.tip_open_timeline, onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Timeline(receipt.clone())) } }
                                 }
                             }
                         }
@@ -904,21 +905,23 @@ pub fn CorrectSpace(
             }
             if let Some(sheet) = sheet {
                 div { class: "actions",
-                    button { class: "primary", onclick: move |_| platform::print(), "{c.print_student_sheet}" }
-                    button { onclick: move |_| sheet_for.set(None), "{c.close_sheet}" }
+                    IconButton { class: "primary", icon: Icon::Print, label: c.print, tip: c.print_student_sheet, onclick: move |_| platform::print() }
+                    IconButton { icon: Icon::Close, label: c.close_sheet, onclick: move |_| sheet_for.set(None) }
                 }
                 {sheet_view(&sheet, t, lang)}
             } else if let (Some((name, timeline)), Some(paper)) = (timeline, paper.as_ref()) {
                 div { class: "actions",
-                    button { class: "primary", onclick: move |_| platform::print(), "{c.print_student_sheet}" }
-                    button { onclick: move |_| timeline_for.set(None), "{c.close_sheet}" }
+                    IconButton { class: "primary", icon: Icon::Print, label: c.print, tip: c.print_student_sheet, onclick: move |_| platform::print() }
+                    IconButton { icon: Icon::Close, label: c.close_sheet, onclick: move |_| timeline_for.set(None) }
                 }
                 {timeline_view(&name, &timeline, paper, t, lang)}
             } else if let (Some(report), Some(paper)) = (report, paper) {
                 div { class: "actions",
-                    button { onclick: { let (r, p) = (report.clone(), paper.clone()); move |_| download_text("notes.csv", &csv::notes(&p, &r, labels)) }, "{c.export_notes}" }
-                    button { onclick: { let r = report.clone(); move |_| download_text("themes.csv", &csv::themes(&r, labels)) }, "{c.export_themes}" }
-                    button { onclick: { let (r, p) = (report.clone(), paper.clone()); move |_| download_text("questions.csv", &csv::questions(&p, &r, labels)) }, "{c.export_questions}" }
+                    IconMenu { icon: Icon::Download, label: c.export, tip: c.tip_export,
+                        button { onclick: { let (r, p) = (report.clone(), paper.clone()); move |_| download_text("notes.csv", &csv::notes(&p, &r, labels)) }, "{c.export_notes}" }
+                        button { onclick: { let r = report.clone(); move |_| download_text("themes.csv", &csv::themes(&r, labels)) }, "{c.export_themes}" }
+                        button { onclick: { let (r, p) = (report.clone(), paper.clone()); move |_| download_text("questions.csv", &csv::questions(&p, &r, labels)) }, "{c.export_questions}" }
+                    }
                 }
                 {report_view(&report, &paper, t, lang, EventHandler::new(move |action: ReportAction| match action {
                     ReportAction::Sheet(receipt) => sheet_for.set(Some(receipt)),

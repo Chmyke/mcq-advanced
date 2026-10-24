@@ -5,6 +5,7 @@
 use dioxus::prelude::*;
 use mcq_edit::ops::{self, IdError, Kind};
 use mcq_model::{Block, Issue, Level, MediaKind, Question, Severity};
+use mcq_player::icon::{Icon, IconButton, IconFile};
 use mcq_player::markdown;
 
 use crate::class_stats::{self, ClassResults};
@@ -142,8 +143,8 @@ pub fn write_space(
             {question_list(studio, &s, &issues, t)}
             div { class: "workspace",
                 div { class: "view-switch segmented", role: "group", "aria-label": "{t.view_label}",
-                    button { "aria-pressed": "{view == View::Visual}", onclick: move |_| studio.write().show_visual(), "{t.view_visual}" }
-                    button { "aria-pressed": "{view == View::Source}", onclick: move |_| studio.write().show_source(), "{t.view_source}" }
+                    IconButton { icon: Icon::Eye, label: t.view_visual, tip: t.tip_view_visual, aria_pressed: "{view == View::Visual}", onclick: move |_| studio.write().show_visual() }
+                    IconButton { icon: Icon::Code, label: t.view_source, tip: t.tip_view_source, aria_pressed: "{view == View::Source}", onclick: move |_| studio.write().show_source() }
                 }
                 if view == View::Source || !s.can_edit_visually() {
                     {source_view(studio, &s, &issues, t)}
@@ -244,13 +245,12 @@ fn question_list(
                     div { class: "theme-head",
                         h2 { "{title}" }
                         if editable && !theme_id.is_empty() {
-                            button {
-                                class: "small",
+                            IconButton {
+                                icon: Icon::Plus, label: t.add_question, tip: t.tip_add_question,
                                 onclick: {
                                     let theme_id = theme_id.clone();
                                     move |_| studio.write().add_question(&theme_id)
                                 },
-                                "{t.add_question}"
                             }
                         }
                     }
@@ -368,10 +368,10 @@ fn question_editor(
             header { class: "editor-head",
                 h1 { id: "editor-title", "{t.question} {index + 1}" }
                 div { class: "editor-actions",
-                    button { class: "small", onclick: { let id = id.clone(); move |_| { studio.write().edit_paper(|p| { ops::move_question(p, &id, true); }); } }, "{t.move_up}" }
-                    button { class: "small", onclick: { let id = id.clone(); move |_| { studio.write().edit_paper(|p| { ops::move_question(p, &id, false); }); } }, "{t.move_down}" }
-                    button { class: "small", onclick: { let id = id.clone(); move |_| studio.write().duplicate_question(&id) }, "{t.duplicate}" }
-                    button { class: "small danger", onclick: { let id = id.clone(); move |_| studio.write().remove_question(&id) }, "{t.delete}" }
+                    IconButton { icon: Icon::ArrowUp, label: t.move_up, tip: t.tip_question_up, onclick: { let id = id.clone(); move |_| { studio.write().edit_paper(|p| { ops::move_question(p, &id, true); }); } } }
+                    IconButton { icon: Icon::ArrowDown, label: t.move_down, tip: t.tip_question_down, onclick: { let id = id.clone(); move |_| { studio.write().edit_paper(|p| { ops::move_question(p, &id, false); }); } } }
+                    IconButton { icon: Icon::Copy, label: t.duplicate, tip: t.tip_duplicate, onclick: { let id = id.clone(); move |_| studio.write().duplicate_question(&id) } }
+                    IconButton { class: "danger", icon: Icon::Trash, label: t.delete, tip: t.tip_delete, onclick: { let id = id.clone(); move |_| studio.write().remove_question(&id) } }
                 }
             }
             div { class: "fields",
@@ -425,33 +425,29 @@ fn question_editor(
                 div { class: "statement-bar",
                     h2 { id: "statement-title", "{t.statement}" }
                     div { class: "toolbar",
-                        button { class: "small", onclick: { let id = id.clone(); move |_| studio.write().add_text_block(&id) }, "{t.add_text}" }
-                        button { class: "small", onclick: { let id = id.clone(); move |_| {
+                        IconButton { icon: Icon::Text, label: t.add_text, tip: t.tip_add_text, onclick: { let id = id.clone(); move |_| studio.write().add_text_block(&id) } }
+                        IconButton { icon: Icon::Braces, label: t.add_code, tip: t.tip_add_code, onclick: { let id = id.clone(); move |_| {
                             let lang = studio.read().project.paper.questions.iter().flat_map(|q| q.code_blocks()).last().map(|c| c.language.clone()).unwrap_or_default();
                             studio.write().add_code_block(&id, &lang);
-                        } }, "{t.add_code}" }
-                        button { class: "small", onclick: { let id = id.clone(); move |_| studio.write().add_formula_block(&id) }, "{t.add_formula}" }
-                        label { class: "file small",
-                            "{t.add_media}"
-                            input {
-                                r#type: "file", class: "sr-only", multiple: true,
-                                accept: "image/*,audio/*,video/*",
-                                onchange: { let id = id.clone(); move |e: FormEvent| {
-                                    let id = id.clone();
-                                    async move {
-                                        for file in e.files() {
-                                            if let Ok(bytes) = file.read_bytes().await {
-                                                actions::add_media(studio, notice, t, &id, &file.name(), bytes.to_vec());
-                                            }
+                        } } }
+                        IconButton { icon: Icon::Sigma, label: t.add_formula, tip: t.tip_add_formula, onclick: { let id = id.clone(); move |_| studio.write().add_formula_block(&id) } }
+                        IconFile { icon: Icon::Image, label: t.add_media, tip: t.tip_add_media, multiple: true,
+                            accept: "image/*,audio/*,video/*",
+                            onchange: { let id = id.clone(); move |e: FormEvent| {
+                                let id = id.clone();
+                                async move {
+                                    for file in e.files() {
+                                        if let Ok(bytes) = file.read_bytes().await {
+                                            actions::add_media(studio, notice, t, &id, &file.name(), bytes.to_vec());
                                         }
                                     }
-                                } },
-                            }
+                                }
+                            } },
                         }
                         if recording() {
-                            button { class: "small recording", onclick: move |_| actions::stop_recording(), "{t.stop_recording}" }
+                            IconButton { class: "recording", icon: Icon::Stop, label: t.stop, tip: t.stop_recording, onclick: move |_| actions::stop_recording() }
                         } else {
-                            button { class: "small", onclick: { let id = id.clone(); move |_| actions::start_recording(studio, recording, notice, t, id.clone()) }, "{t.record}" }
+                            IconButton { icon: Icon::Mic, label: t.record, tip: t.tip_record, onclick: { let id = id.clone(); move |_| actions::start_recording(studio, recording, notice, t, id.clone()) } }
                         }
                     }
                 }
@@ -461,9 +457,9 @@ fn question_editor(
                     div { key: "{k}", class: "block",
                         {block_editor(studio, s, &id, k, block, t)}
                         div { class: "block-actions",
-                            button { class: "icon", title: "{t.block_up}", "aria-label": "{t.block_up}", onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| { ops::move_item(&mut q.body, k, true); }) }, "↑" }
-                            button { class: "icon", title: "{t.block_down}", "aria-label": "{t.block_down}", onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| { ops::move_item(&mut q.body, k, false); }) }, "↓" }
-                            button { class: "icon", title: "{t.block_remove}", "aria-label": "{t.block_remove}", onclick: { let id = id.clone(); move |_| studio.write().remove_block(&id, k) }, "✕" }
+                            IconButton { icon: Icon::ArrowUp, label: t.move_up, tip: t.block_up, onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| { ops::move_item(&mut q.body, k, true); }) } }
+                            IconButton { icon: Icon::ArrowDown, label: t.move_down, tip: t.block_down, onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| { ops::move_item(&mut q.body, k, false); }) } }
+                            IconButton { icon: Icon::Close, label: t.remove, tip: t.block_remove, onclick: { let id = id.clone(); move |_| studio.write().remove_block(&id, k) } }
                         }
                     }
                 }
@@ -498,14 +494,14 @@ fn question_editor(
                             }
                         }
                         div { class: "block-actions",
-                            button { class: "icon", title: "{t.move_up}", "aria-label": "{t.move_up}", onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| { ops::move_option(q, k, true); }) }, "↑" }
-                            button { class: "icon", title: "{t.move_down}", "aria-label": "{t.move_down}", onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| { ops::move_option(q, k, false); }) }, "↓" }
-                            button { class: "icon", title: "{t.remove_answer}", "aria-label": "{t.remove_answer}", onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| ops::remove_option(q, k)) }, "✕" }
+                            IconButton { icon: Icon::ArrowUp, label: t.move_up, tip: t.tip_answer_up, onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| { ops::move_option(q, k, true); }) } }
+                            IconButton { icon: Icon::ArrowDown, label: t.move_down, tip: t.tip_answer_down, onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| { ops::move_option(q, k, false); }) } }
+                            IconButton { icon: Icon::Close, label: t.remove, tip: t.remove_answer, onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, |q| ops::remove_option(q, k)) } }
                         }
                     }
                 }
                 if kind != Kind::TrueFalse {
-                    button { class: "small", onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, ops::add_option) }, "{t.add_answer}" }
+                    IconButton { icon: Icon::Plus, label: t.add_answer, tip: t.tip_add_answer, onclick: { let id = id.clone(); move |_| studio.write().edit_question(&id, ops::add_option) } }
                 }
             }
 

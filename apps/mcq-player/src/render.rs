@@ -12,6 +12,7 @@ use mcq_model::{Block, CodeBlock, CodeTokens, MediaKind, Paper, Question, Scorin
 use mcq_format::binary::{CODE_TOKENS_FILE, decode_code_tokens};
 use mcq_math::{FORMULAS_FILE, Formulas};
 
+use crate::icon::{Icon, IconButton};
 use crate::texts::Texts;
 use crate::{b64, markdown};
 
@@ -277,11 +278,11 @@ pub fn question_view(
                     }
                 }
             }
-            button {
+            IconButton {
                 class: if item.flagged { "flag on" } else { "flag" },
-                "aria-pressed": if item.flagged { "true" } else { "false" },
+                icon: Icon::Flag, label: t.flag_short, tip: t.flag,
+                aria_pressed: if item.flagged { "true" } else { "false" },
                 onclick: move |_| on_flag.call(()),
-                if item.flagged { "{t.unflag}" } else { "{t.flag}" }
             }
         }
     }

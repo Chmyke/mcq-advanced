@@ -187,7 +187,7 @@ fn the_formula_button_adds_a_formula_the_preview_shows_at_once() {
         s.add_formula_block("fruit-banana-colour");
     });
     let editor = &html[..html.find("class=\"preview\"").expect("preview")];
-    assert!(editor.contains(">+ Formula</button>"), "{editor}");
+    assert!(editor.contains("aria-label=\"Add a formula\""), "{editor}");
     assert!(editor.contains("$$x^2$$ on their own line"), "{editor}");
     assert!(
         editor.contains(r"$$\frac{a}{b}$$"),
@@ -211,4 +211,47 @@ fn a_formula_that_does_not_convert_is_explained_and_shown_as_source() {
     });
     assert!(html.contains("BAD_FORMULA"), "{html}");
     assert!(html.contains("formula-source"), "{html}");
+}
+
+#[test]
+fn every_icon_of_write_and_settings_is_named_after_its_tip() {
+    // Write renders in English, Settings in French: both tables are checked.
+    for html in [render(|_| {}), render(|s| s.space = Space::Settings)] {
+        assert!(html.contains("data-icon"), "the screen shows icons: {html}");
+        let faults = mcq_player::icon::contract_faults(&html);
+        assert!(faults.is_empty(), "{faults:#?}");
+    }
+}
+
+/// The icons outside Write and Settings (top bar, spaces, Publish, Correct): each short label
+/// is part of its tip, in both languages, so the name read aloud matches the word shown.
+#[test]
+fn the_other_tips_contain_their_labels() {
+    for t in [&EN, &FR] {
+        let c = t.correction;
+        let pairs = [
+            (t.new_paper, t.tip_new),
+            (t.import, t.tip_import),
+            (t.export, t.tip_export),
+            (t.theme_light, t.tip_theme_light),
+            (t.theme_dark, t.tip_theme_dark),
+            (t.space_write, t.tip_space_write),
+            (t.space_settings, t.tip_space_settings),
+            (t.space_publish, t.tip_space_publish),
+            (t.space_correct, t.tip_space_correct),
+            (t.print, t.print_sheet),
+            (t.download, t.tip_download_again),
+            (c.undo, c.tip_undo),
+            (c.open_sheet, c.tip_open_sheet),
+            (c.open_timeline, c.tip_open_timeline),
+            (c.print, c.print_student_sheet),
+            (c.export, c.tip_export),
+        ];
+        for (label, tip) in pairs {
+            assert!(
+                tip.to_lowercase().contains(&label.to_lowercase()),
+                "\"{tip}\" lacks \"{label}\""
+            );
+        }
+    }
 }

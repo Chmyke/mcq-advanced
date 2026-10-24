@@ -433,6 +433,17 @@ fn the_correction_opens_on_the_mistakes_one_at_a_time() {
     // Printed: the whole correction.
     let printed = &html[html.find("print-only").expect("print")..];
     assert_eq!(printed.matches("class=\"review-item").count(), 3);
+    let faults = mcq_player::icon::contract_faults(&html);
+    assert!(faults.is_empty(), "{faults:#?}");
+}
+
+#[test]
+fn the_flag_is_an_icon_that_keeps_its_name_when_pressed() {
+    let html = question_html("fruit-banana-colour");
+    assert!(html.contains("aria-label=\"Flag for review\""), "{html}");
+    assert!(html.contains("aria-pressed=\"false\""), "{html}");
+    let faults = mcq_player::icon::contract_faults(&html);
+    assert!(faults.is_empty(), "{faults:#?}");
 }
 
 #[test]
