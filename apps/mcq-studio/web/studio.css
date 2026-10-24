@@ -57,7 +57,6 @@ button.recording { background: var(--ko); color: var(--accent-text); border-colo
 .dot.error { background: var(--ko); border-radius: 2px; }
 
 .workspace { min-width: 0; }
-.view-switch { margin-bottom: .6rem; }
 .editor { margin-top: 0; }
 .editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
 .editor-actions { display: flex; gap: .35rem; flex-wrap: wrap; }
@@ -93,8 +92,6 @@ button.recording { background: var(--ko); color: var(--accent-text); border-colo
 .issue-level { font-weight: 700; margin-right: .5rem; }
 .issue-code { font-family: ui-monospace, Consolas, monospace; font-size: .85em; color: var(--muted); }
 .ok-note { color: var(--ok); }
-
-.source-text { min-height: 60vh; white-space: pre; tab-size: 4; font-size: .92em; }
 
 .preview { margin-top: 1rem; }
 .preview-bar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-bottom: .5rem; }

@@ -138,9 +138,10 @@ The Studio is the teacher's editor, in the browser or on the desktop, without an
 server. Questions are listed by theme with the validator's verdict; the selected question is
 edited in the middle (single or multiple answers, true or false, text, code, media, an
 explanation per answer, the rule to remember) with the validator's advice beside it and a live
-preview exactly as students will see it, on a computer or a phone, light or dark. The Source view
-shows and edits the same `.qcm.md` text. Images, sounds and videos are dropped, pasted, chosen or
-recorded from the microphone, each with its text alternative. Publishing builds the signed
+preview exactly as students will see it, on a computer or a phone, light or dark. The `.qcm.md`
+text stays the file format, exported on demand; a file the reader cannot understand is refused
+with its first error and line. Images, sounds and videos are dropped, pasted, chosen or recorded
+from the microphone, each with its text alternative. Publishing builds the signed
 package, its opening and end codes, and a sheet to print for the exam room with the teacher's
 fingerprint. The draft is kept in the browser after every change; the paper and its media go in
 and out as one `.qcmz` file.

@@ -38,12 +38,7 @@ pub struct Texts {
     pub state_error: &'static str,
     pub state_warning: &'static str,
     pub state_ok: &'static str,
-    pub view_label: &'static str,
     pub kind_label: &'static str,
-    pub view_visual: &'static str,
-    pub view_source: &'static str,
-    pub source_label: &'static str,
-    pub source_broken: &'static str,
     pub empty_paper: &'static str,
 
     pub question: &'static str,
@@ -282,12 +277,7 @@ pub static EN: Texts = Texts {
     state_error: "error",
     state_warning: "to check",
     state_ok: "ready",
-    view_label: "View",
     kind_label: "Question type",
-    view_visual: "Visual",
-    view_source: "Source",
-    source_label: "Source (.qcm.md)",
-    source_broken: "The source has errors: fix them here before editing visually again.",
     empty_paper: "No question yet: add one from the list.",
 
     question: "Question",
@@ -475,12 +465,7 @@ pub static FR: Texts = Texts {
     state_error: "erreur",
     state_warning: "à revoir",
     state_ok: "prête",
-    view_label: "Affichage",
     kind_label: "Type de question",
-    view_visual: "Visuel",
-    view_source: "Source",
-    source_label: "Source (.qcm.md)",
-    source_broken: "La source contient des erreurs : corrigez-les ici avant de revenir à l'édition visuelle.",
     empty_paper: "Aucune question : ajoutez-en une depuis la liste.",
 
     question: "Question",
@@ -959,7 +944,7 @@ pub static DEMO_EN: DemoTexts = DemoTexts {
     steps: [
         (
             "Write.",
-            "Edit a question visually or as source (Markdown); the preview shows it as a student will, on a phone or in the dark theme, with its formulas, picture and coloured code.",
+            "Edit a question; the preview shows it as a student will, on a phone or in the dark theme, with its formulas, picture and coloured code.",
         ),
         (
             "Check.",
@@ -1002,7 +987,7 @@ pub static DEMO_FR: DemoTexts = DemoTexts {
     steps: [
         (
             "Rédiger.",
-            "Modifiez une question en mode visuel ou en source (Markdown) ; l'aperçu la montre comme l'élève la verra, sur téléphone ou en thème sombre, avec ses formules, son image et son code coloré.",
+            "Modifiez une question ; l'aperçu la montre comme l'élève la verra, sur téléphone ou en thème sombre, avec ses formules, son image et son code coloré.",
         ),
         (
             "Vérifier.",

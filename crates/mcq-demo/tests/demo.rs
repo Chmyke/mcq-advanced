@@ -57,7 +57,7 @@ fn papers_have_no_warning() {
 
 #[test]
 fn sources_are_written_as_the_studio_writes_them() {
-    // The visitor opens the paper in the Studio: its source view must show this very file.
+    // The visitor opens the paper in the Studio: its `.qcm.md` export must be this very file.
     for (name, source) in every_paper() {
         let canonical = mcq_format::write(&paper(source));
         let differs = canonical

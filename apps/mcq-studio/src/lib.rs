@@ -1,4 +1,4 @@
-//! ROLE:    the teacher's Studio: write a paper visually or as source, see it as a student will,
+//! ROLE:    the teacher's Studio: write a paper visually, see it as a student will,
 //!          check it live, add media, and publish it with its codes and room sheet.
 //! OWNER:   `app::App` owns the screen state; `state::Studio` owns the project being edited.
 //! INVARIANTS: every change goes through `state::Studio`; the paper is never published with

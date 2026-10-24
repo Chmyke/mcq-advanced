@@ -21,7 +21,6 @@ fn number(text: &str) -> f32 {
 pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element {
     let s = studio.read();
     let paper = &s.project.paper;
-    let editable = s.can_edit_visually();
     let estimated = paper.estimated_seconds_with_margin().div_ceil(60);
     let issues = s.issues();
     let general: Vec<&Issue> = state::paper_issues(paper, &issues);
@@ -36,8 +35,7 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
     let partial = paper.scoring == Scoring::Partial;
     rsx! {
         div { class: "settings",
-            if !editable { p { class: "notice warn", "{t.source_broken}" } }
-            fieldset { class: "card", disabled: !editable,
+            fieldset { class: "card",
                 legend { "{t.settings_paper}" }
                 label { r#for: "p-title", "{t.title}" }
                 input { id: "p-title", r#type: "text", value: "{paper.title}",
@@ -52,14 +50,14 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                 textarea { id: "p-notes", rows: "3", value: "{paper.notes}",
                     oninput: move |e| studio.write().edit_paper(|p| p.notes = e.value().lines().filter(|l| !l.trim().is_empty()).collect::<Vec<_>>().join("\n")) }
             }
-            fieldset { class: "card", disabled: !editable,
+            fieldset { class: "card",
                 legend { "{t.settings_time}" }
                 label { r#for: "p-duration", "{t.duration}" }
                 input { id: "p-duration", r#type: "number", min: "0", class: "short", value: "{paper.duration_minutes}",
                     oninput: move |e| studio.write().edit_paper(|p| p.duration_minutes = e.value().trim().parse().unwrap_or(0)) }
                 p { class: "muted", "{t.estimated} {estimated} {t.minutes}" }
             }
-            fieldset { class: "card", disabled: !editable,
+            fieldset { class: "card",
                 legend { "{t.settings_scoring}" }
                 div { class: "segmented", role: "group", "aria-label": "{t.settings_scoring}",
                     button { "aria-pressed": "{!partial}", onclick: move |_| studio.write().edit_paper(|p| p.scoring = Scoring::AllOrNothing), "{t.scoring_all_or_nothing}" }
@@ -72,7 +70,7 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                 input { id: "p-blank", r#type: "number", min: "0", step: "0.05", class: "short", value: "{paper.unanswered_penalty}",
                     onchange: move |e| studio.write().edit_paper(|p| p.unanswered_penalty = number(&e.value())) }
             }
-            fieldset { class: "card", disabled: !editable,
+            fieldset { class: "card",
                 legend { "{t.settings_exam}" }
                 label { class: "check",
                     input { r#type: "checkbox", checked: paper.shuffle_questions,
@@ -90,7 +88,7 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                     "{t.show_answer_count}"
                 }
             }
-            fieldset { class: "card", disabled: !editable,
+            fieldset { class: "card",
                 legend { "{t.themes}" }
                 for (k, (id, title, course, used)) in themes.into_iter().enumerate() {
                     div { key: "{id}", class: "theme-row",
