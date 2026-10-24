@@ -199,11 +199,16 @@ figcaption { color: var(--muted); font-size: .9em; }
 .appreciation { font-size: 1.2em; font-weight: 600; margin: .1em 0 .5em; }
 .counts .ok { color: var(--ok); } .counts .ko { color: var(--ko); } .counts .part { color: var(--part); }
 .theme-bars { list-style: none; padding: 0; display: grid; gap: .4rem; }
-.theme-bars li { display: grid; grid-template-columns: minmax(6rem, 1fr) 2fr auto; align-items: center; gap: .6rem; }
-.theme-bars .bar { height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+.theme-bars li { display: grid; grid-template-columns: minmax(6rem, 1fr) 2fr auto; grid-template-areas: "name bar rate"; align-items: center; gap: .6rem; }
+.theme-bars .theme-name { grid-area: name; min-width: 0; overflow-wrap: anywhere; }
+.theme-bars .bar { grid-area: bar; height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
 .theme-bars .fill { display: block; height: 100%; border-radius: 5px; transform-origin: left; animation: grow .6s ease-out both; }
 .fill.acquired { background: var(--ok); } .fill.fragile { background: var(--part); } .fill.relearn { background: var(--ko); }
-.theme-rate { font-size: .9em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.theme-rate { grid-area: rate; font-size: .9em; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* On a phone the rate goes under the theme name, the bar beside it: a long name never meets it. */
+@media (max-width: 560px) {
+  .theme-bars li { grid-template-columns: auto 1fr; grid-template-areas: "name name" "rate bar"; gap: .15rem .6rem; }
+}
 .weak-themes { padding-left: 1.4em; }
 .review-guide { margin-top: 1rem; }
 .review-guide .position { margin: .25rem 0 0; }
@@ -222,17 +227,9 @@ figcaption { color: var(--muted); font-size: .9em; }
 .answer-block p { margin: .2rem 0; }
 .understood.on { background: var(--accent-soft); border-color: var(--accent); }
 .option { transition: background-color .15s ease, border-color .15s ease; }
-.print-only { display: none; }
 
 @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-}
-
-@media print {
-  .top, .no-print, .nav, .exam-nav { display: none !important; }
-  .print-only { display: block; }
-  .app, .card, .review-item { background: #fff !important; color: #000 !important; box-shadow: none; }
-  .review-item { break-inside: avoid; }
 }

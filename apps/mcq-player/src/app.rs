@@ -590,7 +590,6 @@ pub fn App() -> Element {
                             format!("{} - {}.md", s.student_name, lang().texts().sheet_title);
                         platform::download(&name, &b64::encode(sheet.as_bytes()));
                     }
-                    ReviewAction::Print => platform::print(),
                     other => {
                         review.write().apply(other, &s, &g.result);
                         keep_review_in_view();

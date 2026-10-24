@@ -206,11 +206,18 @@ fn practice_and_correction_show_the_answers_after_hand_in() {
         session.toggle(&opened.paper, "fruit-banana-colour-o1");
         let copy = session.submit();
         let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds, copy.extension);
+        // The right answer is not among the mistakes shown first: the student opens it.
+        let mut state = mcq_player::review::ReviewState::default();
+        state.apply(
+            mcq_player::review::ReviewAction::Go(banana),
+            &session,
+            &result,
+        );
         mcq_player::review::review_screen(
             &full,
             &session,
             &result,
-            &Default::default(),
+            &state,
             Lang::En.texts(),
             opened.content(),
             EventHandler::new(|_| {}),
@@ -404,9 +411,9 @@ fn the_correction_opens_on_the_mistakes_one_at_a_time() {
             EventHandler::new(|_| {}),
         )
     });
-    let guide =
-        &html[html.find("review-guide").expect("guide")..html.find("print-only").expect("print")];
+    let guide = &html[html.find("review-guide").expect("guide")..];
     assert!(html.contains("6,67 / 20"), "{html}");
+    assert!(!html.contains("Imprimer"), "nothing to print: {html}");
     assert!(html.contains("À reprendre"), "the word on the mark: {html}");
     assert!(html.contains("1 Juste"), "{html}");
     assert!(
@@ -430,9 +437,33 @@ fn the_correction_opens_on_the_mistakes_one_at_a_time() {
     );
     assert!(guide.contains("J&#39;ai compris"), "{guide}");
     assert_eq!(guide.matches("class=\"segment ").count(), 3, "{guide}");
-    // Printed: the whole correction.
-    let printed = &html[html.find("print-only").expect("print")..];
-    assert_eq!(printed.matches("class=\"review-item").count(), 3);
+}
+
+/// The rendered correction, written for `tools/layout-check.mjs`: the browser lays out the real
+/// markup with the real stylesheet, so the check never drifts from the screen.
+#[test]
+fn the_correction_markup_is_handed_to_the_layout_check() {
+    let html = render(|| {
+        let bytes = package(true);
+        let opened = Opened::from_package(&bytes, "").expect("open");
+        let full =
+            mcq_crypto::open_answer_key(&bytes, mcq_crypto::KeyUnlock::Practice).expect("key");
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        let copy = session.submit();
+        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds, copy.extension);
+        mcq_player::review::review_screen(
+            &full,
+            &session,
+            &result,
+            &mcq_player::review::ReviewState::default(),
+            Lang::Fr.texts(),
+            opened.content(),
+            EventHandler::new(|_| {}),
+        )
+    });
+    assert_eq!(html.matches("class=\"theme-name\"").count(), 2, "{html}");
+    let file = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("player-review.html");
+    std::fs::write(&file, html).expect("write the layout fixture");
 }
 
 #[test]

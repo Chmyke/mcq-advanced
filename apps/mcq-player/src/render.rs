@@ -439,7 +439,7 @@ pub fn editor_link(source: &str, t: &'static Texts) -> Element {
         return rsx! {};
     };
     rsx! {
-        div { class: "editor-link card no-print",
+        div { class: "editor-link card",
             a { class: "button", href: "{href}", target: "_blank", rel: "noopener",
                 "{t.open_in_editor}"
             }

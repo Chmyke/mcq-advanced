@@ -43,7 +43,6 @@ pub enum ReviewAction {
     /// Marks the question understood and moves on.
     Understood,
     DownloadSheet,
-    Print,
 }
 
 fn status(result: &GradeResult, question_id: &str) -> Status {
@@ -80,7 +79,7 @@ impl ReviewState {
             .copied()
     }
 
-    /// Applies a navigation action; downloads and printing are the caller's.
+    /// Applies a navigation action; downloads are the caller's.
     pub fn apply(&mut self, action: ReviewAction, session: &Session, result: &GradeResult) {
         let len = indices(session, result, self.filter).len();
         match action {
@@ -106,7 +105,7 @@ impl ReviewState {
                 }
                 self.position = (self.position + 1).min(len.saturating_sub(1));
             }
-            ReviewAction::DownloadSheet | ReviewAction::Print => {}
+            ReviewAction::DownloadSheet => {}
         }
     }
 }
@@ -483,10 +482,6 @@ pub fn review_screen(
         (Filter::All, t.filter_all),
         (Filter::Right, t.filter_right),
     ];
-    // Printed, the whole correction: every question one after the other.
-    let printed: Vec<Element> = (0..session.items.len())
-        .filter_map(|i| question_review(full, session, result, i, t, content))
-        .collect();
     rsx! {
         section { class: "review", lang: (!full.lang.is_empty()).then(|| full.lang.clone()),
             h1 { class: "sr-only", "{full.title}" }
@@ -521,12 +516,11 @@ pub fn review_screen(
                         }
                     }
                 }
-                div { class: "actions no-print",
+                div { class: "actions",
                     button { onclick: move |_| on.call(ReviewAction::DownloadSheet), "{t.download_sheet}" }
-                    button { onclick: move |_| on.call(ReviewAction::Print), "{t.print_correction}" }
                 }
             }
-            div { class: "review-guide no-print",
+            div { class: "review-guide",
                 div { class: "segmented", role: "group", "aria-label": "{t.show}",
                     for (filter, label) in filters {
                         button { key: "{label}", "aria-pressed": "{state.filter == filter}",
@@ -556,9 +550,6 @@ pub fn review_screen(
                 } else {
                     p { class: "ok-note", "{t.filter_empty}" }
                 }
-            }
-            div { class: "print-only",
-                for (k, element) in printed.into_iter().enumerate() { div { key: "{k}", {element} } }
             }
         }
     }

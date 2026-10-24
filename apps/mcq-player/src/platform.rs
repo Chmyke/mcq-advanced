@@ -70,11 +70,6 @@ pub fn download(file_name: &str, base64: &str) {
     ));
 }
 
-/// Prints the page; the print stylesheet keeps the correction only.
-pub fn print() {
-    let _ = document::eval("window.print();");
-}
-
 /// True when the system asks for a dark theme.
 pub async fn prefers_dark() -> bool {
     document::eval("return window.matchMedia('(prefers-color-scheme: dark)').matches;")
