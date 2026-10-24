@@ -101,7 +101,7 @@ fn the_tips_of_the_exam_screen_contain_their_labels() {
             (t.flagged_short, t.next_flagged),
             (t.flag_short, t.flag),
             (t.sheet_short, t.download_sheet),
-            (t.print_short, t.print_correction),
+            (t.share_short, t.share_paper),
         ];
         for (label, tip) in pairs {
             assert!(

@@ -21,22 +21,12 @@ pub enum Space {
     Correct,
 }
 
-/// How the paper is edited in the Write space.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum View {
-    Visual,
-    Source,
-}
-
 pub struct Studio {
     pub project: Project,
     pub space: Space,
-    pub view: View,
     /// The question open in the editor.
     pub selected: Option<String>,
-    /// The text of the Source view, as typed.
-    pub source: String,
-    /// What the reader reported on the last typed source; empty after a visual edit.
+    /// What the reader reported on the file just opened; empty after an edit.
     read_issues: Vec<Issue>,
     /// Questions shown as multiple-answer although fewer than two options are ticked yet.
     multiple: BTreeSet<String>,
@@ -64,10 +54,8 @@ impl Studio {
     pub fn with_issues(project: Project, read_issues: Vec<Issue>) -> Self {
         let mut studio = Self {
             selected: project.paper.questions.first().map(|q| q.id.clone()),
-            source: project.source(),
             project,
             space: Space::Write,
-            view: View::Visual,
             read_issues,
             multiple: BTreeSet::new(),
             media_urls: BTreeMap::new(),
@@ -75,9 +63,6 @@ impl Studio {
             drag: None,
         };
         studio.refresh_media_urls();
-        if studio.reader_has_errors() {
-            studio.view = View::Source;
-        }
         studio
     }
 
@@ -105,60 +90,11 @@ impl Studio {
                 .all(|q| q.body.is_empty() && q.options.iter().all(|o| o.text.is_empty()))
     }
 
-    /// The text to export: the typed source while it cannot be read, else the canonical one.
-    pub fn current_source(&self) -> String {
-        if self.reader_has_errors() {
-            self.source.clone()
-        } else {
-            self.project.source()
-        }
-    }
-
     /// Reader findings first, then the linter's and the media checks.
     pub fn issues(&self) -> Vec<Issue> {
         let mut issues = self.read_issues.clone();
         issues.extend(self.project.issues());
         issues
-    }
-
-    pub fn reader_has_errors(&self) -> bool {
-        self.read_issues
-            .iter()
-            .any(|i| i.severity == Severity::Error)
-    }
-
-    /// Visual edits rewrite the source: not while the reader cannot understand all of it.
-    pub fn can_edit_visually(&self) -> bool {
-        !self.reader_has_errors()
-    }
-
-    pub fn show_source(&mut self) {
-        if !self.reader_has_errors() {
-            self.source = self.project.source();
-        }
-        self.view = View::Source;
-    }
-
-    /// Stays in the Source view while the source cannot be read.
-    pub fn show_visual(&mut self) {
-        if self.can_edit_visually() {
-            self.view = View::Visual;
-        }
-    }
-
-    /// The Source view changed: read it again.
-    pub fn edit_source(&mut self, text: String) {
-        self.read_issues = self.project.set_source(&text);
-        self.source = text;
-        let still_there = self
-            .selected
-            .as_deref()
-            .is_some_and(|id| self.project.paper.question(id).is_some());
-        if !still_there {
-            self.selected = self.project.paper.questions.first().map(|q| q.id.clone());
-        }
-        self.refresh_media_urls();
-        self.touch();
     }
 
     pub fn select(&mut self, id: &str) {
@@ -171,9 +107,6 @@ impl Studio {
 
     /// Any visual change to the paper goes through here.
     pub fn edit_paper(&mut self, change: impl FnOnce(&mut Paper)) {
-        if !self.can_edit_visually() {
-            return;
-        }
         change(&mut self.project.paper);
         self.read_issues.clear();
         self.touch();
@@ -248,9 +181,6 @@ impl Studio {
     }
 
     pub fn rename_question(&mut self, id: &str, new_id: &str) -> Result<(), ops::IdError> {
-        if !self.can_edit_visually() {
-            return Ok(());
-        }
         ops::rename_question(&mut self.project.paper, id, new_id)?;
         if self.multiple.remove(id) {
             self.multiple.insert(new_id.to_string());
@@ -323,9 +253,7 @@ impl Studio {
     /// Stores a dropped, pasted, chosen or recorded file and shows it in the question.
     /// `None` when the file is not an image, a sound or a video.
     pub fn add_media(&mut self, id: &str, file_name: &str, data: Vec<u8>) -> Option<String> {
-        if !self.can_edit_visually() || self.project.paper.question(id).is_none() {
-            return None;
-        }
+        self.project.paper.question(id)?;
         let path = self.project.add_media(file_name, data)?;
         let kind = MediaKind::from_path(&path)?;
         let block_path = path.clone();
@@ -431,40 +359,12 @@ mod tests {
     }
 
     #[test]
-    fn visual_edits_wait_for_a_readable_source() {
-        let mut s = studio();
-        assert!(s.can_edit_visually());
-        s.edit_source("---\ntitle: T\n---\n# THEME t\n## Q a\nWhy?\n```cs\nopen fence".into());
-        assert!(!s.can_edit_visually());
-        let before = s.project.paper.clone();
-        s.add_question("t");
-        assert_eq!(
-            s.project.paper, before,
-            "nothing changes while the source is broken"
-        );
-        let errors: Vec<_> = s
-            .issues()
-            .into_iter()
-            .filter(|i| i.code == "UNCLOSED_CODE_FENCE")
-            .collect();
-        assert_eq!(errors.len(), 1);
-        s.edit_source(SAMPLE.into());
-        assert!(s.can_edit_visually());
-    }
-
-    #[test]
-    fn source_and_visual_views_stay_in_step() {
+    fn a_visual_edit_reaches_the_exported_source() {
         let mut s = studio();
         let id = s.selected.clone().expect("selection");
         s.edit_question(&id, |q| q.rule = "Read twice.".into());
-        s.show_source();
-        assert!(s.source.contains("RULE: Read twice."), "{}", s.source);
-        let edited = s.source.replace("Read twice.", "Read three times.");
-        s.edit_source(edited);
-        assert_eq!(
-            s.selected_question().map(|q| q.rule.as_str()),
-            Some("Read three times.")
-        );
+        let source = s.project.source();
+        assert!(source.contains("RULE: Read twice."), "{source}");
     }
 
     #[test]

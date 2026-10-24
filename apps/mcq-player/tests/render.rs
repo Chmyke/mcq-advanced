@@ -206,11 +206,18 @@ fn practice_and_correction_show_the_answers_after_hand_in() {
         session.toggle(&opened.paper, "fruit-banana-colour-o1");
         let copy = session.submit();
         let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds, copy.extension);
+        // The right answer is not among the mistakes shown first: the student opens it.
+        let mut state = mcq_player::review::ReviewState::default();
+        state.apply(
+            mcq_player::review::ReviewAction::Go(banana),
+            &session,
+            &result,
+        );
         mcq_player::review::review_screen(
             &full,
             &session,
             &result,
-            &Default::default(),
+            &state,
             Lang::En.texts(),
             opened.content(),
             EventHandler::new(|_| {}),
@@ -404,9 +411,9 @@ fn the_correction_opens_on_the_mistakes_one_at_a_time() {
             EventHandler::new(|_| {}),
         )
     });
-    let guide =
-        &html[html.find("review-guide").expect("guide")..html.find("print-only").expect("print")];
+    let guide = &html[html.find("review-guide").expect("guide")..];
     assert!(html.contains("6,67 / 20"), "{html}");
+    assert!(!html.contains("Imprimer"), "nothing to print: {html}");
     assert!(html.contains("À reprendre"), "the word on the mark: {html}");
     assert!(html.contains("1 Juste"), "{html}");
     assert!(
@@ -430,9 +437,6 @@ fn the_correction_opens_on_the_mistakes_one_at_a_time() {
     );
     assert!(guide.contains("J&#39;ai compris"), "{guide}");
     assert_eq!(guide.matches("class=\"segment ").count(), 3, "{guide}");
-    // Printed: the whole correction.
-    let printed = &html[html.find("print-only").expect("print")..];
-    assert_eq!(printed.matches("class=\"review-item").count(), 3);
     let faults = mcq_player::icon::contract_faults(&html);
     assert!(faults.is_empty(), "{faults:#?}");
 }
@@ -444,6 +448,33 @@ fn the_flag_is_an_icon_that_keeps_its_name_when_pressed() {
     assert!(html.contains("aria-pressed=\"false\""), "{html}");
     let faults = mcq_player::icon::contract_faults(&html);
     assert!(faults.is_empty(), "{faults:#?}");
+}
+
+/// The rendered correction, written for `tools/layout-check.mjs`: the browser lays out the real
+/// markup with the real stylesheet, so the check never drifts from the screen.
+#[test]
+fn the_correction_markup_is_handed_to_the_layout_check() {
+    let html = render(|| {
+        let bytes = package(true);
+        let opened = Opened::from_package(&bytes, "").expect("open");
+        let full =
+            mcq_crypto::open_answer_key(&bytes, mcq_crypto::KeyUnlock::Practice).expect("key");
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        let copy = session.submit();
+        let result = mcq_grade::grade(&full, &copy.answers, copy.elapsed_seconds, copy.extension);
+        mcq_player::review::review_screen(
+            &full,
+            &session,
+            &result,
+            &mcq_player::review::ReviewState::default(),
+            Lang::Fr.texts(),
+            opened.content(),
+            EventHandler::new(|_| {}),
+        )
+    });
+    assert_eq!(html.matches("class=\"theme-name\"").count(), 2, "{html}");
+    let file = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("player-review.html");
+    std::fs::write(&file, html).expect("write the layout fixture");
 }
 
 #[test]
@@ -570,4 +601,55 @@ fn started_exam_shows_extra_time_locked() {
     assert!(html.contains("no time limit"), "{html}");
     assert!(html.contains("it can no longer change"), "{html}");
     assert_eq!(html.matches("disabled").count(), 5, "{html}");
+}
+
+#[test]
+fn practice_hands_in_straight_to_the_correction_and_an_exam_waits_for_its_code() {
+    use mcq_crypto::OpeningKind;
+    assert!(mcq_player::review::correction_on_hand_in(OpeningKind::Open));
+    let practice = mcq_crypto::inspect(&package(true)).expect("practice");
+    let exam = mcq_crypto::inspect(&package(false)).expect("exam");
+    assert!(mcq_player::review::correction_on_hand_in(practice.opening));
+    assert!(!mcq_player::review::correction_on_hand_in(exam.opening));
+}
+
+#[test]
+fn the_correction_opens_with_save_and_share_first() {
+    use mcq_player::review::{ResultActions, result_actions};
+    let both = render(|| {
+        result_actions(
+            &ResultActions {
+                receipt: Some("AB12-CD34".into()),
+                can_share: true,
+                shared: Some(Lang::Fr.texts().share_copied),
+            },
+            Lang::Fr.texts(),
+            EventHandler::new(|_| {}),
+        )
+    });
+    assert!(both.contains("Enregistrer mon résultat"), "{both}");
+    assert!(both.contains("Partager ce QCM"), "{both}");
+    assert!(both.contains("AB12-CD34"), "{both}");
+    assert!(both.contains("Lien copié"), "{both}");
+    // A paper opened from a file has no address to pass on.
+    let save_only = render(|| {
+        result_actions(
+            &ResultActions {
+                receipt: Some("AB12-CD34".into()),
+                ..ResultActions::default()
+            },
+            Lang::En.texts(),
+            EventHandler::new(|_| {}),
+        )
+    });
+    assert!(save_only.contains("Save my result"), "{save_only}");
+    assert!(!save_only.contains("Share this paper"), "{save_only}");
+    let nothing = render(|| {
+        result_actions(
+            &ResultActions::default(),
+            Lang::En.texts(),
+            EventHandler::new(|_| {}),
+        )
+    });
+    assert!(!nothing.contains("result-actions"), "{nothing}");
 }

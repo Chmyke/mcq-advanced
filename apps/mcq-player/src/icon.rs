@@ -16,11 +16,9 @@ pub enum Icon {
     Braces,
     Clock,
     Close,
-    Code,
     Copy,
     Correct,
     Download,
-    Eye,
     FileNew,
     Flag,
     Image,
@@ -48,7 +46,7 @@ pub enum Icon {
 }
 
 impl Icon {
-    pub const ALL: [Icon; 36] = [
+    pub const ALL: [Icon; 34] = [
         Icon::ArrowDown,
         Icon::ArrowLeft,
         Icon::ArrowRight,
@@ -56,11 +54,9 @@ impl Icon {
         Icon::Braces,
         Icon::Clock,
         Icon::Close,
-        Icon::Code,
         Icon::Copy,
         Icon::Correct,
         Icon::Download,
-        Icon::Eye,
         Icon::FileNew,
         Icon::Flag,
         Icon::Image,
@@ -99,7 +95,6 @@ impl Icon {
             }
             Icon::Clock => "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 7v5l3 2",
             Icon::Close => "M6 6l12 12M18 6L6 18",
-            Icon::Code => "M8 7l-5 5 5 5M16 7l5 5-5 5M14 5l-4 14",
             Icon::Copy => {
                 "M11 9h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM5 15a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1"
             }
@@ -107,9 +102,6 @@ impl Icon {
                 "M9 3h6v3H9zM15 4.5h2a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2M9 14l2 2 4-4"
             }
             Icon::Download => "M12 4v11M7 10l5 5 5-5M5 20h14",
-            Icon::Eye => {
-                "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0"
-            }
             Icon::FileNew => {
                 "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 11v6M9 14h6"
             }

@@ -70,11 +70,6 @@ pub fn download(file_name: &str, base64: &str) {
     ));
 }
 
-/// Prints the page; the print stylesheet keeps the correction only.
-pub fn print() {
-    let _ = document::eval("window.print();");
-}
-
 /// True when the system asks for a dark theme.
 pub async fn prefers_dark() -> bool {
     document::eval("return window.matchMedia('(prefers-color-scheme: dark)').matches;")
@@ -126,6 +121,40 @@ return [q.get('name') || '', q.get('lang') || '', source];
 "#;
     let [name, lang, source]: [String; 3] = document::eval(SCRIPT).join().await.unwrap_or_default();
     crate::link::LinkOptions { name, lang, source }
+}
+
+/// What a share did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shared {
+    /// The system's share sheet took the link.
+    Sent,
+    /// The student closed the share sheet.
+    Cancelled,
+    Copied,
+    Failed,
+}
+
+/// Shares the page's address without the student's name: the system's share sheet where there
+/// is one, the clipboard otherwise. The script reads the address itself: nothing is spliced in.
+pub async fn share_link() -> Shared {
+    const SCRIPT: &str = r#"
+const u = new URL(location.href);
+u.searchParams.delete('name');
+u.hash = '';
+const url = u.toString();
+if (navigator.share) {
+  try { await navigator.share({ title: document.title, url }); return 'sent'; }
+  catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
+}
+try { await navigator.clipboard.writeText(url); return 'copied'; } catch (e) { return ''; }
+"#;
+    let outcome: String = document::eval(SCRIPT).join().await.unwrap_or_default();
+    match outcome.as_str() {
+        "sent" => Shared::Sent,
+        "cancelled" => Shared::Cancelled,
+        "copied" => Shared::Copied,
+        _ => Shared::Failed,
+    }
 }
 
 /// Sends `tick` every second, `away` and `back` on focus changes, and `k:<key>` on key presses

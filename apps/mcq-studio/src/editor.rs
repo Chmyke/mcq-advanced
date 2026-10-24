@@ -1,6 +1,6 @@
 //! The Write space, as on the validated board: the questions by theme with the validator's state,
 //! the selected question in the middle (type, statement blocks, answers, advice), the student
-//! preview under it, and the Source view on demand.
+//! preview under it.
 
 use dioxus::prelude::*;
 use mcq_edit::ops::{self, IdError, Kind};
@@ -9,7 +9,7 @@ use mcq_player::icon::{Icon, IconButton, IconFile};
 use mcq_player::markdown;
 
 use crate::class_stats::{self, ClassResults};
-use crate::state::{self, Studio, View};
+use crate::state::{self, Studio};
 use crate::texts::{Lang, Texts, fill};
 use crate::{actions, preview};
 
@@ -127,7 +127,7 @@ pub fn issue_list(issues: &[&Issue], t: &'static Texts, with_location: bool) -> 
 }
 
 pub fn write_space(
-    mut studio: Signal<Studio>,
+    studio: Signal<Studio>,
     t: &'static Texts,
     recording: Signal<bool>,
     notice: Signal<Option<String>>,
@@ -137,22 +137,13 @@ pub fn write_space(
 ) -> Element {
     let s = studio.read();
     let issues = s.issues();
-    let view = s.view;
     rsx! {
         div { class: "write",
             {question_list(studio, &s, &issues, t)}
             div { class: "workspace",
-                div { class: "view-switch segmented", role: "group", "aria-label": "{t.view_label}",
-                    IconButton { icon: Icon::Eye, label: t.view_visual, tip: t.tip_view_visual, aria_pressed: "{view == View::Visual}", onclick: move |_| studio.write().show_visual() }
-                    IconButton { icon: Icon::Code, label: t.view_source, tip: t.tip_view_source, aria_pressed: "{view == View::Source}", onclick: move |_| studio.write().show_source() }
-                }
-                if view == View::Source || !s.can_edit_visually() {
-                    {source_view(studio, &s, &issues, t)}
-                } else {
-                    match s.selected_question() {
-                        Some(question) => question_editor(studio, &s, question, &issues, t, recording, notice, phone, dark, class),
-                        None => rsx! { p { class: "card muted", "{t.empty_paper}" } },
-                    }
+                match s.selected_question() {
+                    Some(question) => question_editor(studio, &s, question, &issues, t, recording, notice, phone, dark, class),
+                    None => rsx! { p { class: "card muted", "{t.empty_paper}" } },
                 }
             }
         }
@@ -185,7 +176,6 @@ fn question_list(
     if paper.questions.iter().any(|q| q.theme_id.is_empty()) {
         groups.insert(0, (String::new(), "?".to_string()));
     }
-    let editable = s.can_edit_visually();
     let groups: Vec<(String, String, Vec<ListItem>)> = groups
         .into_iter()
         .map(|(id, title)| {
@@ -229,7 +219,7 @@ fn question_list(
                     ondragover: {
                         let theme_id = theme_id.clone();
                         move |e: DragEvent| {
-                            if editable && !theme_id.is_empty() && studio.peek().drag.is_some() {
+                            if !theme_id.is_empty() && studio.peek().drag.is_some() {
                                 e.prevent_default();
                                 studio.write().drag_over(&theme_id);
                             }
@@ -244,7 +234,7 @@ fn question_list(
                     },
                     div { class: "theme-head",
                         h2 { "{title}" }
-                        if editable && !theme_id.is_empty() {
+                        if !theme_id.is_empty() {
                             IconButton {
                                 icon: Icon::Plus, label: t.add_question, tip: t.tip_add_question,
                                 onclick: {
@@ -269,8 +259,8 @@ fn question_list(
                                 button {
                                     class: if id == selected { "q-item current" } else { "q-item" },
                                     "aria-current": if id == selected { "true" } else { "false" },
-                                    draggable: if editable { "true" } else { "false" },
-                                    title: if editable { t.drag_question } else { "" },
+                                    draggable: "true",
+                                    title: t.drag_question,
                                     ondragstart: {
                                         let id = id.clone();
                                         move |e: DragEvent| {
@@ -298,31 +288,6 @@ fn question_list(
                     }
                 }
             }
-        }
-    }
-}
-
-fn source_view(
-    mut studio: Signal<Studio>,
-    s: &Studio,
-    issues: &[Issue],
-    t: &'static Texts,
-) -> Element {
-    let all: Vec<&Issue> = issues.iter().collect();
-    let text = s.source.clone();
-    rsx! {
-        div { class: "source card",
-            if !s.can_edit_visually() { p { class: "notice warn", "{t.source_broken}" } }
-            label { r#for: "source-text", "{t.source_label}" }
-            textarea {
-                id: "source-text",
-                class: "mono source-text",
-                spellcheck: "false",
-                value: "{text}",
-                oninput: move |e| studio.write().edit_source(e.value()),
-            }
-            h2 { "{t.validator}" }
-            {issue_list(&all, t, true)}
         }
     }
 }

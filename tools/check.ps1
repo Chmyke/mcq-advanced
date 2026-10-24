@@ -46,6 +46,17 @@ try {
         if ($LASTEXITCODE -ne 0) { $failed += "cargo $($step.Name)" }
     }
 
+    # The correction's theme lines laid out by a real browser, from the markup the render test wrote.
+    $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") |
+        Where-Object { Test-Path -LiteralPath $_ }
+    if ((Get-Command node -ErrorAction SilentlyContinue) -and $edge) {
+        Write-Output '== layout'
+        & node (Join-Path $tools 'layout-check.mjs') 2>&1 | ForEach-Object { "$_" }
+        if ($LASTEXITCODE -ne 0) { $failed += 'layout' }
+    } else {
+        Write-Output 'layout: skipped (needs Node and Microsoft Edge)'
+    }
+
     # Real papers never enter the repository. When a private list of their folders exists, every
     # answer key in them must pass the CLI without error; on CI the list is absent and this is skipped.
     $corpus = Join-Path $root '_prive/corpus-local.txt'

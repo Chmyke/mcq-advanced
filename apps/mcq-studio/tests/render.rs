@@ -134,12 +134,11 @@ fn the_validator_speaks_next_to_the_question() {
 }
 
 #[test]
-fn a_broken_source_keeps_the_teacher_in_the_source_view() {
-    let html = render(|s| s.edit_source(format!("{SAMPLE}\n## Q late\n```cs\nnever closed")));
-    assert!(html.contains("source-text"), "{html}");
-    assert!(html.contains("UNCLOSED_CODE_FENCE"), "{html}");
-    assert!(html.contains(EN.source_broken), "{html}");
-    assert!(!html.contains("class=\"editor card\""), "{html}");
+fn the_editor_has_no_source_view() {
+    let html = render(|_| {});
+    assert!(html.contains("class=\"editor card\""), "{html}");
+    assert!(!html.contains("source-text"), "{html}");
+    assert!(!html.contains("view-switch"), "{html}");
 }
 
 #[test]

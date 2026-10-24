@@ -40,8 +40,6 @@ pub struct Texts {
     pub tip_space_settings: &'static str,
     pub tip_space_publish: &'static str,
     pub tip_space_correct: &'static str,
-    pub tip_view_visual: &'static str,
-    pub tip_view_source: &'static str,
     pub tip_add_question: &'static str,
     pub tip_add_answer: &'static str,
     pub tip_add_theme: &'static str,
@@ -75,12 +73,7 @@ pub struct Texts {
     pub state_error: &'static str,
     pub state_warning: &'static str,
     pub state_ok: &'static str,
-    pub view_label: &'static str,
     pub kind_label: &'static str,
-    pub view_visual: &'static str,
-    pub view_source: &'static str,
-    pub source_label: &'static str,
-    pub source_broken: &'static str,
     pub empty_paper: &'static str,
 
     pub question: &'static str,
@@ -321,8 +314,6 @@ pub static EN: Texts = Texts {
     tip_space_settings: "Settings of the paper: title, time, scoring, themes",
     tip_space_publish: "Publish your paper for your students",
     tip_space_correct: "Correct your students' copies",
-    tip_view_visual: "Visual: edit the question in fields",
-    tip_view_source: "Source: edit the .qcm.md text",
     tip_add_question: "Add a question to this theme",
     tip_add_answer: "Add an answer",
     tip_add_theme: "Add a theme",
@@ -356,12 +347,7 @@ pub static EN: Texts = Texts {
     state_error: "error",
     state_warning: "to check",
     state_ok: "ready",
-    view_label: "View",
     kind_label: "Question type",
-    view_visual: "Visual",
-    view_source: "Source",
-    source_label: "Source (.qcm.md)",
-    source_broken: "The source has errors: fix them here before editing visually again.",
     empty_paper: "No question yet: add one from the list.",
 
     question: "Question",
@@ -551,8 +537,6 @@ pub static FR: Texts = Texts {
     tip_space_settings: "Réglages du QCM : titre, durée, barème, thèmes",
     tip_space_publish: "Publier votre QCM pour vos élèves",
     tip_space_correct: "Corriger les copies de vos élèves",
-    tip_view_visual: "Visuel : modifier la question dans des champs",
-    tip_view_source: "Source : modifier le texte .qcm.md",
     tip_add_question: "Ajouter une question à ce thème",
     tip_add_answer: "Ajouter une réponse",
     tip_add_theme: "Ajouter un thème",
@@ -586,12 +570,7 @@ pub static FR: Texts = Texts {
     state_error: "erreur",
     state_warning: "à revoir",
     state_ok: "prête",
-    view_label: "Affichage",
     kind_label: "Type de question",
-    view_visual: "Visuel",
-    view_source: "Source",
-    source_label: "Source (.qcm.md)",
-    source_broken: "La source contient des erreurs : corrigez-les ici avant de revenir à l'édition visuelle.",
     empty_paper: "Aucune question : ajoutez-en une depuis la liste.",
 
     question: "Question",
@@ -1088,7 +1067,7 @@ pub static DEMO_EN: DemoTexts = DemoTexts {
     steps: [
         (
             "Write.",
-            "Edit a question visually or as source (Markdown); the preview shows it as a student will, on a phone or in the dark theme, with its formulas, picture and coloured code.",
+            "Edit a question; the preview shows it as a student will, on a phone or in the dark theme, with its formulas, picture and coloured code.",
         ),
         (
             "Check.",
@@ -1131,7 +1110,7 @@ pub static DEMO_FR: DemoTexts = DemoTexts {
     steps: [
         (
             "Rédiger.",
-            "Modifiez une question en mode visuel ou en source (Markdown) ; l'aperçu la montre comme l'élève la verra, sur téléphone ou en thème sombre, avec ses formules, son image et son code coloré.",
+            "Modifiez une question ; l'aperçu la montre comme l'élève la verra, sur téléphone ou en thème sombre, avec ses formules, son image et son code coloré.",
         ),
         (
             "Vérifier.",

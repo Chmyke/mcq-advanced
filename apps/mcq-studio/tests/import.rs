@@ -49,6 +49,16 @@ fn unreadable_banks_say_why() {
 }
 
 #[test]
+fn a_broken_paper_is_refused_with_its_line() {
+    let broken = format!("{SAMPLE}\n## Q late\n```cs\nnever closed");
+    let line = broken.lines().count() - 1;
+    let err = read_paper("a.qcm.md", broken.clone().into_bytes(), "en", false).expect_err("broken");
+    assert!(err.starts_with(&format!("line {line}: ")), "{err}");
+    let err = read_paper("a.qcm.md", broken.into_bytes(), "en", true).expect_err("broken");
+    assert!(err.starts_with(&format!("ligne {line} : ")), "{err}");
+}
+
+#[test]
 fn the_website_demo_opens_with_its_picture() {
     for built in mcq_demo::build_all().expect("demo") {
         let name = format!("{}.qcmz", built.lang);

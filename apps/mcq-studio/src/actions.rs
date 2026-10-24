@@ -4,7 +4,7 @@
 use dioxus::prelude::*;
 use mcq_convert::{ImportOptions, Source, handout, moodle};
 use mcq_edit::{Project, qcmz};
-use mcq_model::Severity;
+use mcq_model::{Location, Severity};
 use mcq_player::b64;
 
 use crate::platform::{self, RECORD_SCRIPT, STOP_RECORDING_SCRIPT};
@@ -73,16 +73,38 @@ pub fn is_paper_file(name: &str) -> bool {
 
 /// Reads a `.qcmz` (or any zip of a paper folder), a `.qcm.md`, or a GIFT, Moodle XML, Aiken or
 /// CSV bank, whose import report comes back as the issues. `lang` is the paper's language;
-/// `french` picks the language of the reason given when a bank cannot be imported.
+/// `french` picks the language of the reason given when a file cannot be read.
+/// WHY: the Studio only edits visually, so a paper the reader cannot fully understand is refused
+/// with its first error and line, to fix in the file, instead of being opened in part.
 pub fn read_paper(
     name: &str,
     bytes: Vec<u8>,
     lang: &str,
     french: bool,
 ) -> Result<(Project, Vec<mcq_model::Issue>), String> {
-    if bytes.starts_with(b"PK") {
-        return qcmz::import(&bytes).map_err(|e| e.to_string());
+    let (project, issues) = if bytes.starts_with(b"PK") {
+        qcmz::import(&bytes).map_err(|e| e.to_string())?
+    } else {
+        read_text(name, bytes, lang)?
+    };
+    match issues.iter().find(|i| i.severity == Severity::Error) {
+        Some(error) => {
+            let message = error.message_in(french).trim_end_matches('.');
+            Err(match &error.location {
+                Location::Line(n) if french => format!("ligne {n} : {message}"),
+                Location::Line(n) => format!("line {n}: {message}"),
+                _ => message.to_string(),
+            })
+        }
+        None => Ok((project, issues)),
     }
+}
+
+fn read_text(
+    name: &str,
+    bytes: Vec<u8>,
+    lang: &str,
+) -> Result<(Project, Vec<mcq_model::Issue>), String> {
     let text = String::from_utf8(bytes).map_err(|_| "not UTF-8 text".to_string())?;
     if name.to_ascii_lowercase().ends_with(".md") {
         let mut project = Project::default();
@@ -96,19 +118,6 @@ pub fn read_paper(
         lang: lang.to_string(),
     };
     let imported = mcq_convert::import(source, &text, &options);
-    if imported
-        .issues
-        .iter()
-        .any(|i| i.severity == Severity::Error)
-    {
-        let reason = imported
-            .issues
-            .iter()
-            .find(|i| i.severity == Severity::Error)
-            .map(|i| i.message_in(french).trim_end_matches('.').to_string())
-            .unwrap_or_default();
-        return Err(reason);
-    }
     Ok((imported.project, imported.issues))
 }
 
@@ -171,7 +180,7 @@ pub fn export_qcmz(studio: Signal<Studio>) {
 pub fn export_source(studio: Signal<Studio>) {
     let s = studio.read();
     let name = format!("{}.qcm.md", qcmz::file_stem(&s.project));
-    platform::download(&name, &b64::encode(s.current_source().as_bytes()));
+    platform::download(&name, &b64::encode(s.project.source().as_bytes()));
 }
 
 /// The paper as a Markdown handout without answers, explanations, rules or notes, to print or

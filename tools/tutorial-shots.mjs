@@ -6,11 +6,10 @@
 // Writes <output>/<lang>/01-open.webp ... 05-publish.webp for each language; nothing else.
 // No dependency: Node's own http server and WebSocket, Edge's DevTools protocol.
 
-import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
+import { EDGE, launch, sleep } from './edge.mjs';
 
 const [site, out] = process.argv.slice(2).map((p) => p && resolve(p));
 if (!site || !out) {
@@ -19,10 +18,6 @@ if (!site || !out) {
 }
 const WIDTH = 1280;
 const HEIGHT = 820;
-const EDGE = [
-  join(process.env['ProgramFiles(x86)'] ?? '', 'Microsoft/Edge/Application/msedge.exe'),
-  join(process.env.ProgramFiles ?? '', 'Microsoft/Edge/Application/msedge.exe'),
-].find((p) => existsSync(p));
 if (!EDGE) throw new Error('Microsoft Edge is required to take the tutorial screenshots.');
 
 // The question the tutorial writes, in each language: a correct answer and three distractors that
@@ -67,45 +62,6 @@ function serve(root) {
     response.end(readFileSync(file));
   });
   return new Promise((ok) => server.listen(0, '127.0.0.1', () => ok(server)));
-}
-
-const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
-
-async function launch() {
-  const profile = mkdtempSync(join(tmpdir(), 'mcq-shots-'));
-  const edge = spawn(EDGE, [
-    '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run',
-    '--hide-scrollbars', '--force-color-profile=srgb', `--window-size=${WIDTH},${HEIGHT}`, 'about:blank',
-  ], { stdio: 'ignore' });
-  const portFile = join(profile, 'DevToolsActivePort');
-  for (let i = 0; i < 100 && !existsSync(portFile); i++) await sleep(100);
-  const port = readFileSync(portFile, 'utf8').split('\n')[0];
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const page = targets.find((t) => t.type === 'page');
-  const socket = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((ok, ko) => { socket.onopen = ok; socket.onerror = ko; });
-  let next = 0;
-  const waiting = new Map();
-  socket.onmessage = (event) => {
-    const message = JSON.parse(event.data);
-    const pending = waiting.get(message.id);
-    if (!pending) return;
-    waiting.delete(message.id);
-    if (message.error) pending.ko(new Error(message.error.message));
-    else pending.ok(message.result);
-  };
-  const send = (method, params = {}) => new Promise((ok, ko) => {
-    const id = ++next;
-    waiting.set(id, { ok, ko });
-    socket.send(JSON.stringify({ id, method, params }));
-  });
-  const close = async () => {
-    socket.close();
-    edge.kill();
-    await sleep(300);
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-  };
-  return { send, close };
 }
 
 // A page driven step by step; `run` evaluates JavaScript in it and returns the value.
@@ -159,7 +115,7 @@ async function tutorial(base, lang) {
   const lesson = LESSONS[lang];
   const folder = join(out, lang);
   mkdirSync(folder, { recursive: true });
-  const { send, close } = await launch();
+  const { send, close } = await launch(WIDTH, HEIGHT);
   try {
     await send('Page.enable');
     await send('Runtime.enable');
