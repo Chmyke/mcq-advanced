@@ -21,6 +21,10 @@ foreach ($step in $scripts) {
 Write-Output '== notices.ps1 -Check'
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $tools 'notices.ps1') -Check
 if ($LASTEXITCODE -ne 0) { $failed += 'notices.ps1' }
+# The GitHub release compares digests and takes its notes from CHANGELOG.md: no version without them.
+Write-Output '== release-github.ps1 -SelfTest'
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $tools 'release-github.ps1') -SelfTest
+if ($LASTEXITCODE -ne 0) { $failed += 'release-github.ps1' }
 
 . (Join-Path $tools 'toolchain.ps1')
 # Native tools write progress to stderr: keep it from turning into terminating errors.
