@@ -66,6 +66,7 @@ reported and ignored.
 | `title` | text, required | |
 | `description` | text | empty |
 | `lang` | language of the paper (`en`, `fr`...) | empty |
+| `languages` | interface languages the student may switch between, `fr, en`; without it there is no language switch and the interface follows `lang` | empty |
 | `duration` | minutes, `0` for no limit | `0` |
 | `penalty` | points lost per wrong answer (a question is worth 1); `0,25` is accepted | `0` |
 | `unansweredPenalty` | points lost per blank question | `0` |

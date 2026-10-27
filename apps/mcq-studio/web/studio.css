@@ -17,7 +17,8 @@ button.icon { padding: .1rem .45rem; min-width: 2rem; }
 button.danger { color: var(--ko); }
 button.recording { background: var(--ko); color: var(--accent-text); border-color: var(--ko); }
 .app[data-theme="light"] button.recording { color: #fff; }
-.app.studio label { font-weight: 600; font-size: .9em; margin-top: .4rem; }
+.app.studio label, .app.studio .group-label { font-weight: 600; font-size: .9em; margin-top: .4rem; }
+.app.studio .group-label { margin-bottom: 0; }
 .app.studio label.file { font-weight: 400; font-size: 1em; margin-top: 0; }
 .app.studio label.file.small { font-size: .9em; }
 .app.studio input[type="text"], .app.studio input[type="number"], .app.studio input[type="password"],

@@ -66,6 +66,9 @@ fn write_header(out: &mut String, paper: &Paper) {
     if !paper.lang.is_empty() {
         let _ = writeln!(out, "lang: {}", paper.lang);
     }
+    if !paper.languages.is_empty() {
+        let _ = writeln!(out, "languages: {}", paper.languages.join(", "));
+    }
     let scoring = match paper.scoring {
         Scoring::AllOrNothing => "all-or-nothing",
         Scoring::Partial => "partial",

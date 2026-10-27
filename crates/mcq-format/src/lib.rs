@@ -121,6 +121,25 @@ impl Reader {
         lines.len()
     }
 
+    /// `fr, en`: kept as written, so a newer player can offer a language this one lacks.
+    fn read_languages(&mut self, value: &str, line: usize) {
+        self.paper.languages.clear();
+        for tag in value.split(',').map(|t| t.trim().to_ascii_lowercase()) {
+            if tag.is_empty() || self.paper.languages.contains(&tag) {
+                continue;
+            }
+            if !mcq_model::INTERFACE_LANGUAGES.contains(&tag.as_str()) {
+                self.warn(
+                    "UNKNOWN_LANGUAGE",
+                    Location::Line(line),
+                    format!("No interface texts in `{tag}`: students will not be offered it."),
+                    format!("Pas de textes d'interface en `{tag}` : cette langue ne sera pas proposée aux étudiants."),
+                );
+            }
+            self.paper.languages.push(tag);
+        }
+    }
+
     fn read_setting(&mut self, key: &str, value: &str, line: usize) {
         let ok = match key {
             "title" => {
@@ -133,6 +152,10 @@ impl Reader {
             }
             "lang" => {
                 self.paper.lang = value.to_ascii_lowercase();
+                true
+            }
+            "languages" => {
+                self.read_languages(value, line);
                 true
             }
             "duration" => set(&mut self.paper.duration_minutes, value.parse().ok()),

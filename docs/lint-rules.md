@@ -16,6 +16,7 @@ and from classroom use of the earlier tool.
 | `UNCLOSED_FRONTMATTER` | error | The header is never closed. |
 | `UNKNOWN_KEY` | warning | Header key not understood (often a typo): ignored. |
 | `BAD_VALUE` | warning | Header value not valid for its key: default kept. |
+| `UNKNOWN_LANGUAGE` | warning | `languages` names a language without interface texts: not offered. |
 | `THEME_WITHOUT_ID` | error | `# THEME` without an id. |
 | `DUPLICATE_THEME` | error | Theme declared twice. |
 | `OPTION_WITHOUT_QUESTION` | error | Option line outside a question. |

@@ -135,6 +135,30 @@ fn unknown_keys_and_bad_values_warn() {
 }
 
 #[test]
+fn offered_languages_are_read_and_written_back() {
+    let (paper, issues) = read("---\ntitle: T\nlang: fr\nlanguages: FR, en, fr,\n---\n");
+    assert!(issues.is_empty(), "{issues:#?}");
+    assert_eq!(paper.lang, "fr");
+    assert_eq!(paper.languages, vec!["fr", "en"]);
+    let written = mcq_format::write(&paper);
+    assert!(written.contains("\nlanguages: fr, en\n"), "{written}");
+    assert_eq!(read(&written).0.languages, paper.languages);
+
+    let (paper, _) = read("---\ntitle: T\n---\n");
+    assert!(paper.languages.is_empty());
+    assert!(!mcq_format::write(&paper).contains("languages:"));
+}
+
+#[test]
+fn a_language_without_interface_texts_warns_and_is_kept() {
+    let (paper, issues) = read("---\ntitle: T\nlanguages: fr, de\n---\n");
+    assert_eq!(codes(&issues), vec!["UNKNOWN_LANGUAGE"]);
+    assert_eq!(issues[0].severity, Severity::Warning);
+    assert_eq!(issues[0].location, Location::Line(3));
+    assert_eq!(paper.languages, vec!["fr", "de"]);
+}
+
+#[test]
 fn structural_errors_are_reported() {
     let src = "---\ntitle: T\n---\n\
         - [x] stray\n\

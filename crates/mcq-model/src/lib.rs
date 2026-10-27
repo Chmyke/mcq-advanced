@@ -130,12 +130,18 @@ impl Level {
     }
 }
 
+/// The languages the student apps have interface texts for.
+pub const INTERFACE_LANGUAGES: [&str; 2] = ["en", "fr"];
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Paper {
     pub title: String,
     pub description: String,
     /// Language of the paper text (`fr`, `en`...), empty when not stated.
     pub lang: String,
+    /// Interface languages the student may switch between, as written (`fr`, `en`...); empty
+    /// means no choice: the interface follows `lang`.
+    pub languages: Vec<String>,
     /// 0 means no time limit.
     pub duration_minutes: u32,
     /// Points lost per wrong answer; a question is worth 1 point.

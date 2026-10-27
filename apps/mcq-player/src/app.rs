@@ -12,7 +12,7 @@ use mcq_model::{Paper, TimeExtension};
 use crate::platform::{self, EVENTS_SCRIPT};
 use crate::render::{self, Opened};
 use crate::review::{ResultAction, ReviewAction, ReviewState};
-use crate::texts::{Lang, Texts};
+use crate::texts::{Lang, Texts, interface_for};
 use crate::{STYLE, b64};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +48,11 @@ fn save(session: &Session) {
 #[component]
 pub fn App() -> Element {
     let mut lang = use_signal(Lang::default);
+    // From the link or the browser; an open paper may override it.
+    let mut asked = use_signal(Lang::default);
+    // Languages the switch cycles through: all of them until a paper is open, then what the
+    // paper offers.
+    let mut choices = use_signal(|| Lang::ALL.to_vec());
     let mut stage = use_signal(|| Stage::Welcome);
     let mut loaded = use_signal(|| None::<Rc<Loaded>>);
     let mut opened = use_signal(|| None::<Rc<Opened>>);
@@ -134,6 +139,7 @@ pub fn App() -> Element {
         } else {
             options.lang
         };
+        asked.set(Lang::from_tag(&tag));
         lang.set(Lang::from_tag(&tag));
         if name.peek().is_empty() {
             name.set(options.name);
@@ -245,6 +251,12 @@ pub fn App() -> Element {
     });
 
     let t: &'static Texts = lang().texts();
+    // The switch shows only when there is more than one language to go to.
+    let next_lang = {
+        let list = choices.read();
+        let at = list.iter().position(|l| *l == lang()).unwrap_or(0);
+        (list.len() > 1).then(|| list[(at + 1) % list.len()])
+    };
     let theme = match dark() {
         Some(true) => "dark",
         Some(false) => "light",
@@ -324,6 +336,10 @@ pub fn App() -> Element {
                         };
                         let paper_id = paper.header.paper_id;
                         let fresh = Session::new(&paper.paper, paper_id, &typed_name);
+                        let (chosen, offered) =
+                            interface_for(&paper.paper.lang, &paper.paper.languages, asked());
+                        lang.set(chosen);
+                        choices.set(offered);
                         opened.set(Some(Rc::new(paper)));
                         error.set(None);
                         spawn(async move {
@@ -661,10 +677,12 @@ pub fn App() -> Element {
                     button { "aria-pressed": "{shortcuts()}", "aria-label": "{t.shortcuts}", title: "{t.shortcuts}",
                         onclick: move |_| shortcuts.set(!shortcuts()), "⌨"
                     }
-                    button { "aria-label": "{t.language_name}", title: "{t.language_name}",
-                        lang: if lang() == Lang::Fr { "en" } else { "fr" },
-                        onclick: move |_| lang.set(if lang() == Lang::Fr { Lang::En } else { Lang::Fr }),
-                        if lang() == Lang::Fr { "EN" } else { "FR" }
+                    if let Some(next) = next_lang {
+                        button { "aria-label": "{t.language_name}", title: "{t.language_name}",
+                            lang: next.tag(),
+                            onclick: move |_| lang.set(next),
+                            {next.tag().to_ascii_uppercase()}
+                        }
                     }
                 }
             }

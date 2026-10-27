@@ -8,6 +8,16 @@ pub enum Lang {
 }
 
 impl Lang {
+    pub const ALL: [Lang; 2] = [Lang::En, Lang::Fr];
+
+    /// The language `fr`, `fr-FR`... names, if the interface has texts for it.
+    pub fn parse(tag: &str) -> Option<Self> {
+        let primary = tag.trim().split('-').next().unwrap_or_default();
+        Self::ALL
+            .into_iter()
+            .find(|l| l.tag().eq_ignore_ascii_case(primary))
+    }
+
     /// French for `fr`, `fr-FR`..., English otherwise.
     pub fn from_tag(tag: &str) -> Self {
         if tag.trim().to_ascii_lowercase().starts_with("fr") {
@@ -31,6 +41,29 @@ impl Lang {
             Lang::Fr => &FR,
         }
     }
+}
+
+/// The interface once a paper is open: its language, and the languages the student may switch
+/// between (fewer than two means no switch). The paper's author decides: without `languages` the
+/// interface follows the paper's `lang`; `asked` (from the link or the browser) only picks among
+/// the languages offered, or stands in when the paper states none.
+pub fn interface_for(paper_lang: &str, offered: &[String], asked: Lang) -> (Lang, Vec<Lang>) {
+    let stated = Lang::parse(paper_lang);
+    let mut choices: Vec<Lang> = Vec::new();
+    for lang in offered.iter().filter_map(|tag| Lang::parse(tag)) {
+        if !choices.contains(&lang) {
+            choices.push(lang);
+        }
+    }
+    let Some(&first) = choices.first() else {
+        return (stated.unwrap_or(asked), Vec::new());
+    };
+    let start = [Some(asked), stated]
+        .into_iter()
+        .flatten()
+        .find(|l| choices.contains(l))
+        .unwrap_or(first);
+    (start, choices)
 }
 
 pub struct Texts {

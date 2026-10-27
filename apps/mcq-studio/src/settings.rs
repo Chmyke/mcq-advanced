@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 use mcq_edit::ops;
-use mcq_model::{Issue, Scoring};
+use mcq_model::{INTERFACE_LANGUAGES, Issue, Scoring};
 
 use crate::editor::issue_list;
 use crate::state::{self, Studio};
@@ -16,6 +16,22 @@ fn number(text: &str) -> f32 {
         .ok()
         .filter(|v| v.is_finite() && *v >= 0.0)
         .unwrap_or(0.0)
+}
+
+/// Each language in its own words, as language pickers show them.
+fn endonym(tag: &str) -> &'static str {
+    match tag {
+        "fr" => "Français",
+        _ => "English",
+    }
+}
+
+/// Ticks or unticks one language; languages this Studio has no box for stay as written.
+fn offer_language(languages: &mut Vec<String>, tag: &str, offered: bool) {
+    languages.retain(|l| l != tag);
+    if offered {
+        languages.push(tag.to_string());
+    }
 }
 
 pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element {
@@ -46,6 +62,17 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                 label { r#for: "p-lang", "{t.paper_lang}" }
                 input { id: "p-lang", r#type: "text", class: "short", value: "{paper.lang}",
                     oninput: move |e| studio.write().edit_paper(|p| p.lang = e.value().trim().to_string()) }
+                div { role: "group", "aria-labelledby": "p-languages", "aria-describedby": "p-languages-hint",
+                    p { id: "p-languages", class: "group-label", "{t.paper_languages}" }
+                    for tag in INTERFACE_LANGUAGES {
+                        label { key: "{tag}", class: "check", lang: tag,
+                            input { r#type: "checkbox", checked: paper.languages.iter().any(|l| l == tag),
+                                onchange: move |e| studio.write().edit_paper(|p| offer_language(&mut p.languages, tag, e.checked())) }
+                            "{endonym(tag)}"
+                        }
+                    }
+                    p { id: "p-languages-hint", class: "muted", "{t.paper_languages_hint}" }
+                }
                 label { r#for: "p-notes", "{t.notes}" }
                 textarea { id: "p-notes", rows: "3", value: "{paper.notes}",
                     oninput: move |e| studio.write().edit_paper(|p| p.notes = e.value().lines().filter(|l| !l.trim().is_empty()).collect::<Vec<_>>().join("\n")) }
@@ -123,7 +150,18 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
 
 #[cfg(test)]
 mod tests {
-    use super::number;
+    use super::{number, offer_language};
+
+    #[test]
+    fn ticking_languages_keeps_the_others() {
+        let mut languages = vec!["de".to_string()];
+        offer_language(&mut languages, "fr", true);
+        offer_language(&mut languages, "fr", true);
+        offer_language(&mut languages, "en", true);
+        assert_eq!(languages, ["de", "fr", "en"]);
+        offer_language(&mut languages, "fr", false);
+        assert_eq!(languages, ["de", "en"]);
+    }
 
     #[test]
     fn decimal_commas_are_read() {
