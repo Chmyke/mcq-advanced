@@ -1,6 +1,6 @@
-# Downloads the Linux archive built by the "Linux desktop" workflow into target/dist, after
+# Downloads the Linux archive built by the "Build" workflow into target/dist, after
 # checking that the run built the commit checked out here and that the archive matches its hash.
-# Start the workflow first (Actions tab, or: gh workflow run linux-desktop.yml), wait for it.
+# Every push runs the workflow; wait for its run of the commit to succeed.
 # Run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/fetch-linux.ps1 [-Commit <sha>]
 # -Commit takes the build of an earlier commit, e.g. when only scripts changed since.
 # Keep this file pure ASCII.
@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $repo = 'Chmyke/mcq-advanced'
 $head = (git -C $root rev-parse $Commit).Trim()
-$runs = gh run list -R $repo --workflow linux-desktop.yml --status success --limit 20 --json databaseId,headSha | ConvertFrom-Json
+$runs = gh run list -R $repo --workflow build.yml --status success --limit 20 --json databaseId,headSha | ConvertFrom-Json
 $run = @($runs | Where-Object { $_.headSha -eq $head })[0]
 if (-not $run) { throw "No successful Linux build of ${head}: push it, run the workflow, then try again." }
 $dist = Join-Path $root 'target/dist'

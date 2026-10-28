@@ -1082,10 +1082,10 @@ pub struct DemoTexts {
 }
 
 pub static DEMO_EN: DemoTexts = DemoTexts {
-    preparing: "Preparing the demo: paper, package and 32 fictional copies...",
-    ready: "Teacher demo ready: the paper is in the editor, 32 fictional copies wait in Correct.",
-    failed: "The demo could not be prepared.",
-    title: "Teacher demo tour",
+    preparing: "Preparing the sample class: paper, package and 32 fictional copies...",
+    ready: "Sample class ready: the paper is in the editor, 32 fictional copies wait in Correct.",
+    failed: "The sample class could not be prepared.",
+    title: "Sample class tour",
     intro: "A fictional paper and class. Click a step to go there.",
     steps: [
         (
@@ -1121,14 +1121,14 @@ pub static DEMO_EN: DemoTexts = DemoTexts {
             "In the top bar: import a GIFT, Moodle XML, Aiken or CSV bank, export to Moodle or as a paper without answers.",
         ),
     ],
-    identity_note: "The copies are opened with a public demo identity that serves them only. To publish a real paper, create your own identity.",
+    identity_note: "The copies are opened with a public sample identity that serves them only. To publish a real paper, create your own identity.",
 };
 
 pub static DEMO_FR: DemoTexts = DemoTexts {
-    preparing: "Préparation de la démo : sujet, paquet et 32 copies fictives...",
-    ready: "Démo enseignant prête : le sujet est dans l'éditeur, 32 copies fictives attendent dans Corriger.",
-    failed: "La démo n'a pas pu être préparée.",
-    title: "Visite de la démo enseignant",
+    preparing: "Préparation de la classe d'exemple : sujet, paquet et 32 copies fictives...",
+    ready: "Classe d'exemple prête : le sujet est dans l'éditeur, 32 copies fictives attendent dans Corriger.",
+    failed: "La classe d'exemple n'a pas pu être préparée.",
+    title: "Visite de la classe d'exemple",
     intro: "Un sujet et une classe fictifs. Cliquez une étape pour y aller.",
     steps: [
         (
@@ -1164,5 +1164,5 @@ pub static DEMO_FR: DemoTexts = DemoTexts {
             "Dans la barre du haut : importez une banque GIFT, Moodle XML, Aiken ou CSV, exportez vers Moodle ou en sujet sans réponses.",
         ),
     ],
-    identity_note: "Les copies sont ouvertes avec une identité de démo publique, qui ne sert qu'à elles. Pour publier un vrai sujet, créez votre propre identité.",
+    identity_note: "Les copies sont ouvertes avec une identité d'exemple publique, qui ne sert qu'à elles. Pour publier un vrai sujet, créez votre propre identité.",
 };

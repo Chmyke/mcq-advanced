@@ -112,27 +112,32 @@ interface language), and `source=`, the paper's `.qcmz` on the same site: the pl
 next to the player) with `?open=`. The Studio opens such a paper over its draft, asking first when
 the draft would be lost.
 
-## The website demo
+## The online version
 
-[`examples/demo`](examples/demo) holds a fictional six-question practice paper in English and
-French: a formula, a picture, coloured code, a multiple-answer question and a true or false.
-`crates/mcq-demo` builds its packages and `.qcmz` files byte for byte the same at every build, with
-a public demo identity that signs demo packages only, and its tests keep both languages
-identical in structure and free of validator warnings.
+The website serves the full Studio and player in the browser, the same programs as the desktop
+downloads and always the same version. [`examples/demo`](examples/demo) holds the fictional
+six-question sample paper its first button opens, in English and French: a formula, a picture,
+coloured code, a multiple-answer question and a true or false. `crates/mcq-demo` builds its
+packages and `.qcmz` files byte for byte the same at every build, with a public sample identity
+that signs sample packages only, and its tests keep both languages identical in structure and free
+of validator warnings.
 
-The teacher demo, `studio/?demo=teacher&lang=en` (or `fr`), opens a fictional twelve-question
+The sample class, `studio/?demo=teacher&lang=en` (or `fr`), opens a fictional twelve-question
 paper in the Studio with the sealed copies of a fictional class of 32 already in the Correct space,
 and a short tour of what to try. The Studio builds it in the browser from
 [`examples/demo`](examples/demo); the copies are made to reveal a key ticked by mistake, a shared
 confusion, a theme to reteach, two identical copies, a student who often left the window and one
-past the time limit, and tests check that the analysis finds exactly those. The demo identity only
+past the time limit, and tests check that the analysis finds exactly those. The sample identity only
 opens these copies: it never becomes the teacher's identity, so nothing real is published with it.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-site.ps1 -Out <folder>
 ```
 
-writes `player/`, `studio/` and `demo/` into the folder, as the website serves them.
+writes `player/`, `studio/`, `demo/`, `shots/` and `ai-prompt/` into the folder, as the website
+serves them. It only builds the commit that set the current version, with no local change, and
+writes that version into `player/version.txt` and `studio/version.txt`, which the website's check
+compares with its downloads; `-Unreleased` builds any checkout for a local look.
 
 ## Writing in the Studio
 
@@ -177,13 +182,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/package-windows.ps1
 ```
 
 builds `target/dist/MCQ-Advanced-Setup-<version>.exe`, a per-user installer made with Inno Setup 6.
-The Linux archive is built and started on Ubuntu 22.04 by the `Linux desktop` workflow, run by
-hand from the Actions tab; `tools/fetch-linux.ps1` then downloads it into `target/dist` and checks
-its hash. Neither is signed yet.
+The Linux archive is built and started on Ubuntu 22.04 by the `Build` workflow, which checks
+every push on Windows and Linux; `tools/fetch-linux.ps1` downloads the archive of a commit into
+`target/dist` and checks its hash. Neither is signed yet.
 
-Once both files are on the website, `tools/release-github.ps1` publishes them as the GitHub
-release of the version, byte for byte, with the version's section of [CHANGELOG.md](CHANGELOG.md)
-as notes, and checks GitHub's digests against the site's `SHA256.txt`.
+A version ships in one command, once its section of [CHANGELOG.md](CHANGELOG.md) is written:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/release.ps1 -Version <x.y.z> -Site <website checkout>
+```
+
+It sets the version, runs the check, commits and pushes, builds the installer, waits for the
+workflow's Linux archive of that commit, puts the online version and the downloads on the website
+and deploys it, then `tools/release-github.ps1` publishes the same files as the GitHub release,
+byte for byte, and checks GitHub's digests against the site's `SHA256.txt`. Run again after a
+failure, it skips what is done.
 
 Both programs carry the website's icon, `packaging/icons/mcq-advanced.svg`: `tools/icons.ps1`
 renders it into the PNG used by the Linux windows and menus and the ICO embedded in the Windows

@@ -3,6 +3,16 @@
 What a teacher or a student notices in each desktop version. `tools/release-github.ps1` takes the
 section of a version as the notes of its GitHub release, and refuses a version without one.
 
+## 0.3.0
+
+- Paste an AI's draft into the Studio in one click, or with Ctrl+V: the paper opens and whatever
+  the AI wrote around it is left out. The website offers the prompt to give the AI.
+- Students can report a question as unclear or wrong; the class analysis lists reported
+  questions first.
+- Icons with tips across the Studio and the player, with a short label under each on phones.
+- Buttons answer the pointer, and keep still when the system asks for reduced motion.
+- The teacher demo is now called the sample class.
+
 ## 0.2.0
 
 - The Studio has a single visual editor: the Markdown source view is gone, and a file that cannot

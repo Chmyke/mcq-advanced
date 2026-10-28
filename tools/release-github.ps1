@@ -41,8 +41,8 @@ function Get-Notes([string]$changelog, [string]$version) {
     $notes
 }
 
-$version = [regex]::Match([IO.File]::ReadAllText((Join-Path $root 'Cargo.toml'), $utf8), '(?m)^version = "([^"]+)"').Groups[1].Value
-if (-not $version) { throw 'No workspace version in Cargo.toml' }
+. (Join-Path $PSScriptRoot 'version.ps1')
+$version = Get-WorkspaceVersion
 $changelog = [IO.File]::ReadAllText((Join-Path $root 'CHANGELOG.md'), $utf8)
 $changes = Get-Notes $changelog $version
 
@@ -54,21 +54,17 @@ if (($seen -join ',') -ne 'changed.tar.gz,missing.tar.gz' -or @(Get-Mismatches $
 }
 $refused = $false
 try { Get-Notes $changelog '0.0.0' | Out-Null } catch { $refused = $true }
-# The commit that introduced `version = "<version>"` in Cargo.toml: the oldest that touched it.
-function Get-VersionCommit([string]$version) {
-    # A regex with dots for the quotes: Windows PowerShell mangles quotes passed to git.
-    $pattern = 'version = .' + [regex]::Escape($version) + '.$'
-    $commits = @(git -C $root log --format=%H --pickaxe-regex "-S$pattern" -- Cargo.toml)
-    if (-not $commits) { throw "No commit sets version $version in Cargo.toml." }
-    $commits[-1]
-}
-$release = Get-VersionCommit $version
-$line = "version = `"$version`""
-if (-not ((git -C $root show "${release}:Cargo.toml") -contains $line) -or ((git -C $root show "${release}~1:Cargo.toml") -contains $line)) {
-    throw "Release self-test failed: $release is not the commit that set version $version."
+# The commit lookup is tested on the committed version: while tools/release.ps1 checks a new
+# version, Cargo.toml holds it before any commit does.
+$committed = [regex]::Match(((git -C $root show HEAD:Cargo.toml) -join "`n"), '(?m)^version = "([^"]+)"').Groups[1].Value
+$found = Get-VersionCommit $committed
+$line = "version = `"$committed`""
+if (-not ((git -C $root show "${found}:Cargo.toml") -contains $line) -or ((git -C $root show "${found}~1:Cargo.toml") -contains $line)) {
+    throw "Release self-test failed: $found is not the commit that set version $committed."
 }
 if (-not $refused) { throw 'Release self-test failed: a version without a changelog section got notes.' }
-if ($SelfTest) { "PASS  release self-test, notes for $version, tagged at $release"; return }
+if ($SelfTest) { "PASS  release self-test, notes for $version, $committed set at $found"; return }
+$release = Get-VersionCommit $version
 
 function Invoke-Gh {
     $out = & gh @args
