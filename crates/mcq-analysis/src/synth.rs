@@ -222,6 +222,7 @@ fn sit(class: &Class<'_>, rng: &mut Rng) -> Vec<Submission> {
                 question_id: question.id.clone(),
                 selected,
                 seconds_spent: seconds,
+                reported: false,
             });
         }
         let mut copy = Submission {

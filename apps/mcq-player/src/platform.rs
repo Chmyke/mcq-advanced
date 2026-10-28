@@ -48,6 +48,23 @@ pub fn storage_set(key: &str, value: &str) {
     ));
 }
 
+/// The theme picked on this device, shared by the player and the Studio.
+const THEME_KEY: &str = "mcq-theme";
+
+/// Dark unless light was picked on this device.
+pub async fn remembered_dark() -> bool {
+    stored_dark(storage_get(THEME_KEY).await.as_deref())
+}
+
+pub fn remember_dark(dark: bool) {
+    storage_set(THEME_KEY, if dark { "dark" } else { "light" });
+}
+
+/// Anything but a stored "light", nothing stored included, means dark.
+fn stored_dark(value: Option<&str>) -> bool {
+    value != Some("light")
+}
+
 /// Offers a file to save; in the desktop webview it lands in the Downloads folder.
 pub fn download(file_name: &str, base64: &str) {
     let name: String = file_name
@@ -68,14 +85,6 @@ pub fn download(file_name: &str, base64: &str) {
          a.href = 'data:application/octet-stream;base64,{base64}'; \
          a.download = '{name}'; document.body.appendChild(a); a.click(); a.remove();"
     ));
-}
-
-/// True when the system asks for a dark theme.
-pub async fn prefers_dark() -> bool {
-    document::eval("return window.matchMedia('(prefers-color-scheme: dark)').matches;")
-        .join()
-        .await
-        .unwrap_or(false)
 }
 
 pub async fn browser_language() -> String {
@@ -191,5 +200,13 @@ mod tests {
         let key = save_key(&[0xAB; 16], "Zoë O'Brien");
         assert!(script_safe(&key), "{key}");
         assert!(!script_safe("x'); alert(1); ('"));
+    }
+
+    #[test]
+    fn the_theme_is_dark_unless_light_was_picked() {
+        assert!(stored_dark(None));
+        assert!(stored_dark(Some("dark")));
+        assert!(stored_dark(Some("garbage")));
+        assert!(!stored_dark(Some("light")));
     }
 }

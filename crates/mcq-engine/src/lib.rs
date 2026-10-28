@@ -24,6 +24,8 @@ pub struct SessionItem {
     pub selected: Vec<String>,
     /// Marked "to review" by the student.
     pub flagged: bool,
+    /// Reported as unclear or flawed, for the teacher; independent of `flagged`.
+    pub reported: bool,
     pub seconds_spent: u32,
 }
 
@@ -151,6 +153,17 @@ impl Session {
         }
     }
 
+    /// Reports the current question as unclear or flawed, or withdraws the report. Never moves
+    /// to another question and never touches the answer or the "to review" flag.
+    pub fn toggle_report(&mut self) {
+        if self.submitted {
+            return;
+        }
+        if let Some(item) = self.items.get_mut(self.current) {
+            item.reported = !item.reported;
+        }
+    }
+
     /// Goes to the next flagged question after the current one, wrapping around.
     pub fn next_flagged(&mut self) -> bool {
         let n = self.items.len();
@@ -210,6 +223,10 @@ impl Session {
         self.items.iter().filter(|i| i.flagged).count()
     }
 
+    pub fn reported_count(&self) -> usize {
+        self.items.iter().filter(|i| i.reported).count()
+    }
+
     /// Ends the exam; later calls return the same copy.
     pub fn submit(&mut self) -> Submission {
         if !self.submitted {
@@ -227,6 +244,7 @@ impl Session {
                     question_id: item.question_id.clone(),
                     selected: item.selected.clone(),
                     seconds_spent: item.seconds_spent,
+                    reported: item.reported,
                 })
                 .collect(),
             elapsed_seconds: self.elapsed_seconds,

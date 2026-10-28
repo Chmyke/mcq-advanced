@@ -7,8 +7,9 @@ use mcq_model::{LogEntry, LogKind, TimeExtension};
 use crate::{Session, SessionItem};
 
 const MAGIC: &[u8; 4] = b"MCQS";
-/// Version 2 adds the declared time extension; a version 1 save resumes without one.
-const VERSION: u8 = 2;
+/// Version 2 adds the declared time extension, version 3 the reported questions; older saves
+/// resume without them.
+const VERSION: u8 = 3;
 
 pub fn encode_session(s: &Session) -> Vec<u8> {
     let mut w = ByteWriter::new();
@@ -27,6 +28,7 @@ pub fn encode_session(s: &Session) -> Vec<u8> {
     for item in &s.items {
         w.str(&item.question_id)
             .u8(u8::from(item.flagged))
+            .u8(u8::from(item.reported))
             .u32(item.seconds_spent)
             .u32(index(item.option_order.len()));
         for id in &item.option_order {
@@ -74,6 +76,7 @@ pub fn decode_session(data: &[u8]) -> Result<Session, DecodeError> {
     for _ in 0..count {
         let question_id = r.str()?.to_string();
         let flagged = flag(r.u8()?)?;
+        let reported = if version >= 3 { flag(r.u8()?)? } else { false };
         let seconds_spent = r.u32()?;
         let option_order = strings(&mut r)?;
         let selected = strings(&mut r)?;
@@ -85,6 +88,7 @@ pub fn decode_session(data: &[u8]) -> Result<Session, DecodeError> {
             option_order,
             selected,
             flagged,
+            reported,
             seconds_spent,
         });
     }

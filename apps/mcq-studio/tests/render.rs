@@ -42,7 +42,7 @@ fn Harness() -> Element {
     let recording = use_signal(|| false);
     let notice = use_signal(|| None::<String>);
     let phone = use_signal(|| false);
-    let dark = use_signal(|| false);
+    let dark = use_signal(|| true);
     let space = studio.read().space;
     match space {
         Space::Write => editor::write_space(studio, &EN, recording, notice, phone, dark, None),
@@ -210,4 +210,31 @@ fn a_formula_that_does_not_convert_is_explained_and_shown_as_source() {
     });
     assert!(html.contains("BAD_FORMULA"), "{html}");
     assert!(html.contains("formula-source"), "{html}");
+}
+
+#[test]
+fn the_studio_and_its_preview_start_dark_with_dark_left_of_light() {
+    let mut dom = VirtualDom::new(mcq_studio::App);
+    dom.rebuild_in_place();
+    let html = dioxus_ssr::render(&dom);
+    assert!(
+        html.contains("class=\"app studio\" data-theme=\"dark\""),
+        "{html}"
+    );
+    let dark = html
+        .find("aria-pressed=\"true\" aria-label=\"Dark\"")
+        .expect("dark, chosen");
+    let light = html
+        .find("aria-pressed=\"false\" aria-label=\"Light\"")
+        .expect("light, not chosen");
+    assert!(dark < light, "{html}");
+}
+
+#[test]
+fn the_preview_offers_dark_left_of_light() {
+    let html = render(|s| s.select("code-sum-of-squares"));
+    let preview = &html[html.find("class=\"preview\"").expect("preview")..];
+    let dark = preview.find("aria-label=\"Dark\"").expect("dark choice");
+    let light = preview.find("aria-label=\"Light\"").expect("light choice");
+    assert!(dark < light, "{preview}");
 }

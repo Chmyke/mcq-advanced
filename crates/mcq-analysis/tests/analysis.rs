@@ -55,6 +55,7 @@ fn copy(paper: &Paper, name: &str, picks: &[Option<usize>], elapsed: u32) -> Cop
                         .map(|k| vec![q.options[k].id.clone()])
                         .unwrap_or_default(),
                     seconds_spent: 30,
+                    reported: false,
                 })
                 .collect(),
             elapsed_seconds: elapsed,
@@ -584,4 +585,84 @@ fn declared_extra_time_is_shown_and_moves_the_overtime() {
 
     let notes = csv::notes(&p, &report, &csv::FR);
     assert!(notes.contains("temps majoré +1/3"), "{notes}");
+}
+
+fn reporting(mut copy: Copy, questions: &[&str]) -> Copy {
+    for answer in &mut copy.submission.answers {
+        answer.reported = questions.contains(&answer.question_id.as_str());
+    }
+    copy
+}
+
+#[test]
+fn reported_questions_come_first_for_the_teacher() {
+    let p = paper(6, 2);
+    // Right on t0 (even questions), wrong on t1: t1 is to reteach.
+    let picks: Vec<Option<usize>> = (0..6)
+        .map(|i| Some(if i % 2 == 0 { 0 } else { 1 }))
+        .collect();
+    let copies = vec![
+        reporting(copy(&p, "S0", &picks, 600), &["q1", "q2"]),
+        reporting(copy(&p, "S1", &picks, 600), &["q2"]),
+        copy(&p, "S2", &picks, 600),
+        copy(&p, "S3", &picks, 600),
+    ];
+    let report = analyse(&p, ID, &copies);
+    let counts: Vec<u32> = report.questions.iter().map(|q| q.reported).collect();
+    assert_eq!(counts, [0, 1, 2, 0, 0, 0]);
+
+    // One report is enough, whatever the statistics, and the most reported comes first.
+    let reported: Vec<(usize, &Finding)> = report
+        .findings
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| matches!(f, Finding::Reported { .. }))
+        .collect();
+    assert_eq!(
+        reported.iter().map(|(_, f)| *f).collect::<Vec<_>>(),
+        [
+            &Finding::Reported {
+                question: "q2".into(),
+                students: 2
+            },
+            &Finding::Reported {
+                question: "q1".into(),
+                students: 1
+            },
+        ]
+    );
+    let first_other_review = report.findings.iter().position(|f| {
+        matches!(
+            f,
+            Finding::TooHard { .. } | Finding::TooEasy { .. } | Finding::KeyDoubt { .. }
+        )
+    });
+    assert!(
+        first_other_review.is_some_and(|i| reported.iter().all(|(r, _)| *r < i)),
+        "{:?}",
+        report.findings
+    );
+    // A reported question of a theme to reteach is to check before reteaching.
+    assert!(report.findings.iter().any(|f| matches!(f,
+        Finding::Reteach { theme, doubtful, .. } if theme == "t1" && doubtful == &["q1".to_string()])));
+
+    let questions = csv::questions(&p, &report, &csv::EN);
+    assert!(
+        questions.contains(";REPORTED AS UNCLEAR by 1 · "),
+        "{questions}"
+    );
+    let questions = csv::questions(&p, &report, &csv::FR);
+    assert!(
+        questions.contains("SIGNALÉE COMME DOUTEUSE par 2"),
+        "{questions}"
+    );
+
+    let quiet = analyse(&p, ID, &copies[2..]);
+    assert!(quiet.questions.iter().all(|q| q.reported == 0));
+    assert!(
+        !quiet
+            .findings
+            .iter()
+            .any(|f| matches!(f, Finding::Reported { .. }))
+    );
 }

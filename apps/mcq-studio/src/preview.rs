@@ -86,6 +86,7 @@ pub fn question_preview(
         student,
         EventHandler::new(|_: String| {}),
         EventHandler::new(|_: ()| {}),
+        EventHandler::new(|_: ()| {}),
     );
     let theme = if dark() { "dark" } else { "light" };
     rsx! {
@@ -96,10 +97,9 @@ pub fn question_preview(
                     button { "aria-pressed": "{!phone()}", onclick: move |_| phone.set(false), "{t.preview_computer}" }
                     button { "aria-pressed": "{phone()}", onclick: move |_| phone.set(true), "{t.preview_phone}" }
                 }
-                div { class: "segmented",
-                    button { "aria-pressed": "{!dark()}", onclick: move |_| dark.set(false), "{t.theme_light}" }
-                    button { "aria-pressed": "{dark()}", onclick: move |_| dark.set(true), "{t.theme_dark}" }
-                }
+                // The preview's own theme, not remembered: the Studio's stays as picked.
+                {render::theme_switch(dark(), [t.theme_dark, t.theme_light], [t.theme_dark, t.theme_light],
+                    EventHandler::new(move |pick| dark.set(pick)))}
             }
             div { class: if phone() { "app preview-frame phone" } else { "app preview-frame" }, "data-theme": "{theme}",
                 {view}

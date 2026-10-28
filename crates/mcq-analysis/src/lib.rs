@@ -104,6 +104,8 @@ pub struct QuestionStats {
     pub point_biserial: Option<f64>,
     /// Over the copies that spent time on it.
     pub mean_seconds: f64,
+    /// Copies that reported the question as unclear or flawed.
+    pub reported: u32,
     pub options: Vec<OptionStats>,
 }
 
@@ -145,8 +147,14 @@ impl ThemeStats {
 /// Something a teacher can act on, about a question or a theme.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Finding {
-    /// The class did not get the theme. `doubtful` lists its questions whose key is in doubt:
-    /// check them first, the notion may be fine.
+    /// Students reported the question as unclear or flawed. Their own words, so it comes first
+    /// among the questions to review, whatever the statistics say, and from a single copy.
+    Reported {
+        question: String,
+        students: u32,
+    },
+    /// The class did not get the theme. `doubtful` lists its questions whose key is in doubt or
+    /// that students reported: check them first, the notion may be fine.
     Reteach {
         theme: String,
         mean_rate: f64,
@@ -433,7 +441,7 @@ fn question_stats(
     items: bool,
 ) -> QuestionStats {
     let n = question.options.len();
-    let (mut asked, mut blank) = (0_u32, 0_u32);
+    let (mut asked, mut blank, mut reported) = (0_u32, 0_u32, 0_u32);
     let mut seconds = Vec::new();
     let (mut picked, mut upper_picked, mut lower_picked) = (vec![0; n], vec![0; n], vec![0; n]);
     for (k, copy) in kept.iter().enumerate() {
@@ -446,6 +454,7 @@ fn question_stats(
             continue;
         };
         asked += 1;
+        reported += u32::from(answer.reported);
         if answer.seconds_spent > 0 {
             seconds.push(f64::from(answer.seconds_spent));
         }
@@ -492,6 +501,7 @@ fn question_stats(
             None
         },
         mean_seconds: stats::mean(&seconds).unwrap_or(0.0),
+        reported,
         options: question
             .options
             .iter()
@@ -517,6 +527,15 @@ fn findings(report: &Report) -> Vec<Finding> {
         .iter()
         .filter(|q| q.asked > 0 && !decision::is_neutralized(&report.adjustments, &q.id))
     {
+        if q.reported > 0 {
+            review.push((
+                7,
+                Finding::Reported {
+                    question: q.id.clone(),
+                    students: q.reported,
+                },
+            ));
+        }
         let mut doubt = false;
         if let Some(d) = q.discrimination {
             // A good distractor tempts weak students more than strong ones; one that does the
@@ -620,8 +639,14 @@ fn findings(report: &Report) -> Vec<Finding> {
         (Finding::Trap { rate: x, .. }, Finding::Trap { rate: y, .. }) => y.total_cmp(x),
         _ => std::cmp::Ordering::Equal,
     });
-    // Stable: same priority keeps paper order.
-    review.sort_by_key(|(priority, _)| std::cmp::Reverse(*priority));
+    // Stable: same priority keeps paper order; the most reported questions come first.
+    review.sort_by_key(|(priority, f)| {
+        let students = match f {
+            Finding::Reported { students, .. } => *students,
+            _ => 0,
+        };
+        std::cmp::Reverse((*priority, students))
+    });
 
     let mut reteach: Vec<&ThemeStats> = report
         .themes
@@ -634,19 +659,17 @@ fn findings(report: &Report) -> Vec<Finding> {
         .map(|t| Finding::Reteach {
             theme: t.id.clone(),
             mean_rate: t.mean_rate,
-            doubtful: review
+            doubtful: report
+                .questions
                 .iter()
-                .filter_map(|(_, f)| match f {
-                    Finding::KeyDoubt { question, .. }
-                        if report
-                            .questions
-                            .iter()
-                            .any(|q| q.id == *question && q.theme_id == t.id) =>
-                    {
-                        Some(question.clone())
-                    }
-                    _ => None,
+                .filter(|q| q.theme_id == t.id)
+                .filter(|q| {
+                    review.iter().any(|(_, f)| {
+                        matches!(f, Finding::KeyDoubt { question, .. }
+                            | Finding::Reported { question, .. } if *question == q.id)
+                    })
                 })
+                .map(|q| q.id.clone())
                 .collect(),
         })
         .collect();

@@ -178,8 +178,9 @@ const TOKENS_VERSION: u8 = 1;
 
 /// Name of the highlighted code inside package archives.
 pub const CODE_TOKENS_FILE: &str = "code.tokens";
-/// Version 2 adds the declared time extension; version 1 copies still open, without one.
-const SUBMISSION_VERSION: u8 = 2;
+/// Version 2 adds the declared time extension, version 3 the questions reported as unclear;
+/// older copies still open, without them.
+const SUBMISSION_VERSION: u8 = 3;
 
 /// Encodes files in the given order.
 pub fn encode_archive(entries: &[Entry]) -> Vec<u8> {
@@ -241,6 +242,7 @@ pub fn encode_submission(s: &Submission) -> Vec<u8> {
     for answer in &s.answers {
         w.str(&answer.question_id)
             .u32(answer.seconds_spent)
+            .u8(u8::from(answer.reported))
             .u32(u32::try_from(answer.selected.len()).expect("fewer than 4 billion options"));
         for id in &answer.selected {
             w.str(id);
@@ -277,6 +279,15 @@ pub fn decode_submission(data: &[u8]) -> Result<Submission, DecodeError> {
     for _ in 0..count {
         let question_id = r.str()?.to_string();
         let seconds_spent = r.u32()?;
+        let reported = if version >= 3 {
+            match r.u8()? {
+                0 => false,
+                1 => true,
+                _ => return Err(DecodeError::Invalid("reported flag")),
+            }
+        } else {
+            false
+        };
         let n = r.count(4)?;
         let mut selected = Vec::with_capacity(n);
         for _ in 0..n {
@@ -286,6 +297,7 @@ pub fn decode_submission(data: &[u8]) -> Result<Submission, DecodeError> {
             question_id,
             selected,
             seconds_spent,
+            reported,
         });
     }
     let count = r.count(13)?;
@@ -380,11 +392,13 @@ mod tests {
                     question_id: "q1".into(),
                     selected: vec!["q1-o2".into()],
                     seconds_spent: 12,
+                    reported: true,
                 },
                 Answer {
                     question_id: "q2".into(),
                     selected: vec![],
                     seconds_spent: 3,
+                    reported: false,
                 },
             ],
             elapsed_seconds: 300,
@@ -430,26 +444,66 @@ mod tests {
         assert_eq!(decode_submission(&encode_submission(&s)), Ok(s));
     }
 
+    /// Offset of the extension byte, right after seconds_away.
+    fn extension_at(s: &Submission) -> usize {
+        1 + 16 + 4 + s.student_name.len() + 4 + 4 + 4
+    }
+
+    /// The copy as a version 2 build wrote it: the same bytes without the reported flags, each
+    /// right after its answer's seconds_spent.
+    fn version_2_bytes(s: &Submission) -> Vec<u8> {
+        let mut bytes = encode_submission(s);
+        let mut at = extension_at(s) + 1 + 4;
+        for answer in &s.answers {
+            at += 4 + answer.question_id.len() + 4;
+            bytes.remove(at);
+            at += 4 + answer.selected.iter().map(|o| 4 + o.len()).sum::<usize>();
+        }
+        bytes[0] = 2;
+        bytes
+    }
+
+    fn without_reports(answers: &[Answer]) -> Vec<Answer> {
+        answers
+            .iter()
+            .map(|a| Answer {
+                reported: false,
+                ..a.clone()
+            })
+            .collect()
+    }
+
     #[test]
-    fn version_1_copies_still_open_without_extension() {
+    fn version_2_copies_still_open_without_reports() {
         let s = sample_submission();
-        let mut bytes = encode_submission(&s);
-        // A version 1 copy is the same bytes without the extension, right after seconds_away.
-        let at = 1 + 16 + 4 + s.student_name.len() + 4 + 4 + 4;
-        bytes.remove(at);
-        bytes[0] = 1;
-        let old = decode_submission(&bytes).expect("version 1");
-        assert_eq!(old.extension, TimeExtension::None);
-        assert_eq!(old.answers, s.answers);
+        let old = decode_submission(&version_2_bytes(&s)).expect("version 2");
+        assert_eq!(old.extension, s.extension);
+        assert_eq!(old.answers, without_reports(&s.answers));
         assert_eq!(old.log, s.log);
     }
 
     #[test]
-    fn unknown_extension_is_refused() {
+    fn version_1_copies_still_open_without_extension() {
+        let s = sample_submission();
+        let mut bytes = version_2_bytes(&s);
+        bytes.remove(extension_at(&s));
+        bytes[0] = 1;
+        let old = decode_submission(&bytes).expect("version 1");
+        assert_eq!(old.extension, TimeExtension::None);
+        assert_eq!(old.answers, without_reports(&s.answers));
+        assert_eq!(old.log, s.log);
+    }
+
+    #[test]
+    fn unknown_extension_or_report_flag_is_refused() {
         let s = sample_submission();
         let mut bytes = encode_submission(&s);
-        let at = 1 + 16 + 4 + s.student_name.len() + 4 + 4 + 4;
-        bytes[at] = 9;
+        bytes[extension_at(&s)] = 9;
+        assert!(decode_submission(&bytes).is_err());
+        let mut bytes = encode_submission(&s);
+        let first_report = extension_at(&s) + 1 + 4 + 4 + s.answers[0].question_id.len() + 4;
+        assert_eq!(bytes[first_report], 1);
+        bytes[first_report] = 2;
         assert!(decode_submission(&bytes).is_err());
     }
 

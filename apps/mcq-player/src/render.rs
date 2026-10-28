@@ -218,6 +218,7 @@ pub fn question_view(
     t: &'static Texts,
     on_toggle: EventHandler<String>,
     on_flag: EventHandler<()>,
+    on_report: EventHandler<()>,
 ) -> Element {
     let multiple = question.is_multiple();
     let count = question.answers_to_tick();
@@ -252,7 +253,8 @@ pub fn question_view(
         })
         .collect();
     rsx! {
-        article { class: "question", "aria-labelledby": "q-title",
+        // Keyed by question: a new question gets a fresh element, so its entrance plays once.
+        article { key: "{index}", class: "question", "aria-labelledby": "q-title",
             header { class: "question-head",
                 h2 { id: "q-title", tabindex: "-1", "{t.question} {index + 1} {t.of} {total}" }
                 if !theme.is_empty() { span { class: "theme", "{theme}" } }
@@ -277,11 +279,25 @@ pub fn question_view(
                     }
                 }
             }
-            button {
-                class: if item.flagged { "flag on" } else { "flag" },
-                "aria-pressed": if item.flagged { "true" } else { "false" },
-                onclick: move |_| on_flag.call(()),
-                if item.flagged { "{t.unflag}" } else { "{t.flag}" }
+            div { class: "question-marks",
+                button {
+                    class: if item.flagged { "flag on" } else { "flag" },
+                    "aria-pressed": if item.flagged { "true" } else { "false" },
+                    onclick: move |_| on_flag.call(()),
+                    if item.flagged { "{t.unflag}" } else { "{t.flag}" }
+                }
+                // Outside the options' fieldset: ticking it reports, it never answers nor moves.
+                label { class: if item.reported { "report on" } else { "report" }, title: "{t.report_hint}",
+                    input {
+                        r#type: "checkbox",
+                        checked: item.reported,
+                        "aria-describedby": "report-hint",
+                        onchange: move |_| on_report.call(()),
+                    }
+                    span { class: "report-glyph", "aria-hidden": "true", "?" }
+                    span { "{t.report}" }
+                }
+                span { id: "report-hint", class: "sr-only", "{t.report_hint}" }
             }
         }
     }
@@ -295,12 +311,14 @@ pub fn option_key(k: usize) -> String {
         .map_or_else(|| (k + 1).to_string(), |k| char::from(b'A' + k).to_string())
 }
 
+/// The current question keeps its colour state, so flagging it shows at once in the bar.
 fn cell_class(session: &Session, i: usize, item: &SessionItem) -> &'static str {
     match (
         i == session.current,
         item.flagged,
         !item.selected.is_empty(),
     ) {
+        (true, true, _) => "current flagged",
         (true, _, _) => "current",
         (_, true, _) => "flagged",
         (_, _, true) => "answered",
@@ -315,7 +333,7 @@ pub fn segments(
     t: &'static Texts,
     on_go: EventHandler<usize>,
 ) -> Element {
-    let parts: Vec<(usize, &'static str, String)> = session
+    let parts: Vec<(usize, &'static str, bool, String)> = session
         .items
         .iter()
         .enumerate()
@@ -329,13 +347,16 @@ pub fn segments(
             if item.flagged {
                 name = format!("{name}, {}", t.state_flagged);
             }
-            (i, cell_class(session, i, item), name)
+            if item.reported {
+                name = format!("{name}, {}", t.state_reported);
+            }
+            (i, cell_class(session, i, item), item.reported, name)
         })
         .collect();
     let cursor = time_fraction.map(|f| format!("{:.2}", (f * 100.0).clamp(0.0, 100.0)));
     rsx! {
         nav { class: "segments exam-segments", "aria-label": "{t.overview}",
-            for (i, class, name) in parts {
+            for (i, class, reported, name) in parts {
                 button {
                     key: "{i}",
                     class: "segment {class}",
@@ -343,6 +364,8 @@ pub fn segments(
                     "aria-label": "{name}",
                     title: "{name}",
                     onclick: move |_| on_go.call(i),
+                    // A glyph, not a colour: it shows over any state, flag included.
+                    if reported { span { class: "segment-report", "aria-hidden": "true", "?" } }
                 }
             }
             if let Some(left) = cursor { span { class: "time-cursor", "aria-hidden": "true", style: "left: {left}%" } }
@@ -444,6 +467,28 @@ pub fn editor_link(source: &str, t: &'static Texts) -> Element {
                 "{t.open_in_editor}"
             }
             p { class: "muted", "{t.open_in_editor_hint}" }
+        }
+    }
+}
+
+/// The theme picker, dark on the left and light on the right. `names` are the themes' accessible
+/// names, `marks` what each part shows; `on_pick` receives true for dark.
+pub fn theme_switch(
+    dark: bool,
+    names: [&str; 2],
+    marks: [&str; 2],
+    on_pick: EventHandler<bool>,
+) -> Element {
+    let [dark_name, light_name] = names;
+    let [dark_mark, light_mark] = marks;
+    rsx! {
+        div { class: "segmented theme-switch",
+            button { "aria-pressed": "{dark}", "aria-label": "{dark_name}", title: "{dark_name}",
+                onclick: move |_| on_pick.call(true), "{dark_mark}"
+            }
+            button { "aria-pressed": "{!dark}", "aria-label": "{light_name}", title: "{light_name}",
+                onclick: move |_| on_pick.call(false), "{light_mark}"
+            }
         }
     }
 }

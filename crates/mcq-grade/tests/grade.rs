@@ -46,6 +46,7 @@ fn tick(q: usize, option: usize) -> Answer {
         question_id: format!("q{q}"),
         selected: vec![format!("q{q}-o{}", option + 1)],
         seconds_spent: 10,
+        reported: false,
     }
 }
 
@@ -258,6 +259,7 @@ fn key_without_correct_option_and_unknown_id_are_wrong() {
         question_id: "q1".into(),
         selected: vec!["nope".into()],
         seconds_spent: 0,
+        reported: false,
     };
     let r = grade(&p, &[tick(0, 0), bogus], 0, TimeExtension::None);
     assert_eq!((r.correct, r.wrong), (0, 2));
@@ -313,6 +315,7 @@ fn partial_credit_counts_in_mark_and_theme_without_penalty() {
         question_id: "q0".into(),
         selected: vec!["q0-o1".into()],
         seconds_spent: 0,
+        reported: false,
     };
     let r = grade(&p, &[half, tick(1, 0)], 0, TimeExtension::None);
     assert_eq!((r.correct, r.partial, r.wrong), (1, 1, 0));

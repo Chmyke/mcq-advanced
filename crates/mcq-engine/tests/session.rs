@@ -346,12 +346,87 @@ fn autosave_keeps_the_extension_and_old_saves_resume_without_one() {
     let bytes = encode_session(&s);
     assert_eq!(decode_session(&bytes), Ok(s.clone()));
 
-    // A version 1 save: no extension byte after the pace flag.
-    let mut old = bytes.clone();
+    // A version 1 save: no extension byte after the pace flag, no reported flags.
+    let mut old = version_2_save(&s);
     let at = 4 + 1 + 16 + 4 + s.student_name.len() + 4 + 4 + 1 + 4 + 4 + 1;
     old.remove(at);
     old[4] = 1;
     let resumed = decode_session(&old).expect("version 1");
     assert_eq!(resumed.extension, TimeExtension::None);
     assert_eq!(resumed.items, s.items);
+}
+
+/// The session as a version 2 build saved it: no reported flag after each item's `flagged`.
+fn version_2_save(s: &Session) -> Vec<u8> {
+    let mut bytes = encode_session(s);
+    let mut at = 4 + 1 + 16 + 4 + s.student_name.len() + 4 + 4 + 1 + 4 + 4 + 1 + 1 + 4;
+    for item in &s.items {
+        at += 4 + item.question_id.len() + 1;
+        bytes.remove(at);
+        at += 4 + 4;
+        at += item.option_order.iter().map(|o| 4 + o.len()).sum::<usize>();
+        at += 4 + item.selected.iter().map(|o| 4 + o.len()).sum::<usize>();
+    }
+    bytes[4] = 2;
+    bytes
+}
+
+#[test]
+fn a_report_is_independent_of_the_flag_and_never_moves() {
+    let (p, mut s) = ordered(4);
+    s.go_to(1);
+    s.toggle(&p, "q1-o2");
+    s.toggle_report();
+    assert_eq!(s.current, 1, "reporting stays on the question");
+    assert!(s.items[1].reported);
+    assert!(!s.items[1].flagged, "a report is not a flag");
+    assert_eq!(s.items[1].selected, ["q1-o2"], "nor an answer");
+    assert!(
+        !s.next_flagged(),
+        "a reported question is not a flagged one"
+    );
+    assert_eq!(s.current, 1);
+
+    s.toggle_flag();
+    assert!(s.items[1].reported && s.items[1].flagged);
+    s.toggle_report();
+    assert!(!s.items[1].reported);
+    assert!(s.items[1].flagged, "withdrawing the report keeps the flag");
+    s.toggle_report();
+    s.toggle_flag();
+    assert!(
+        s.items[1].reported && !s.items[1].flagged,
+        "and unflagging keeps the report"
+    );
+    assert_eq!((s.reported_count(), s.flagged_count()), (1, 0));
+    assert_eq!(s.current, 1);
+}
+
+#[test]
+fn the_copy_carries_the_reports_and_keeps_the_flags_private() {
+    let (_, mut s) = ordered(3);
+    s.toggle_report();
+    s.go_to(2);
+    s.toggle_flag();
+    let copy = s.submit();
+    let reported: Vec<bool> = copy.answers.iter().map(|a| a.reported).collect();
+    assert_eq!(reported, [true, false, false]);
+    s.go_to(1);
+    s.toggle_report();
+    assert!(!s.items[1].reported, "a handed-in copy no longer changes");
+    assert_eq!(s.submit(), copy);
+}
+
+#[test]
+fn autosave_keeps_the_reports_and_old_saves_resume_without_them() {
+    let (_, mut s) = ordered(3);
+    s.go_to(1);
+    s.toggle_report();
+    s.toggle_flag();
+    let bytes = encode_session(&s);
+    assert_eq!(decode_session(&bytes), Ok(s.clone()));
+    let resumed = decode_session(&version_2_save(&s)).expect("version 2");
+    assert!(resumed.items.iter().all(|i| !i.reported));
+    assert!(resumed.items[1].flagged);
+    assert_eq!(resumed.current, 1);
 }

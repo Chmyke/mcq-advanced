@@ -19,17 +19,6 @@
   --tok-string: #98c379; --tok-number: #dcae84; --tok-constant: #6fc6d2; --tok-comment: #aeb3bb;
   --tok-operator: #abb2bf;
 }
-@media (prefers-color-scheme: dark) {
-  .app[data-theme="auto"] {
-    --bg: #17181a; --surface: #202225; --text: #e8e7e3; --muted: #a9a8a2; --border: #3a3c40;
-    --accent: #6ea8fe; --accent-text: #0b1220; --accent-soft: #1d2a40; --warn-bg: #3a2f12; --warn: #f2cc75;
-    --ok: #8fd36b; --ko: #f08f8f; --part: #f2cc75; --error: #f08f8f; --focus: #6ea8fe;
-    --code-bg: #282c34; --code-hl: #3a3f4b; --code-ln: #b4b3ad; --field-border: #6b6e74;
-    --tok-plain: #abb2bf; --tok-keyword: #d19ae6; --tok-type: #e5c07b; --tok-function: #7dbdf2;
-    --tok-string: #98c379; --tok-number: #dcae84; --tok-constant: #6fc6d2; --tok-comment: #aeb3bb;
-    --tok-operator: #abb2bf;
-  }
-}
 
 html, body { margin: 0; }
 /* The scroll bar keeps its place, so a long question never shifts the layout sideways. */
@@ -129,8 +118,13 @@ figcaption { color: var(--muted); font-size: .9em; }
 .option.checked { border-color: var(--accent); background: var(--accent-soft); }
 .option input { width: 1.15em; height: 1.15em; accent-color: var(--accent); margin: 0; }
 .option .key { color: var(--muted); font-size: .8em; min-width: 1em; }
-.flag { margin-top: 1rem; }
+.question-marks { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.25rem; margin-top: 1rem; }
 .flag.on { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+/* Reporting a question: a quiet box, apart from the answers and the flag. */
+.report { display: inline-flex; align-items: center; gap: .4rem; font-size: .9em; color: var(--muted); cursor: pointer; }
+.report input { margin: 0; width: 1.05rem; height: 1.05rem; accent-color: var(--text); }
+.report.on { color: var(--text); }
+.report-glyph, .segment-report { display: inline-grid; place-items: center; width: 1.1rem; height: 1.1rem; border-radius: 50%; border: 1.5px solid currentColor; font-weight: 700; font-size: .75rem; line-height: 1; }
 
 .nav { display: flex; gap: .5rem; justify-content: space-between; margin: 1rem 0; flex-wrap: wrap; }
 .exam { padding-bottom: 4.5rem; }
@@ -173,6 +167,7 @@ figcaption { color: var(--muted); font-size: .9em; }
 .segmented button + button { border-left: 1px solid var(--border); }
 .segmented button:focus-visible { outline-offset: -3px; }
 .segmented button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.prefs .segmented button { padding: .25rem .6rem; }
 /* Above the correction: what to do with the result, first thing on the page. */
 .result-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
 .result-actions .result-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
@@ -183,12 +178,16 @@ figcaption { color: var(--muted); font-size: .9em; }
 
 /* One segment per question; the cursor shows how much of the time is gone. */
 .segments { position: relative; display: flex; gap: 2px; margin: .25rem 0; }
+.exam-segments { margin-top: .75rem; }
 .segment { flex: 1; min-width: 4px; height: 24px; padding: 0; border: none; border-radius: 0; background: none; cursor: pointer; position: relative; }
 .segment::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 12px; box-sizing: border-box; border-radius: 3px; border: 1px solid var(--field-border); background: transparent; transition: background-color .2s ease, transform .2s ease; }
 .segment:hover::before { transform: scaleY(1.4); }
 .segment.answered::before { background: var(--accent); border-color: var(--accent); }
 .segment.flagged::before { background: var(--warn); border-color: var(--warn); }
 .segment.current::before { background: var(--accent); border-color: var(--text); border-width: 2px; transform: scaleY(1.5); }
+.segment.current.flagged::before { background: var(--warn); }
+/* A reported question: a small ringed "?" above its segment, over any colour. */
+.segment-report { position: absolute; left: 50%; top: -.65rem; transform: translateX(-50%); width: .85rem; height: .85rem; font-size: .6rem; background: var(--surface); color: var(--text); pointer-events: none; z-index: 1; }
 .segment.ok::before { background: var(--ok); border-color: var(--ok); } .segment.ko::before { background: var(--ko); border-color: var(--ko); } .segment.part::before { background: var(--part); border-color: var(--part); } .segment.blank::before { background: transparent; border-color: var(--muted); }
 .review .segment.current::before { outline: 2px solid var(--text); outline-offset: 1px; }
 .time-cursor { position: absolute; top: 3px; bottom: 3px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; pointer-events: none; transition: left 1s linear; }
@@ -231,8 +230,17 @@ figcaption { color: var(--muted); font-size: .9em; }
 .app .review h2 { font-size: 1.05em; margin: 0 0 .5em; }
 .answer-block p { margin: .2rem 0; }
 .understood.on { background: var(--accent-soft); border-color: var(--accent); }
-.option { transition: background-color .15s ease, border-color .15s ease; }
+/* Motion: every control answers the pointer, briefly and without bounce. Reduced motion cuts it. */
+button, .file, a.button, .option { transition: background-color .15s ease, border-color .15s ease, color .15s ease, filter .15s ease, transform .1s ease-out; }
+:is(button, .file, a.button):not(:disabled, .primary, .link, .segment, .on, [aria-pressed="true"]):hover { background-color: var(--accent-soft); }
+:is(button.primary, .file.primary, a.button.primary, .segmented button[aria-pressed="true"]):not(:disabled):hover { filter: brightness(1.1); }
+button.link:not(:disabled):hover { color: var(--accent); }
+.option:not(.checked):hover { background-color: var(--bg); }
+:is(button, .file, a.button):not(:disabled, .segment):active { transform: scale(.96); transition-duration: .05s; }
+.option:active { transform: scale(.99); transition-duration: .05s; }
+.question { animation: appear .15s ease-out; }
 
+@keyframes appear { from { opacity: 0; } }
 @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {

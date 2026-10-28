@@ -62,7 +62,8 @@ pub fn App() -> Element {
     let mut error = use_signal(|| None::<&'static str>);
     let mut notice = use_signal(|| None::<&'static str>);
     let mut resumed = use_signal(|| false);
-    let mut dark = use_signal(|| None::<bool>);
+    // Dark unless the student picks light; the pick is remembered on this device.
+    let mut dark = use_signal(|| true);
     let mut text_scale = use_signal(|| 100_u32);
     // Single-key shortcuts can be turned off (WCAG 2.1.4): speech input then ticks nothing by mistake.
     let mut shortcuts = use_signal(|| true);
@@ -96,6 +97,7 @@ pub fn App() -> Element {
                 question_id: i.question_id.clone(),
                 selected: i.selected.clone(),
                 seconds_spent: i.seconds_spent,
+                reported: i.reported,
             })
             .collect();
         let result = mcq_grade::grade(&full, &copy_answers, s.elapsed_seconds, s.extension);
@@ -133,6 +135,7 @@ pub fn App() -> Element {
     });
 
     use_future(move || async move {
+        dark.set(platform::remembered_dark().await);
         let options = platform::link_options().await;
         let tag = if options.lang.is_empty() {
             platform::browser_language().await
@@ -145,10 +148,6 @@ pub fn App() -> Element {
             name.set(options.name);
         }
         source.set(options.source);
-        // The theme starts as the system's, so the first click on the toggle switches it.
-        if dark().is_none() {
-            dark.set(Some(platform::prefers_dark().await));
-        }
         // A paper given by link (`?paper=...`) opens without choosing a file.
         if let Some(bytes) = platform::package_from_link().await {
             match mcq_crypto::inspect(&bytes) {
@@ -257,11 +256,7 @@ pub fn App() -> Element {
         let at = list.iter().position(|l| *l == lang()).unwrap_or(0);
         (list.len() > 1).then(|| list[(at + 1) % list.len()])
     };
-    let theme = match dark() {
-        Some(true) => "dark",
-        Some(false) => "light",
-        None => "auto",
-    };
+    let theme = if dark() { "dark" } else { "light" };
     // The paper's own language, for its text read aloud (WCAG 3.1.2).
     let paper_lang = opened
         .read()
@@ -449,6 +444,12 @@ pub fn App() -> Element {
                     EventHandler::new(move |()| {
                         if let Some(s) = session.write().as_mut() {
                             s.toggle_flag();
+                            save(s);
+                        }
+                    }),
+                    EventHandler::new(move |()| {
+                        if let Some(s) = session.write().as_mut() {
+                            s.toggle_report();
                             save(s);
                         }
                     }),
@@ -665,11 +666,8 @@ pub fn App() -> Element {
             header { class: "top",
                 span { class: "brand", "{header_title}" }
                 div { class: "prefs",
-                    button { "aria-label": if dark() == Some(true) { t.theme_light } else { t.theme_dark },
-                        title: if dark() == Some(true) { t.theme_light } else { t.theme_dark },
-                        onclick: move |_| dark.set(Some(dark() != Some(true))),
-                        if dark() == Some(true) { "☀" } else { "☾" }
-                    }
+                    {render::theme_switch(dark(), [t.theme_dark, t.theme_light], ["☾", "☀"],
+                        EventHandler::new(move |pick| { dark.set(pick); platform::remember_dark(pick); }))}
                     button { "aria-label": "{t.text_smaller}", title: "{t.text_smaller}",
                         onclick: move |_| text_scale.set(text_scale().saturating_sub(10).max(80)), "A−" }
                     button { "aria-label": "{t.text_larger}", title: "{t.text_larger}",

@@ -20,6 +20,8 @@ pub struct Labels {
     pub yes: &'static str,
     pub right_row: &'static str,
     pub distractor_row: &'static str,
+    /// Followed by the count of students who reported the question as unclear or flawed.
+    pub reported: &'static str,
     /// The key may be wrong: see `Finding::KeyDoubt`.
     pub key_doubt: &'static str,
     /// The teacher took the question out of the grading.
@@ -86,6 +88,7 @@ pub const EN: Labels = Labels {
     yes: "YES",
     right_row: "  RIGHT",
     distractor_row: "  distractor",
+    reported: "REPORTED AS UNCLEAR by",
     key_doubt: "KEY TO CHECK: the strongest students avoid it",
     neutralized: "NEUTRALIZED: out of the marks",
     rekeyed: "KEY CORRECTED: marked with the right rows below",
@@ -147,6 +150,7 @@ pub const FR: Labels = Labels {
     yes: "OUI",
     right_row: "  BONNE",
     distractor_row: "  distracteur",
+    reported: "SIGNALÉE COMME DOUTEUSE par",
     key_doubt: "CORRIGÉ À VÉRIFIER : les meilleurs l'évitent",
     neutralized: "NEUTRALISÉE : hors barème",
     rekeyed: "CORRIGÉ RECTIFIÉ : noté selon les lignes BONNE ci-dessous",
@@ -354,6 +358,12 @@ pub fn questions(paper: &Paper, report: &Report, labels: &Labels) -> String {
             format!("{} {dead}", labels.dead_distractors)
         } else {
             String::new()
+        };
+        // The students' own report comes first: the alert above says what the figures add.
+        let alert = match (stats.reported, alert.is_empty()) {
+            (0, _) => alert,
+            (n, true) => format!("{} {n}", labels.reported),
+            (n, false) => format!("{} {n} · {alert}", labels.reported),
         };
         line(
             &mut out,

@@ -236,6 +236,13 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                 },
                 Some(key_choices(paper, &formulas, question, rival.as_deref())),
             )),
+            Finding::Reported { question, students } => review.push((
+                text(fill(
+                    c.reported,
+                    &[("question", question.clone()), ("n", students.to_string())],
+                )),
+                None,
+            )),
             Finding::TooHard { question, facility } => review.push((
                 text(fill(
                     c.too_hard,

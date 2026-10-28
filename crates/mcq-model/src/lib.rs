@@ -431,6 +431,9 @@ pub struct Answer {
     pub question_id: String,
     pub selected: Vec<String>,
     pub seconds_spent: u32,
+    /// The student reported the question as unclear or flawed, for the teacher to check.
+    /// Independent of the answer and of the "to review" flag, which stays on the student's side.
+    pub reported: bool,
 }
 
 /// A finished copy, as sealed for the teacher.

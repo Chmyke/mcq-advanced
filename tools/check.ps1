@@ -53,8 +53,12 @@ try {
         Write-Output '== layout'
         & node (Join-Path $tools 'layout-check.mjs') 2>&1 | ForEach-Object { "$_" }
         if ($LASTEXITCODE -ne 0) { $failed += 'layout' }
+        # Every control of the student's screens answers the pointer; reduced motion stills it.
+        Write-Output '== motion'
+        & node (Join-Path $tools 'motion-check.mjs') 2>&1 | ForEach-Object { "$_" }
+        if ($LASTEXITCODE -ne 0) { $failed += 'motion' }
     } else {
-        Write-Output 'layout: skipped (needs Node and Microsoft Edge)'
+        Write-Output 'layout, motion: skipped (needs Node and Microsoft Edge)'
     }
 
     # Real papers never enter the repository. When a private list of their folders exists, every

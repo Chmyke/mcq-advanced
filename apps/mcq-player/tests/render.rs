@@ -119,6 +119,7 @@ fn question_html(question_id: &'static str) -> String {
             Lang::En.texts(),
             EventHandler::new(|_: String| {}),
             EventHandler::new(|()| {}),
+            EventHandler::new(|()| {}),
         )
     })
 }
@@ -127,7 +128,8 @@ fn question_html(question_id: &'static str) -> String {
 fn multiple_answer_question_is_announced_with_checkboxes() {
     let html = question_html("code-sum-of-squares");
     assert!(html.contains("Several answers · 2 to tick"), "{html}");
-    assert_eq!(html.matches("type=\"checkbox\"").count(), 4, "{html}");
+    let (options, _) = html.split_once("</fieldset>").expect("options");
+    assert_eq!(options.matches("type=\"checkbox\"").count(), 4, "{html}");
     assert!(!html.contains("type=\"radio\""), "{html}");
     assert!(html.contains("It prints <code>14</code>"), "{html}");
 }
@@ -282,6 +284,21 @@ fn welcome_screen_renders() {
 }
 
 #[test]
+fn the_player_starts_dark_with_dark_left_of_light() {
+    let mut dom = VirtualDom::new(mcq_player::App);
+    dom.rebuild_in_place();
+    let html = dioxus_ssr::render(&dom);
+    assert!(html.contains("data-theme=\"dark\""), "{html}");
+    let dark = html
+        .find("aria-pressed=\"true\" aria-label=\"Dark theme\"")
+        .expect("dark, chosen");
+    let light = html
+        .find("aria-pressed=\"false\" aria-label=\"Light theme\"")
+        .expect("light, not chosen");
+    assert!(dark < light, "{html}");
+}
+
+#[test]
 fn formulas_show_as_native_mathml_and_explanations_after_hand_in() {
     let (mut paper, _) = mcq_format::read(SAMPLE);
     paper.shuffle_options = false;
@@ -329,6 +346,7 @@ fn formulas_show_as_native_mathml_and_explanations_after_hand_in() {
             opened.content(),
             Lang::En.texts(),
             EventHandler::new(|_: String| {}),
+            EventHandler::new(|()| {}),
             EventHandler::new(|()| {}),
         );
         let copy = session.submit();
@@ -466,6 +484,27 @@ fn the_correction_markup_is_handed_to_the_layout_check() {
     std::fs::write(&file, html).expect("write the layout fixture");
 }
 
+/// The exam screen, written for `tools/motion-check.mjs`: every control of the real markup must
+/// answer the pointer.
+#[test]
+fn the_exam_markup_is_handed_to_the_motion_check() {
+    let html = render(|| {
+        let opened = opened();
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        session.tick(150);
+        let gauge = session.pace(&opened.paper).expect("ten minutes");
+        let item = session.current_item().expect("item").clone();
+        let question = opened.paper.question(&item.question_id).expect("q");
+        rsx! {
+            {render::segments(&session, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
+            {render::question_view(question, &item, 0, 3, opened.content(), Lang::Fr.texts(), EventHandler::new(|_: String| {}), EventHandler::new(|()| {}), EventHandler::new(|()| {}))}
+        }
+    });
+    assert!(html.contains("class=\"option"), "{html}");
+    let file = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("player-exam.html");
+    std::fs::write(&file, html).expect("write the motion fixture");
+}
+
 #[test]
 fn the_revision_sheet_downloads_as_markdown() {
     let bytes = package(true);
@@ -498,7 +537,7 @@ fn the_exam_shows_segments_and_a_calm_pace_gauge_with_letter_keys() {
         rsx! {
             {render::segments(&session, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
             {render::pace_view(&gauge, Some((0, -30)), Lang::Fr.texts())}
-            {render::question_view(question, &item, 0, 3, opened.content(), Lang::Fr.texts(), EventHandler::new(|_: String| {}), EventHandler::new(|()| {}))}
+            {render::question_view(question, &item, 0, 3, opened.content(), Lang::Fr.texts(), EventHandler::new(|_: String| {}), EventHandler::new(|()| {}), EventHandler::new(|()| {}))}
         }
     });
     assert_eq!(html.matches("class=\"segment ").count(), 3, "{html}");
@@ -590,6 +629,91 @@ fn started_exam_shows_extra_time_locked() {
     assert!(html.contains("no time limit"), "{html}");
     assert!(html.contains("it can no longer change"), "{html}");
     assert_eq!(html.matches("disabled").count(), 5, "{html}");
+}
+
+#[test]
+fn a_question_can_be_reported_apart_from_its_answers_and_its_flag() {
+    let html = question_html("fruit-banana-colour");
+    let (options, after) = html.split_once("</fieldset>").expect("options");
+    assert!(!options.contains("report"), "outside the answers: {html}");
+    assert!(
+        after.contains("This question seems unclear or wrong"),
+        "{html}"
+    );
+    assert!(
+        after.contains("Your teacher will see it. It does not affect your mark."),
+        "{html}"
+    );
+    assert!(after.contains("class=\"report\""), "{html}");
+    assert!(after.contains("type=\"checkbox\""), "{html}");
+    assert!(!after.contains("checked"), "not ticked by default: {html}");
+    assert!(after.contains("Flag for review"), "the flag stays: {html}");
+
+    let reported = render(|| {
+        let opened = opened();
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        session.toggle_report();
+        let item = session.current_item().expect("item").clone();
+        let question = opened.paper.question(&item.question_id).expect("q").clone();
+        render::question_view(
+            &question,
+            &item,
+            0,
+            session.items.len(),
+            opened.content(),
+            Lang::Fr.texts(),
+            EventHandler::new(|_: String| {}),
+            EventHandler::new(|()| {}),
+            EventHandler::new(|()| {}),
+        )
+    });
+    assert!(reported.contains("class=\"report on\""), "{reported}");
+    assert!(reported.contains("checked"), "{reported}");
+    assert!(
+        reported.contains("Cette question me semble floue ou erronée"),
+        "{reported}"
+    );
+    assert!(
+        reported.contains("Marquer à revoir"),
+        "still not flagged: {reported}"
+    );
+}
+
+#[test]
+fn overview_shows_a_reported_glyph_apart_from_the_flag_colour() {
+    let html = render(|| {
+        let opened = opened();
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        session.toggle_report();
+        session.next();
+        session.toggle_flag();
+        session.toggle_report();
+        session.next();
+        session.toggle_flag();
+        render::segments(
+            &session,
+            None,
+            Lang::En.texts(),
+            EventHandler::new(|_: usize| {}),
+        )
+    });
+    assert_eq!(
+        html.matches("class=\"segment-report\"").count(),
+        2,
+        "{html}"
+    );
+    assert!(
+        html.contains("aria-label=\"Question 1, not answered, reported as unclear\""),
+        "{html}"
+    );
+    assert!(
+        html.contains(
+            "aria-label=\"Question 2, not answered, flagged for review, reported as unclear\""
+        ),
+        "{html}"
+    );
+    // Flagging the question on screen colours its segment at once.
+    assert!(html.contains("segment current flagged"), "{html}");
 }
 
 #[test]

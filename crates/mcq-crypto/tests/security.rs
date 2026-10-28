@@ -361,6 +361,7 @@ fn submission(paper_id: [u8; 16]) -> Submission {
             question_id: "fruit-banana-colour".into(),
             selected: vec!["fruit-banana-colour-o1".into()],
             seconds_spent: 9,
+            reported: false,
         }],
         elapsed_seconds: 120,
         focus_losses: 0,

@@ -6,7 +6,7 @@
 
 use dioxus::prelude::*;
 
-pub use mcq_player::platform::{browser_language, download, prefers_dark, rng};
+pub use mcq_player::platform::{browser_language, download, remember_dark, remembered_dark, rng};
 
 /// Sends `[file name, base 64]` for every file dropped on the page or pasted into it.
 pub const DROP_AND_PASTE_SCRIPT: &str = r#"

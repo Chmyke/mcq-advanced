@@ -6,7 +6,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use mcq_crypto::Identity;
 use mcq_edit::{Project, qcmz};
-use mcq_player::b64;
+use mcq_player::{b64, render};
 
 use crate::actions;
 use crate::class_stats::ClassResults;
@@ -32,9 +32,11 @@ pub fn App() -> Element {
     let mut notice = use_signal(|| None::<String>);
     let mut saved = use_signal(|| false);
     let recording = use_signal(|| false);
-    let mut dark = use_signal(|| None::<bool>);
+    // Dark unless the teacher picks light, for the Studio (remembered on this device) and for its
+    // student preview (not remembered).
+    let mut dark = use_signal(|| true);
     let phone = use_signal(|| false);
-    let preview_dark = use_signal(|| false);
+    let preview_dark = use_signal(|| true);
     let identity = use_signal(|| None::<Rc<Identity>>);
     let done = use_signal(|| None::<Rc<Done>>);
     let mut correction = use_signal(Correction::default);
@@ -51,9 +53,7 @@ pub fn App() -> Element {
     use_future(move || async move {
         let language = Lang::from_tag(&platform::interface_language().await);
         lang.set(language);
-        if dark().is_none() {
-            dark.set(Some(platform::prefers_dark().await));
-        }
+        dark.set(platform::remembered_dark().await);
         let t = texts(language);
         let restored = platform::load_draft()
             .await
@@ -129,11 +129,7 @@ pub fn App() -> Element {
     });
 
     let t = texts(lang());
-    let theme = match dark() {
-        Some(true) => "dark",
-        Some(false) => "light",
-        None => "auto",
-    };
+    let theme = if dark() { "dark" } else { "light" };
     let space = studio.read().space;
     let title = studio.read().project.paper.title.clone();
     let tabs = [
@@ -182,11 +178,8 @@ pub fn App() -> Element {
                     button { onclick: move |_| actions::export_source(studio), "{t.export_source}" }
                     button { onclick: move |_| actions::export_student(studio), "{t.export_student}" }
                     button { onclick: move |_| actions::export_moodle(studio, notice, t), "{t.export_moodle}" }
-                    button {
-                        "aria-pressed": if theme == "dark" { "true" } else { "false" },
-                        onclick: move |_| dark.set(Some(!dark().unwrap_or(false))),
-                        if theme == "dark" { "{t.theme_light}" } else { "{t.theme_dark}" }
-                    }
+                    {render::theme_switch(dark(), [t.theme_dark, t.theme_light], [t.theme_dark, t.theme_light],
+                        EventHandler::new(move |pick| { dark.set(pick); platform::remember_dark(pick); }))}
                 }
             }
             div { class: "status-line",
