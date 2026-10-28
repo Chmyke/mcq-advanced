@@ -66,6 +66,43 @@ label { font-weight: 600; display: block; }
 .prefs { display: flex; gap: .4rem; }
 .prefs button { padding: .25rem .6rem; }
 
+/* Icons: one drawing style for every button. The tip explains the action on hover and on
+   keyboard focus; on touch screens, where nothing hovers, the short label sits under the icon. */
+.glyph { width: 1.25em; height: 1.25em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+[data-icon] { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .4em; }
+button[data-icon="tip"], .file[data-icon="tip"] { padding: .35rem .5rem; min-width: 2.25rem; min-height: 2.25rem; }
+[data-icon="tip"] > .label { display: none; }
+[data-icon] > .tip {
+  position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 20;
+  background: var(--text); color: var(--bg); font-size: .8rem; font-weight: 400; line-height: 1.3;
+  padding: .25rem .55rem; border-radius: 6px; white-space: nowrap; pointer-events: none;
+  /* Out of the layout until shown: a hidden tip at the window's edge would widen the page. */
+  display: none;
+}
+@keyframes tip-in { from { opacity: 0; } }
+[data-icon]:hover > .tip, [data-icon]:focus-visible > .tip, [data-icon]:has(input:focus-visible) > .tip { display: block; animation: tip-in .12s; }
+[data-icon]:hover > .tip { animation: tip-in .12s .35s backwards; }
+/* In the bar fixed at the bottom the tip opens upwards; a script keeps tips and menus inside the
+   window sideways (icon.rs), since where a button sits depends on the window's width. */
+.exam-nav [data-icon] > .tip { top: auto; bottom: calc(100% + 6px); }
+.icon-menu { position: relative; display: inline-flex; }
+.icon-menu:has(.menu-list) [data-icon] > .tip { display: none; }
+.menu-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; display: flex; flex-direction: column;
+  min-width: 14rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .25rem;
+}
+.menu-list button { border: none; border-radius: 6px; text-align: left; padding: .45rem .7rem; }
+.menu-list button:hover { background: var(--accent-soft); }
+@media (max-width: 40rem) {
+  [data-icon="shown"] > .label { display: none; }
+}
+@media (hover: none) {
+  [data-icon]:not([data-icon="text"]) { flex-direction: column; gap: .1rem; }
+  [data-icon] > .tip { display: none; }
+  [data-icon].next > .glyph { order: 0; }
+  [data-icon] > .label, [data-icon="shown"] > .label { display: block; font-size: .7rem; font-weight: 400; line-height: 1.1; }
+}
+
 .fingerprint { border: 1px dashed var(--border); border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; }
 .fingerprint strong { display: block; font-size: 1.3em; margin: .2em 0; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; }
@@ -134,12 +171,8 @@ figcaption { color: var(--muted); font-size: .9em; }
 .exam-nav-middle { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .5rem; }
 .exam-nav-middle > .jump { grid-column: 1; justify-self: end; }
 .exam-nav-middle > .end { grid-column: 2; }
-.exam-nav .nav-icon { display: none; }
-/* On a phone the bar keeps its four buttons on one line: arrows and a flag, names in their labels. */
-@media (max-width: 30rem) {
-  .exam-nav .nav-label { display: none; }
-  .exam-nav .nav-icon { display: inline; }
-}
+/* The arrow of Next follows its label. */
+.next > .glyph { order: 2; }
 .confirm { border-color: var(--accent); }
 
 .review-item { background: var(--surface); border: 1px solid var(--border); border-left: 5px solid var(--border); border-radius: 0 12px 12px 0; padding: 1rem 1.25rem; margin: 1rem 0; }
@@ -162,7 +195,9 @@ figcaption { color: var(--muted); font-size: .9em; }
 }
 
 /* Choice between a few views (review filters). */
-.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; flex-wrap: wrap; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; flex-wrap: wrap; }
+.segmented > button:first-child { border-radius: 7px 0 0 7px; }
+.segmented > button:last-child { border-radius: 0 7px 7px 0; }
 .segmented button { border: none; border-radius: 0; padding: .35rem .8rem; }
 .segmented button + button { border-left: 1px solid var(--border); }
 .segmented button:focus-visible { outline-offset: -3px; }

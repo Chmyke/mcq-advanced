@@ -7,6 +7,7 @@ use mcq_engine::SessionItem;
 use mcq_highlight::Highlighter;
 use mcq_math::Formulas;
 use mcq_model::{Block, CodeTokens, Question};
+use mcq_player::icon::{Icon, IconButton};
 use mcq_player::render::{self, Content};
 
 use crate::state::Studio;
@@ -94,11 +95,11 @@ pub fn question_preview(
             div { class: "preview-bar",
                 h2 { "{t.preview}" }
                 div { class: "segmented",
-                    button { "aria-pressed": "{!phone()}", onclick: move |_| phone.set(false), "{t.preview_computer}" }
-                    button { "aria-pressed": "{phone()}", onclick: move |_| phone.set(true), "{t.preview_phone}" }
+                    IconButton { icon: Icon::Monitor, label: t.preview_computer, tip: t.tip_preview_computer, aria_pressed: "{!phone()}", onclick: move |_| phone.set(false) }
+                    IconButton { icon: Icon::Phone, label: t.preview_phone, tip: t.tip_preview_phone, aria_pressed: "{phone()}", onclick: move |_| phone.set(true) }
                 }
                 // The preview's own theme, not remembered: the Studio's stays as picked.
-                {render::theme_switch(dark(), [t.theme_dark, t.theme_light], [t.theme_dark, t.theme_light],
+                {render::theme_switch(dark(), [t.theme_dark, t.theme_light], [t.tip_preview_dark, t.tip_preview_light],
                     EventHandler::new(move |pick| dark.set(pick)))}
             }
             div { class: if phone() { "app preview-frame phone" } else { "app preview-frame" }, "data-theme": "{theme}",

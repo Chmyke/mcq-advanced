@@ -290,10 +290,10 @@ fn the_player_starts_dark_with_dark_left_of_light() {
     let html = dioxus_ssr::render(&dom);
     assert!(html.contains("data-theme=\"dark\""), "{html}");
     let dark = html
-        .find("aria-pressed=\"true\" aria-label=\"Dark theme\"")
+        .find("aria-label=\"Switch to the dark theme\" aria-pressed=\"true\"")
         .expect("dark, chosen");
     let light = html
-        .find("aria-pressed=\"false\" aria-label=\"Light theme\"")
+        .find("aria-label=\"Switch to the light theme\" aria-pressed=\"false\"")
         .expect("light, not chosen");
     assert!(dark < light, "{html}");
 }
@@ -455,6 +455,17 @@ fn the_correction_opens_on_the_mistakes_one_at_a_time() {
     );
     assert!(guide.contains("J&#39;ai compris"), "{guide}");
     assert_eq!(guide.matches("class=\"segment ").count(), 3, "{guide}");
+    let faults = mcq_player::icon::contract_faults(&html);
+    assert!(faults.is_empty(), "{faults:#?}");
+}
+
+#[test]
+fn the_flag_is_an_icon_that_keeps_its_name_when_pressed() {
+    let html = question_html("fruit-banana-colour");
+    assert!(html.contains("aria-label=\"Flag for review\""), "{html}");
+    assert!(html.contains("aria-pressed=\"false\""), "{html}");
+    let faults = mcq_player::icon::contract_faults(&html);
+    assert!(faults.is_empty(), "{faults:#?}");
 }
 
 /// The rendered correction, written for `tools/layout-check.mjs`: the browser lays out the real

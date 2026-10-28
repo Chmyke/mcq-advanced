@@ -12,6 +12,7 @@ use mcq_model::{Block, CodeBlock, CodeTokens, MediaKind, Paper, Question, Scorin
 use mcq_format::binary::{CODE_TOKENS_FILE, decode_code_tokens};
 use mcq_math::{FORMULAS_FILE, Formulas};
 
+use crate::icon::{Icon, IconButton};
 use crate::texts::Texts;
 use crate::{b64, markdown};
 
@@ -280,11 +281,11 @@ pub fn question_view(
                 }
             }
             div { class: "question-marks",
-                button {
+                IconButton {
                     class: if item.flagged { "flag on" } else { "flag" },
-                    "aria-pressed": if item.flagged { "true" } else { "false" },
+                    icon: Icon::Flag, label: t.flag_short, tip: t.flag,
+                    aria_pressed: if item.flagged { "true" } else { "false" },
                     onclick: move |_| on_flag.call(()),
-                    if item.flagged { "{t.unflag}" } else { "{t.flag}" }
                 }
                 // Outside the options' fieldset: ticking it reports, it never answers nor moves.
                 label { class: if item.reported { "report on" } else { "report" }, title: "{t.report_hint}",
@@ -471,24 +472,22 @@ pub fn editor_link(source: &str, t: &'static Texts) -> Element {
     }
 }
 
-/// The theme picker, dark on the left and light on the right. `names` are the themes' accessible
-/// names, `marks` what each part shows; `on_pick` receives true for dark.
+/// The theme picker, dark on the left and light on the right, as two icons. `labels` are their
+/// short names, `tips` what they do (each tip contains its label); `on_pick` receives true for dark.
 pub fn theme_switch(
     dark: bool,
-    names: [&str; 2],
-    marks: [&str; 2],
+    labels: [&str; 2],
+    tips: [&str; 2],
     on_pick: EventHandler<bool>,
 ) -> Element {
-    let [dark_name, light_name] = names;
-    let [dark_mark, light_mark] = marks;
+    let [dark_label, light_label] = labels.map(str::to_string);
+    let [dark_tip, light_tip] = tips.map(str::to_string);
     rsx! {
         div { class: "segmented theme-switch",
-            button { "aria-pressed": "{dark}", "aria-label": "{dark_name}", title: "{dark_name}",
-                onclick: move |_| on_pick.call(true), "{dark_mark}"
-            }
-            button { "aria-pressed": "{!dark}", "aria-label": "{light_name}", title: "{light_name}",
-                onclick: move |_| on_pick.call(false), "{light_mark}"
-            }
+            IconButton { icon: Icon::Moon, label: dark_label, tip: dark_tip, aria_pressed: "{dark}",
+                onclick: move |_| on_pick.call(true) }
+            IconButton { icon: Icon::Sun, label: light_label, tip: light_tip, aria_pressed: "{!dark}",
+                onclick: move |_| on_pick.call(false) }
         }
     }
 }

@@ -6,6 +6,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 use mcq_crypto::Identity;
 use mcq_edit::{Project, qcmz};
+use mcq_player::icon::{Icon, IconButton, IconFile, IconMenu};
 use mcq_player::{b64, render};
 
 use crate::actions;
@@ -101,6 +102,7 @@ pub fn App() -> Element {
         }
     });
 
+    mcq_player::icon::use_keep_in_view();
     // Files dropped on the page or pasted: papers open, media join the selected question.
     use_future(move || async move {
         let mut events = document::eval(DROP_AND_PASTE_SCRIPT);
@@ -133,10 +135,25 @@ pub fn App() -> Element {
     let space = studio.read().space;
     let title = studio.read().project.paper.title.clone();
     let tabs = [
-        (Space::Write, t.space_write),
-        (Space::Settings, t.space_settings),
-        (Space::Publish, t.space_publish),
-        (Space::Correct, t.space_correct),
+        (Space::Write, Icon::Pen, t.space_write, t.tip_space_write),
+        (
+            Space::Settings,
+            Icon::Sliders,
+            t.space_settings,
+            t.tip_space_settings,
+        ),
+        (
+            Space::Publish,
+            Icon::Send,
+            t.space_publish,
+            t.tip_space_publish,
+        ),
+        (
+            Space::Correct,
+            Icon::Correct,
+            t.space_correct,
+            t.tip_space_correct,
+        ),
     ];
     rsx! {
         style { {STYLE} }
@@ -145,40 +162,41 @@ pub fn App() -> Element {
             header { class: "top studio-top",
                 div { class: "brand", "{t.brand}" span { class: "muted", " · {title}" } }
                 nav { class: "spaces segmented", "aria-label": "{t.brand}",
-                    for (s, label) in tabs {
-                        button {
+                    for (s, icon, label, tip) in tabs {
+                        IconButton {
                             key: "{label}",
-                            "aria-pressed": "{space == s}",
+                            icon, label, tip, shown: true,
+                            aria_pressed: "{space == s}",
                             onclick: move |_| studio.write().space = s,
-                            "{label}"
                         }
                     }
                 }
                 div { class: "prefs",
-                    button { onclick: move |_| async move {
-                        let blank = studio.read().is_blank();
-                        if blank || platform::confirm(t.confirm_replace).await {
-                            let code = if lang() == Lang::Fr { "fr" } else { "en" };
-                            studio.write().replace(Project::starter(t.new_paper_title, code), Vec::new());
-                        }
-                    }, "{t.new_paper}" }
-                    label { class: "file",
-                        "{t.import}"
-                        input { r#type: "file", class: "sr-only", accept: "{actions::PAPER_FILES}",
-                            onchange: move |e: FormEvent| async move {
-                                if let Some(file) = e.files().into_iter().next()
-                                    && let Ok(bytes) = file.read_bytes().await
-                                {
-                                    actions::open_paper(studio, notice, t, &file.name(), bytes.to_vec()).await;
-                                }
-                            },
-                        }
+                    IconButton { icon: Icon::FileNew, label: t.new_paper, tip: t.tip_new,
+                        onclick: move |_| async move {
+                            let blank = studio.read().is_blank();
+                            if blank || platform::confirm(t.confirm_replace).await {
+                                let code = if lang() == Lang::Fr { "fr" } else { "en" };
+                                studio.write().replace(Project::starter(t.new_paper_title, code), Vec::new());
+                            }
+                        },
                     }
-                    button { onclick: move |_| actions::export_qcmz(studio), "{t.export_qcmz}" }
-                    button { onclick: move |_| actions::export_source(studio), "{t.export_source}" }
-                    button { onclick: move |_| actions::export_student(studio), "{t.export_student}" }
-                    button { onclick: move |_| actions::export_moodle(studio, notice, t), "{t.export_moodle}" }
-                    {render::theme_switch(dark(), [t.theme_dark, t.theme_light], [t.theme_dark, t.theme_light],
+                    IconFile { icon: Icon::Open, label: t.import, tip: t.tip_import, accept: actions::PAPER_FILES,
+                        onchange: move |e: FormEvent| async move {
+                            if let Some(file) = e.files().into_iter().next()
+                                && let Ok(bytes) = file.read_bytes().await
+                            {
+                                actions::open_paper(studio, notice, t, &file.name(), bytes.to_vec()).await;
+                            }
+                        },
+                    }
+                    IconMenu { icon: Icon::Download, label: t.export, tip: t.tip_export,
+                        button { onclick: move |_| actions::export_qcmz(studio), "{t.export_qcmz}" }
+                        button { onclick: move |_| actions::export_source(studio), "{t.export_source}" }
+                        button { onclick: move |_| actions::export_student(studio), "{t.export_student}" }
+                        button { onclick: move |_| actions::export_moodle(studio, notice, t), "{t.export_moodle}" }
+                    }
+                    {render::theme_switch(dark(), [t.theme_dark, t.theme_light], [t.tip_theme_dark, t.tip_theme_light],
                         EventHandler::new(move |pick| { dark.set(pick); platform::remember_dark(pick); }))}
                 }
             }
@@ -187,7 +205,7 @@ pub fn App() -> Element {
                 span { role: "status",
                     if let Some(message) = notice() {
                         span { "{message}" }
-                        button { class: "link", "aria-label": "{t.close}", title: "{t.close}", onclick: move |_| notice.set(None), "✕" }
+                        IconButton { class: "link", icon: Icon::Close, label: t.close, onclick: move |_| notice.set(None) }
                     }
                 }
                 if saved() { span { class: "muted saved", "{t.saved_locally}" } }

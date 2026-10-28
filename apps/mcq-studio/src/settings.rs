@@ -4,6 +4,8 @@ use dioxus::prelude::*;
 use mcq_edit::ops;
 use mcq_model::{INTERFACE_LANGUAGES, Issue, Scoring};
 
+use mcq_player::icon::{Icon, IconButton};
+
 use crate::editor::issue_list;
 use crate::state::{self, Studio};
 use crate::texts::Texts;
@@ -129,16 +131,16 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                                 oninput: move |e| studio.write().edit_paper(|p| p.themes[k].course_ref = e.value()) }
                         }
                         div { class: "block-actions",
-                            button { class: "icon", title: "{t.move_up}", "aria-label": "{t.move_up}",
-                                onclick: { let id = id.clone(); move |_| studio.write().edit_paper(|p| { ops::move_theme(p, &id, true); }) }, "↑" }
-                            button { class: "icon", title: "{t.move_down}", "aria-label": "{t.move_down}",
-                                onclick: { let id = id.clone(); move |_| studio.write().edit_paper(|p| { ops::move_theme(p, &id, false); }) }, "↓" }
-                            button { class: "icon", title: "{t.remove_theme}", "aria-label": "{t.remove_theme}", disabled: used,
-                                onclick: { let id = id.clone(); move |_| studio.write().edit_paper(|p| { ops::remove_theme(p, &id); }) }, "✕" }
+                            IconButton { icon: Icon::ArrowUp, label: t.move_up, tip: t.tip_theme_up,
+                                onclick: { let id = id.clone(); move |_| studio.write().edit_paper(|p| { ops::move_theme(p, &id, true); }) } }
+                            IconButton { icon: Icon::ArrowDown, label: t.move_down, tip: t.tip_theme_down,
+                                onclick: { let id = id.clone(); move |_| studio.write().edit_paper(|p| { ops::move_theme(p, &id, false); }) } }
+                            IconButton { icon: Icon::Trash, label: t.delete, tip: t.remove_theme, disabled: used,
+                                onclick: { let id = id.clone(); move |_| studio.write().edit_paper(|p| { ops::remove_theme(p, &id); }) } }
                         }
                     }
                 }
-                button { class: "small", onclick: move |_| studio.write().edit_paper(|p| { ops::add_theme(p, t.new_theme); }), "{t.add_theme}" }
+                IconButton { icon: Icon::Plus, label: t.add_theme, tip: t.tip_add_theme, onclick: move |_| studio.write().edit_paper(|p| { ops::add_theme(p, t.new_theme); }) }
             }
             section { class: "card",
                 h2 { "{t.paper_findings}" }
