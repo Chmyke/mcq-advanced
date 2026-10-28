@@ -5,7 +5,9 @@ badly written questions as they are typed, students take it on any device withou
 the results tell the class what to revisit, topic by topic.
 
 **Status: early development.** Early desktop builds for Windows and Linux can be downloaded from
-[the website](https://mickaelmancini.com/mcq-advanced/). The core works from the command line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
+[the website](https://mickaelmancini.com/mcq-advanced/#telecharger) or the
+[GitHub releases](https://github.com/Chmyke/mcq-advanced/releases/latest), the same files with
+their SHA-256. The core works from the command line: the paper format, scoring, the pedagogical linter, and the security layer (signed and
 encrypted packages, answer key apart, copies sealed for the teacher). The student player and the
 teacher's Studio (writing, publishing, correcting and class analysis) run in the browser and on
 the desktop. It imports GIFT, Moodle XML, Aiken and CSV banks and exports to Moodle. It is the Rust rewrite of a quiz tool already used in class, whose scoring,
@@ -178,6 +180,10 @@ builds `target/dist/MCQ-Advanced-Setup-<version>.exe`, a per-user installer made
 The Linux archive is built and started on Ubuntu 22.04 by the `Linux desktop` workflow, run by
 hand from the Actions tab; `tools/fetch-linux.ps1` then downloads it into `target/dist` and checks
 its hash. Neither is signed yet.
+
+Once both files are on the website, `tools/release-github.ps1` publishes them as the GitHub
+release of the version, byte for byte, with the version's section of [CHANGELOG.md](CHANGELOG.md)
+as notes, and checks GitHub's digests against the site's `SHA256.txt`.
 
 Both programs carry the website's icon, `packaging/icons/mcq-advanced.svg`: `tools/icons.ps1`
 renders it into the PNG used by the Linux windows and menus and the ICO embedded in the Windows
