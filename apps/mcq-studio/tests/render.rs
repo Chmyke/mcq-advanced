@@ -262,6 +262,7 @@ fn the_other_tips_contain_their_labels() {
         let pairs = [
             (t.new_paper, t.tip_new),
             (t.import, t.tip_import),
+            (t.paste, t.tip_paste),
             (t.export, t.tip_export),
             (t.theme_light, t.tip_theme_light),
             (t.theme_dark, t.tip_theme_dark),

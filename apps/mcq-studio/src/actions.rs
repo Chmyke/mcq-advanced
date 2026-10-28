@@ -169,6 +169,29 @@ pub async fn open_paper(
     notice.set(Some(text));
 }
 
+/// Opens the paper inside pasted text, typically an AI's answer to the prompt on the website,
+/// whatever it wrote around the file.
+pub async fn open_pasted(
+    studio: Signal<Studio>,
+    mut notice: Signal<Option<String>>,
+    t: &'static Texts,
+    text: &str,
+) {
+    match mcq_format::paper_in_pasted(text) {
+        Some(paper) => {
+            open_paper(
+                studio,
+                notice,
+                t,
+                "pasted.qcm.md",
+                paper.as_bytes().to_vec(),
+            )
+            .await
+        }
+        None => notice.set(Some(t.paste_not_paper.to_string())),
+    }
+}
+
 pub fn export_qcmz(studio: Signal<Studio>) {
     let s = studio.read();
     if let Ok(bytes) = qcmz::export(&s.project) {

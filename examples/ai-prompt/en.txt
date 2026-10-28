@@ -1,0 +1,95 @@
+You are an experienced teacher who knows how to write good multiple-choice tests. From the course at the end of this message, write a test in the MCQ Advanced format (a .qcm.md file), ready for the teacher to review.
+
+SETTINGS (the teacher may change them):
+- Number of questions: 12
+- Audience: high school students
+- Language of the test: English
+
+CONTENT
+- Use only what the course says. If it is not enough for the number of questions asked, write fewer rather than make things up.
+- Group the questions into 2 to 4 themes of the course, each with at least 3 questions.
+- Aim at understanding and applying: at least half the questions at level 3 or above, at most one question in eight at level 1.
+  Levels: 1 remember, 2 understand, 3 apply, 4 analyse, 5 evaluate.
+- 3 or 4 answers per question, a single correct one most of the time.
+- Wrong answers are mistakes students really make on this notion, not absurdities.
+- The correct answer is no longer and no more precise than the others: students quickly spot the most careful answer. Its position (1st, 2nd, 3rd, 4th) varies from one question to the next.
+- Never "all of the above" or "none of the above".
+- A question asking for an exception puts the word in bold: "Which one is **not** ...?".
+- Every statement asks a real question, ending with "?" or ":".
+- Every answer, right or wrong, has a one or two sentence explanation saying why.
+- Every question has a RULE: (the rule to remember, in one sentence) and a REVIEW: (the part of the course to revise). Every theme has a COURSE:.
+
+FORMAT
+- The file starts with a header between two "---" lines: title, description, lang (en, fr...), duration (in minutes), penalty: 0, scoring: all-or-nothing.
+- duration: add up the times of all questions, add 20 %, round up to the minute.
+- "# THEME id | Title" opens a theme, with "COURSE:" right under it.
+- "## Q id | level N | Ns" opens a question: N from 1 to 5, Ns the answering time in seconds (10 to 60).
+- Ids are lowercase, with hyphens, without accents, and all different.
+- The statement follows, in Markdown. Code goes in a block with its language (```python). Formulas in LaTeX: $x^2$ inside a sentence, $$\frac{a}{b}$$ alone on its line. A real dollar sign is written \$.
+- "- [x]" for a correct answer, "- [ ]" for a wrong one. Several [x] for a question with several answers.
+- An answer's explanation is on the next line, starting with ">" and indented by two spaces.
+- No image or sound: you cannot provide them.
+
+=== EXAMPLE ===
+---
+title: The water cycle
+description: End of chapter check
+lang: en
+duration: 2
+penalty: 0
+scoring: all-or-nothing
+---
+
+# THEME states | Changes of state
+COURSE: Chapter 1, the states of water
+
+## Q puddle-evaporation | level 3 | 30s
+After the rain, a puddle disappears on a sunny day without ever boiling. What happened?
+
+- [ ] The water all soaked into the ground
+  > A puddle on a waterproof surface disappears too: soaking in does not explain everything.
+- [x] The water evaporated at its surface
+  > Evaporation happens at any temperature, well below 100 °C.
+- [ ] The water boiled in the sunshine
+  > Boiling takes 100 °C at sea level; the sun does not bring a puddle there.
+
+RULE: Evaporation happens at any temperature, boiling at one precise temperature.
+REVIEW: Chapter 1, evaporation and boiling
+
+## Q cloud-condensation | level 2 | 20s
+What is a cloud made of?
+
+- [x] Tiny droplets of water
+  > The vapour condensed into droplets (or ice crystals) too small to fall.
+- [ ] Invisible water vapour
+  > Vapour is an invisible gas: if you can see the cloud, it has condensed.
+- [ ] Smoke from factories
+  > Smoke can seed the droplets, but the cloud is still water.
+
+RULE: A visible cloud is condensed water, not vapour.
+REVIEW: Chapter 1, condensation
+
+## Q floating-ice | level 4 | 40s
+An ice cube floats in a glass of water filled to the brim. When it melts, what does the water level do?
+
+- [ ] It rises and the glass overflows
+  > The part above the surface seems to add water, but it only makes up for the lower density of ice.
+- [ ] It drops a little
+  > Ice loses no water when it melts: the mass stays the same.
+- [x] It stays the same
+  > The cube already displaces exactly its own mass of water; melted, it fills that same volume.
+
+RULE: A floating body displaces its own mass of liquid.
+REVIEW: Chapter 1, the density of ice
+=== END OF EXAMPLE ===
+
+REVIEW BEFORE ANSWERING
+- Count the questions where the correct answer is the longest: no more than one in three. For the others, shorten the correct answer (the justification goes in its explanation) or lengthen a wrong one.
+- No correct answer reaches one and a half times the length of the longest wrong answer.
+- The positions of the correct answers are spread out, with no more than half of them at the same rank.
+
+ANSWER
+Reply with the content of the file only, from the first "---" line to the last explanation: no sentence before or after, no code block around it. The teacher pastes it as is into MCQ Advanced, which reviews it with its validator.
+
+COURSE:
+[paste your course here]

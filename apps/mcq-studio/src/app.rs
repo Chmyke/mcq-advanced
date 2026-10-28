@@ -103,11 +103,16 @@ pub fn App() -> Element {
     });
 
     mcq_player::icon::use_keep_in_view();
-    // Files dropped on the page or pasted: papers open, media join the selected question.
+    // Files dropped on the page or pasted: papers open, media join the selected question. Text
+    // pasted outside a field opens as a paper when it holds one.
     use_future(move || async move {
         let mut events = document::eval(DROP_AND_PASTE_SCRIPT);
         while let Ok((name, data)) = events.recv::<(String, String)>().await {
             let t = texts(lang());
+            if name == platform::PASTED_TEXT {
+                actions::open_pasted(studio, notice, t, &data).await;
+                continue;
+            }
             let Some(bytes) = b64::decode(&data) else {
                 continue;
             };
@@ -187,6 +192,14 @@ pub fn App() -> Element {
                                 && let Ok(bytes) = file.read_bytes().await
                             {
                                 actions::open_paper(studio, notice, t, &file.name(), bytes.to_vec()).await;
+                            }
+                        },
+                    }
+                    IconButton { icon: Icon::Paste, label: t.paste, tip: t.tip_paste,
+                        onclick: move |_| async move {
+                            match platform::read_clipboard().await {
+                                Some(text) => actions::open_pasted(studio, notice, t, &text).await,
+                                None => notice.set(Some(t.paste_refused.to_string())),
                             }
                         },
                     }

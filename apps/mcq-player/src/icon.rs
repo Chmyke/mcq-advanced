@@ -27,6 +27,7 @@ pub enum Icon {
     Monitor,
     Moon,
     Open,
+    Paste,
     Pen,
     Phone,
     Plus,
@@ -46,7 +47,7 @@ pub enum Icon {
 }
 
 impl Icon {
-    pub const ALL: [Icon; 34] = [
+    pub const ALL: [Icon; 35] = [
         Icon::ArrowDown,
         Icon::ArrowLeft,
         Icon::ArrowRight,
@@ -65,6 +66,7 @@ impl Icon {
         Icon::Monitor,
         Icon::Moon,
         Icon::Open,
+        Icon::Paste,
         Icon::Pen,
         Icon::Phone,
         Icon::Plus,
@@ -121,6 +123,9 @@ impl Icon {
             Icon::Moon => "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z",
             Icon::Open => {
                 "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 17v-6M9 14l3-3 3 3"
+            }
+            Icon::Paste => {
+                "M9 3h6v3H9zM15 4.5h2a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2M12 10v7M9 14l3 3 3-3"
             }
             Icon::Pen => "M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16zM13.5 6.5l4 4",
             Icon::Phone => {

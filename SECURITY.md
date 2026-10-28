@@ -4,8 +4,8 @@ MCQ Advanced is open source, so nothing it protects may depend on hidden code. P
 from keys alone (Kerckhoffs's principle), built from standard primitives with no home-made
 cryptography. This page says what is guaranteed, what is not, and how it works.
 
-**Status:** the cryptographic core, the command line and the student player are implemented and
-tested; the editor is not released yet.
+**Status:** the cryptographic core, the command line, the student player and the editor are
+released and tested.
 
 ## Reporting a vulnerability
 
@@ -24,7 +24,7 @@ photograph or a memory dump. The guarantees below hold within that limit.
 | Circulating a forged paper | Every package is signed by the teacher. The player shows the teacher's fingerprint, also printed on the room sheet: a forged package shows another one. |
 | Altering a package or a copy | Any changed byte makes the signature or the authenticated encryption fail; the file is refused. |
 | Reading or forging another student's copy | A copy is sealed for the teacher's key alone. The student's name is declared, as on paper; the receipt code shown at submission ties a copy to the student who received it. |
-| Copying from a neighbour | Questions and options can be drawn and shuffled per student. |
+| Copying from a neighbour | Questions and options are shuffled per student unless the teacher turns it off: neighbours see them in different orders. |
 | Changing answers after seeing the correction | The copy is sealed before any correction is shown; the correction opens with an end code the teacher reveals once every copy is in. |
 | Cheating on time | Elapsed time and focus losses are recorded in the copy, **not guaranteed**: without a server, a device's clock can be changed. |
 | Searching the web during the exam | Focus losses are **detected and reported, not prevented**. |

@@ -1,0 +1,95 @@
+Tu es un enseignant expérimenté qui sait écrire de bons QCM. À partir du cours placé à la fin de ce message, écris un QCM au format MCQ Advanced (fichier .qcm.md), prêt à être relu par l'enseignant.
+
+RÉGLAGES (l'enseignant peut les modifier) :
+- Nombre de questions : 12
+- Public : élèves de lycée
+- Langue du QCM : français
+
+CONTENU
+- N'utilise que ce qui est dans le cours. S'il ne suffit pas pour le nombre de questions demandé, écris-en moins plutôt que d'inventer.
+- Regroupe les questions en 2 à 4 thèmes du cours, chacun avec au moins 3 questions.
+- Vise la compréhension et l'application : au moins la moitié des questions au niveau 3 ou plus, au plus une question sur huit au niveau 1.
+  Niveaux : 1 se souvenir, 2 comprendre, 3 appliquer, 4 analyser, 5 évaluer.
+- 3 ou 4 réponses par question, une seule juste la plupart du temps.
+- Les mauvaises réponses sont des erreurs que font vraiment les élèves sur cette notion, pas des absurdités.
+- La bonne réponse n'est pas plus longue ni plus précise que les autres : les élèves repèrent vite la réponse la plus soignée. Sa position (1re, 2e, 3e, 4e) varie d'une question à l'autre.
+- Jamais « toutes les réponses » ni « aucune de ces réponses ».
+- Une question qui demande une exception met le mot en gras : « Laquelle n'est **pas** ... ? ».
+- Chaque énoncé pose une vraie question, terminée par « ? » ou par « : ».
+- Chaque réponse, juste ou fausse, a une explication d'une ou deux phrases qui dit pourquoi.
+- Chaque question a une RULE: (la règle à retenir, en une phrase) et une REVIEW: (la partie du cours à revoir). Chaque thème a un COURSE:.
+
+FORMAT
+- Le fichier commence par un en-tête entre deux lignes « --- » : title, description, lang (fr, en...), duration (en minutes), penalty: 0, scoring: all-or-nothing.
+- duration : additionne les temps de toutes les questions, ajoute 20 %, arrondis à la minute supérieure.
+- « # THEME id | Titre » ouvre un thème, « COURSE: » juste dessous.
+- « ## Q id | level N | Ns » ouvre une question : N de 1 à 5, Ns le temps de réponse en secondes (10 à 60).
+- Les id s'écrivent en minuscules, avec des tirets, sans accents, et sont tous différents.
+- L'énoncé suit, en Markdown. Le code va dans un bloc avec son langage (```python). Les formules en LaTeX : $x^2$ dans une phrase, $$\frac{a}{b}$$ seule sur sa ligne. Un vrai signe dollar s'écrit \$.
+- « - [x] » pour une réponse juste, « - [ ] » pour une fausse. Plusieurs [x] pour une question à plusieurs réponses.
+- L'explication d'une réponse est sur la ligne suivante, commencée par « > » et deux espaces devant.
+- Pas d'image ni de son : tu ne peux pas les fournir.
+
+=== EXEMPLE ===
+---
+title: Le cycle de l'eau
+description: Vérification de fin de chapitre
+lang: fr
+duration: 2
+penalty: 0
+scoring: all-or-nothing
+---
+
+# THEME etats | Changements d'état
+COURSE: Chapitre 1, les états de l'eau
+
+## Q evaporation-flaque | level 3 | 30s
+Après la pluie, une flaque disparaît en une journée ensoleillée sans jamais bouillir. Que s'est-il passé ?
+
+- [ ] L'eau s'est infiltrée en totalité dans le sol
+  > Une flaque sur un sol imperméable disparaît aussi : l'infiltration n'explique pas tout.
+- [x] L'eau s'est évaporée à la surface
+  > L'évaporation se produit à toute température, bien en dessous de 100 °C.
+- [ ] L'eau a bouilli sous l'effet du soleil
+  > L'ébullition demande 100 °C au niveau de la mer ; le soleil n'y porte pas une flaque.
+
+RULE: L'évaporation se fait à toute température, l'ébullition à une température précise.
+REVIEW: Chapitre 1, évaporation et ébullition
+
+## Q nuage-condensation | level 2 | 20s
+De quoi un nuage est-il fait ?
+
+- [x] De fines gouttelettes d'eau
+  > La vapeur s'est condensée en gouttelettes (ou en cristaux de glace) trop petites pour tomber.
+- [ ] De vapeur d'eau invisible
+  > La vapeur est un gaz invisible : si on voit le nuage, c'est qu'elle s'est condensée.
+- [ ] De fumée venue des usines
+  > La fumée peut servir de noyau aux gouttelettes, mais le nuage reste de l'eau.
+
+RULE: Un nuage visible est de l'eau condensée, pas de la vapeur.
+REVIEW: Chapitre 1, condensation
+
+## Q glace-flotte | level 4 | 40s
+Un glaçon flotte dans un verre d'eau plein à ras bord. Quand il fond, que fait le niveau de l'eau ?
+
+- [ ] Il monte et le verre déborde
+  > La partie émergée semble ajouter de l'eau, mais elle compense seulement la moindre densité de la glace.
+- [ ] Il baisse un peu
+  > La glace ne perd aucune eau en fondant : la masse reste la même.
+- [x] Il reste le même
+  > Le glaçon déplace déjà exactement sa masse d'eau ; fondu, il occupe ce même volume.
+
+RULE: Un corps qui flotte déplace sa propre masse de liquide.
+REVIEW: Chapitre 1, densité de la glace
+=== FIN DE L'EXEMPLE ===
+
+RELECTURE AVANT DE RÉPONDRE
+- Compte les questions où la bonne réponse est la plus longue : pas plus d'une sur trois. Pour les autres, raccourcis la bonne réponse (la justification va dans son explication) ou allonge une mauvaise réponse.
+- Aucune bonne réponse n'atteint une fois et demie la longueur de la plus longue mauvaise réponse.
+- Les positions des bonnes réponses sont réparties, sans en mettre plus de la moitié au même rang.
+
+RÉPONSE
+Réponds uniquement par le contenu du fichier, de la première ligne « --- » à la dernière explication : pas de phrase avant ni après, pas de bloc de code autour. L'enseignant le colle tel quel dans MCQ Advanced, qui le relit avec son validateur.
+
+COURS :
+[colle ton cours ici]

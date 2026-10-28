@@ -8,7 +8,12 @@ use dioxus::prelude::*;
 
 pub use mcq_player::platform::{browser_language, download, remember_dark, remembered_dark, rng};
 
-/// Sends `[file name, base 64]` for every file dropped on the page or pasted into it.
+/// The name sent with text pasted outside any field, which may hold a paper. No file name holds
+/// a NUL character.
+pub const PASTED_TEXT: &str = "\u{0}text";
+
+/// Sends `[file name, base 64]` for every file dropped on the page or pasted into it, and
+/// `[PASTED_TEXT, text]` for text pasted outside a field.
 pub const DROP_AND_PASTE_SCRIPT: &str = r#"
 const send = (f) => {
   const r = new FileReader();
@@ -26,9 +31,16 @@ document.addEventListener('drop', (e) => {
 });
 document.addEventListener('paste', (e) => {
   const files = e.clipboardData ? Array.from(e.clipboardData.files) : [];
-  if (!files.length) return;
+  if (files.length) {
+    e.preventDefault();
+    for (const f of files) send(f);
+    return;
+  }
+  if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+  const text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+  if (!text) return;
   e.preventDefault();
-  for (const f of files) send(f);
+  dioxus.send(['\u0000text', text]);
 });
 await new Promise(() => {});
 "#;
@@ -165,6 +177,17 @@ pub async fn interface_language() -> String {
 pub async fn teacher_demo_from_link() -> bool {
     const SCRIPT: &str = "return new URLSearchParams(location.search).get('demo') === 'teacher';";
     document::eval(SCRIPT).join().await.unwrap_or(false)
+}
+
+/// The text on the clipboard, or `None` when the browser refuses to give it.
+pub async fn read_clipboard() -> Option<String> {
+    const SCRIPT: &str =
+        "try { return await navigator.clipboard.readText(); } catch (e) { return null; }";
+    document::eval(SCRIPT)
+        .join::<Option<String>>()
+        .await
+        .ok()
+        .flatten()
 }
 
 /// Asks the browser's yes/no question.

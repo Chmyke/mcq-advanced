@@ -7,8 +7,10 @@
 //! the earlier Unity tool (French keywords) and accepts English keywords as well.
 
 pub mod binary;
+mod pasted;
 mod write;
 
+pub use pasted::paper_in_pasted;
 pub use write::{student_view, write};
 
 use mcq_model::{
