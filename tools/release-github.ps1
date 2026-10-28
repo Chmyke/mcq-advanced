@@ -1,7 +1,8 @@
 # Publishes the version the website serves as a release of the GitHub repository: the same
 # installer, Linux archive and SHA256.txt, byte for byte. The live SHA256.txt is the reference;
 # GitHub's own digest of every uploaded file must match it, or the step fails.
-# Runs after main is pushed and the site deployed: the release tags the pushed head.
+# Runs after main is pushed and the site deployed. The release tags the commit that set the
+# version in Cargo.toml, the source of the files built for it, even when main has moved on.
 # The notes are the section of the version in CHANGELOG.md: without one, no release.
 # Run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/release-github.ps1 [-DryRun] [-Replace]
 # -SelfTest (run by check.ps1, no network) proves the digest comparison refuses a mismatch, that
@@ -53,8 +54,21 @@ if (($seen -join ',') -ne 'changed.tar.gz,missing.tar.gz' -or @(Get-Mismatches $
 }
 $refused = $false
 try { Get-Notes $changelog '0.0.0' | Out-Null } catch { $refused = $true }
+# The commit that introduced `version = "<version>"` in Cargo.toml: the oldest that touched it.
+function Get-VersionCommit([string]$version) {
+    # A regex with dots for the quotes: Windows PowerShell mangles quotes passed to git.
+    $pattern = 'version = .' + [regex]::Escape($version) + '.$'
+    $commits = @(git -C $root log --format=%H --pickaxe-regex "-S$pattern" -- Cargo.toml)
+    if (-not $commits) { throw "No commit sets version $version in Cargo.toml." }
+    $commits[-1]
+}
+$release = Get-VersionCommit $version
+$line = "version = `"$version`""
+if (-not ((git -C $root show "${release}:Cargo.toml") -contains $line) -or ((git -C $root show "${release}~1:Cargo.toml") -contains $line)) {
+    throw "Release self-test failed: $release is not the commit that set version $version."
+}
 if (-not $refused) { throw 'Release self-test failed: a version without a changelog section got notes.' }
-if ($SelfTest) { "PASS  release self-test, notes for $version"; return }
+if ($SelfTest) { "PASS  release self-test, notes for $version, tagged at $release"; return }
 
 function Invoke-Gh {
     $out = & gh @args
@@ -70,11 +84,11 @@ function Get-ReleaseDigests([string]$tag) {
     $digests
 }
 
-# The release tags what GitHub's main holds: the local head, clean and pushed.
-if (git -C $root status --porcelain --untracked-files=no) { throw "The checkout has local changes: $root" }
-$head = (git -C $root rev-parse HEAD).Trim()
+# The version's commit must already be on GitHub's main.
 $remote = ((git ls-remote "https://github.com/$Repo.git" refs/heads/main) -split '\s+')[0]
-if ($head -ne $remote) { throw "The local head $head is not GitHub's main ($remote): push it first." }
+git -C $root merge-base --is-ancestor $release $remote 2>$null
+if ($LASTEXITCODE -ne 0) { throw "$release (version $version) is not on GitHub's main ($remote): push it first." }
+$head = $release
 $tag = "v$version"
 
 # The files as the site serves them. The User-Agent keeps these requests out of the site's counter.
@@ -128,5 +142,5 @@ $served = Get-ReleaseDigests $tag
 $bad = @(Get-Mismatches $manifest $served)
 if (-not $served -or $bad.Count) { throw "GitHub release $tag does not serve the site's files: $($bad -join ', ')" }
 $tagged = (Invoke-Gh api "repos/$Repo/commits/$tag" --jq .sha).Trim()
-if ($tagged -ne $head) { throw "Tag $tag names $tagged, not the pushed head $head." }
+if ($tagged -ne $head) { throw "Tag $tag names $tagged, not the commit of version ${version}: $head." }
 foreach ($name in $manifest.Keys) { "PASS  $Repo $tag  $name  $($manifest[$name])" }
