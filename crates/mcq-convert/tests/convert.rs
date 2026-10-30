@@ -25,6 +25,14 @@ fn codes(issues: &[Issue], severity: Severity) -> Vec<&'static str> {
         .collect()
 }
 
+/// The Moodle export with code coloured, as the CLI and the Studio call it.
+fn export(project: &Project) -> moodle::Exported {
+    moodle::export(
+        project,
+        &mcq_highlight::Highlighter::new().paper(&project.paper),
+    )
+}
+
 /// What the `.qcm.md` reader gives back from the written paper: the import must survive it.
 fn reread(paper: &Paper) -> Paper {
     let (mut again, issues) = mcq_format::read(&mcq_format::write(paper));
@@ -316,7 +324,7 @@ fn bank_view(paper: &Paper, lang: &str) -> Paper {
 #[test]
 fn moodle_round_trip_keeps_everything_a_bank_can_hold() {
     let project = sample_project();
-    let exported = moodle::export(&project);
+    let exported = export(&project);
     let back = import(Source::MoodleXml, &exported.xml, &options("en"));
     assert!(
         !back.issues.iter().any(|i| i.severity != Severity::Info),
@@ -327,15 +335,18 @@ fn moodle_round_trip_keeps_everything_a_bank_can_hold() {
     assert_eq!(back.project.media, project.media);
 
     // Exporting what was imported gives the same bank, byte for byte.
-    let again = moodle::export(&back.project);
+    let again = export(&back.project);
     assert_eq!(again.xml, exported.xml);
     // The duration and penalty stay behind, and the export says so.
-    assert_eq!(codes(&exported.issues, Severity::Info), ["EXPORT_SETTINGS"]);
+    assert_eq!(
+        codes(&exported.issues, Severity::Info),
+        ["EXPORT_SETTINGS", "EXPORT_ANSWER_COUNT"]
+    );
 }
 
 #[test]
 fn moodle_export_has_the_shape_moodle_reads() {
-    let xml = moodle::export(&sample_project()).xml;
+    let xml = export(&sample_project()).xml;
     let doc = roxmltree::Document::parse(&xml).expect("well-formed XML");
     let questions: Vec<_> = doc
         .root_element()
@@ -364,7 +375,108 @@ fn moodle_export_has_the_shape_moodle_reads() {
     assert!(xml.contains("<single>false</single>"));
     assert!(xml.contains("<file name=\"apple.png\" path=\"/\" encoding=\"base64\">"));
     assert!(xml.contains("<img src=\"@@PLUGINFILE@@/apple.png\" alt=\"A red apple on a table\">"));
-    assert!(xml.contains("<pre data-lines=\"3\"><code class=\"language-cs\">int total = 0;"));
+    assert!(xml.contains("<pre data-lines=\"3\"><code class=\"language-cs\">"));
+}
+
+/// The paper behind the file a teacher imports into a real Moodle site to check the export.
+fn moodle_check_project() -> Project {
+    let (paper, issues) = mcq_format::read(include_str!(
+        "../../../examples/moodle-check/moodle-check.qcm.md"
+    ));
+    assert!(
+        !issues.iter().any(|i| i.severity == Severity::Error),
+        "{issues:?}"
+    );
+    let mut project = Project {
+        paper,
+        ..Project::default()
+    };
+    for (name, data) in [
+        (
+            "triangle.svg",
+            &include_bytes!("../../../examples/moodle-check/media/triangle.svg")[..],
+        ),
+        (
+            "tone.mp3",
+            &include_bytes!("../../../examples/moodle-check/media/tone.mp3")[..],
+        ),
+        (
+            "pattern.mp4",
+            &include_bytes!("../../../examples/moodle-check/media/pattern.mp4")[..],
+        ),
+    ] {
+        project.media.insert(format!("media/{name}"), data.to_vec());
+    }
+    project
+}
+
+#[test]
+fn moodle_export_writes_formulas_for_mathjax_and_colours_code() {
+    let xml = export(&moodle_check_project()).xml;
+    // Inline and display formulas in MathJax's delimiters, LaTeX untouched by Markdown.
+    assert!(xml.contains(r"\(\frac{1}{2} + \frac{1}{3}\)"), "{xml}");
+    assert!(xml.contains(r"\(a &lt; b\)"));
+    assert!(xml.contains(r"\(\left\{ x \mid x &gt; 0 \right\}\)"));
+    assert!(xml.contains(r"\[\int_0^1 x^2 \, dx\]"));
+    assert!(xml.contains(r"\(\frac{5}{6}\)</text>"));
+    assert!(xml.contains(r"\[\int_0^1 x^n \, dx = \frac{1}{n+1}\]"));
+    // Prices stay text.
+    assert!(xml.contains("the book costs $5, the bag $10."));
+    // Code: coloured tokens, line 2 marked, signs escaped, the text intact.
+    assert!(xml.contains("<pre data-lines=\"2\"><code class=\"language-python\">"));
+    assert!(xml.contains("<span style=\"color: #a626a4\">def</span>"));
+    assert!(xml.contains("<span style=\"background-color: #fff1c2\">"));
+    assert!(xml.contains("&lt;"));
+    assert!(xml.contains("&amp;&amp;"));
+    // Moodle's count of correct answers comes after the attempt: never written.
+    assert!(!xml.contains("shownumcorrect"));
+}
+
+#[test]
+fn moodle_round_trip_keeps_formulas_code_and_media() {
+    let project = moodle_check_project();
+    let exported = export(&project);
+    let back = import(Source::MoodleXml, &exported.xml, &options("en"));
+    assert!(
+        !back.issues.iter().any(|i| i.severity != Severity::Info),
+        "{:?}",
+        back.issues
+    );
+    let expected = bank_view(&project.paper, "en");
+    for (got, want) in back.project.paper.questions.iter().zip(&expected.questions) {
+        assert_eq!(got, want);
+    }
+    assert_eq!(back.project.paper, expected);
+    assert_eq!(back.project.media, project.media);
+    assert_eq!(export(&back.project).xml, exported.xml);
+    assert_eq!(
+        codes(&exported.issues, Severity::Info),
+        ["EXPORT_SETTINGS", "EXPORT_ANSWER_COUNT"]
+    );
+}
+
+#[test]
+fn moodle_import_reads_mathjax_formulas() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="multichoice">
+    <name><text>sum</text></name>
+    <questiontext format="html"><text><![CDATA[<p>What is \( \frac{1}{2} + \frac{1}{3} \) if \(a_1 &lt; b\)?</p><p>$$\sqrt{x}$$ and \[ y^2 \]</p>]]></text></questiontext>
+    <single>true</single>
+    <answer fraction="100" format="html"><text>\(\frac{5}{6}\)</text></answer>
+    <answer fraction="0" format="html"><text>\(\frac{2}{5}\)</text></answer>
+  </question>
+</quiz>"#;
+    let imported = import(Source::MoodleXml, xml, &options("en"));
+    let question = imported.project.paper.question("sum").expect("sum");
+    assert_eq!(
+        question.body,
+        [Block::Text(
+            "What is $\\frac{1}{2} + \\frac{1}{3}$ if $a_1 < b$?\n$$\\sqrt{x}$$ and $$y^2$$"
+                .to_string()
+        )]
+    );
+    assert_eq!(question.options[0].text, "$\\frac{5}{6}$");
 }
 
 #[test]

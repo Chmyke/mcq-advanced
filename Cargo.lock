@@ -3214,6 +3214,7 @@ dependencies = [
  "mcq-crypto",
  "mcq-edit",
  "mcq-format",
+ "mcq-highlight",
  "mcq-lint",
  "mcq-model",
  "mcq-publish",
@@ -3225,7 +3226,9 @@ version = "0.3.0"
 dependencies = [
  "mcq-edit",
  "mcq-format",
+ "mcq-highlight",
  "mcq-lint",
+ "mcq-math",
  "mcq-model",
  "pulldown-cmark",
  "roxmltree",

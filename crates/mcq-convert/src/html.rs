@@ -4,6 +4,8 @@
 //! question banks hold: paragraphs, line breaks, emphasis, inline code, `<pre>` code, lists,
 //! images, sounds and videos. Everything else becomes plain text.
 
+use std::fmt::Write as _;
+
 use mcq_model::{Block, CodeBlock, Media, MediaKind};
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
 
@@ -592,11 +594,59 @@ fn safe_events(text: &str) -> impl Iterator<Item = Event<'_>> {
     })
 }
 
+/// Stand-ins for formulas while Markdown is rendered, from Unicode's private use area.
+const MATH_OPEN: char = '\u{E000}';
+const MATH_CLOSE: char = '\u{E001}';
+
 /// Statement Markdown as HTML, rendered as the Player renders it: no raw HTML, no link.
+/// Formulas leave as `\(...\)` and `\[...\]`, the delimiters of Moodle's MathJax filter, their
+/// LaTeX untouched by the Markdown renderer.
 pub fn from_markdown(text: &str) -> String {
+    let split = mcq_math::split(text);
+    let mut markdown = String::with_capacity(text.len());
+    let mut formulas = Vec::new();
+    for segment in &split.segments {
+        match *segment {
+            mcq_math::Segment::Text(t) => markdown.push_str(t),
+            mcq_math::Segment::Math { latex, display } => {
+                markdown.push(MATH_OPEN);
+                markdown.push_str(&formulas.len().to_string());
+                markdown.push(MATH_CLOSE);
+                formulas.push((latex, display));
+            }
+        }
+    }
     let mut out = String::new();
-    html::push_html(&mut out, safe_events(text));
-    out.trim_end().to_string()
+    html::push_html(&mut out, safe_events(&markdown));
+    let out = out.trim_end();
+    if formulas.is_empty() {
+        return out.to_string();
+    }
+    let mut with_math = String::with_capacity(out.len());
+    let mut rest = out;
+    while let Some(start) = rest.find(MATH_OPEN) {
+        with_math.push_str(&rest[..start]);
+        let after = &rest[start + MATH_OPEN.len_utf8()..];
+        let end = after.find(MATH_CLOSE).unwrap_or(after.len());
+        match after[..end]
+            .parse::<usize>()
+            .ok()
+            .and_then(|n| formulas.get(n))
+        {
+            Some(&(latex, display)) => {
+                let (open, close) = if display {
+                    ("\\[", "\\]")
+                } else {
+                    ("\\(", "\\)")
+                };
+                let _ = write!(with_math, "{open}{}{close}", escape(latex.trim()));
+            }
+            None => with_math.push_str(&after[..end]),
+        }
+        rest = after.get(end + MATH_CLOSE.len_utf8()..).unwrap_or("");
+    }
+    with_math.push_str(rest);
+    with_math
 }
 
 /// One line of Markdown as inline HTML, without the paragraph around it.

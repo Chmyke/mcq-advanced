@@ -9,7 +9,10 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use mcq_edit::{Project, slug};
-use mcq_model::{Block, Issue, Level, Location, Paper, Question, Scoring, Severity};
+use mcq_model::{
+    Block, CodeBlock, CodeTokens, Issue, Level, Location, Paper, Question, Scoring, Severity,
+    TokenKind,
+};
 use roxmltree::{Document, Node, ParsingOptions};
 
 use crate::build::{Builder, Choice, Draft, category_path};
@@ -437,8 +440,9 @@ pub struct Exported {
 }
 
 /// The paper as a Moodle XML bank: one category for the paper, one per theme, then the
-/// questions, media embedded.
-pub fn export(project: &Project) -> Exported {
+/// questions, media embedded, code coloured with `code` (as `mcq_highlight` gives it; a block
+/// without tokens leaves uncoloured).
+pub fn export(project: &Project, code: &[CodeTokens]) -> Exported {
     let paper = &project.paper;
     let mut issues = Vec::new();
     let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<quiz>\n");
@@ -453,7 +457,7 @@ pub fn export(project: &Project) -> Exported {
         let path = format!("{top}/{}", category_name(&theme.title));
         write_category(&mut out, &path, &theme.course_ref, &theme.id);
         for question in paper.questions.iter().filter(|q| q.theme_id == theme.id) {
-            write_question(&mut out, project, question, &mut issues);
+            write_question(&mut out, project, code, question, &mut issues);
         }
     }
     let orphans: Vec<&Question> = paper
@@ -464,7 +468,7 @@ pub fn export(project: &Project) -> Exported {
     if !orphans.is_empty() {
         write_category(&mut out, &top, &paper.description, "");
         for question in orphans {
-            write_question(&mut out, project, question, &mut issues);
+            write_question(&mut out, project, code, question, &mut issues);
         }
     }
     out.push_str("</quiz>\n");
@@ -495,12 +499,13 @@ fn write_category(out: &mut String, path: &str, info: &str, idnumber: &str) {
 fn write_question(
     out: &mut String,
     project: &Project,
+    code: &[CodeTokens],
     question: &Question,
     issues: &mut Vec<Issue>,
 ) {
     let paper = &project.paper;
     let at = Location::Question(question.id.clone());
-    let (body, files) = body_html(project, question, issues);
+    let (body, files) = body_html(project, code, question, issues);
     let mut feedback = String::new();
     if !question.rule.is_empty() {
         feedback.push_str(&html::from_markdown(&question.rule));
@@ -568,9 +573,6 @@ fn write_question(
             "    <{name} format=\"html\">\n      <text></text>\n    </{name}>"
         );
     }
-    if multiple && paper.show_answer_count {
-        out.push_str("    <shownumcorrect/>\n");
-    }
     for option in &question.options {
         let fraction = match (option.is_correct, multiple) {
             (true, false) => "100".to_string(),
@@ -609,25 +611,25 @@ fn write_question(
 }
 
 /// The statement as HTML and its `<file>` elements.
-fn body_html(project: &Project, question: &Question, issues: &mut Vec<Issue>) -> (String, String) {
+fn body_html(
+    project: &Project,
+    code: &[CodeTokens],
+    question: &Question,
+    issues: &mut Vec<Issue>,
+) -> (String, String) {
     let mut body = String::new();
     let mut files = String::new();
     let mut embedded: Vec<&str> = Vec::new();
+    let mut code_index = 0_u32;
     for block in &question.body {
         match block {
             Block::Text(text) => body.push_str(&html::from_markdown(text)),
-            Block::Code(code) => {
-                body.push_str("<pre");
-                if !code.highlighted_lines.is_empty() {
-                    let lines: Vec<String> =
-                        code.highlighted_lines.iter().map(u32::to_string).collect();
-                    let _ = write!(body, " data-lines=\"{}\"", lines.join(","));
-                }
-                body.push_str("><code");
-                if !code.language.is_empty() {
-                    let _ = write!(body, " class=\"language-{}\"", html::escape(&code.language));
-                }
-                let _ = write!(body, ">{}</code></pre>", html::escape(&code.source));
+            Block::Code(block) => {
+                let tokens = code
+                    .iter()
+                    .find(|t| t.question_id == question.id && t.block == code_index);
+                code_index += 1;
+                write_code(&mut body, block, tokens);
             }
             Block::Media(media) => {
                 let name = media.path.rsplit('/').next().unwrap_or(&media.path);
@@ -680,6 +682,78 @@ fn body_html(project: &Project, question: &Question, issues: &mut Vec<Issue>) ->
         }
     }
     (body, files)
+}
+
+/// Colours of the player's light theme, written on each token: Moodle has no stylesheet for them.
+fn token_colour(kind: TokenKind) -> Option<&'static str> {
+    match kind {
+        TokenKind::Plain | TokenKind::Operator => None,
+        TokenKind::Keyword => Some("#a626a4"),
+        TokenKind::Type => Some("#8a5c00"),
+        TokenKind::Function => Some("#2a62d9"),
+        TokenKind::String => Some("#2f6e2c"),
+        TokenKind::Number => Some("#7d5500"),
+        TokenKind::Constant => Some("#016a96"),
+        TokenKind::Comment => Some("#65666b"),
+    }
+}
+
+/// Background of a highlighted line, as in the player's light theme.
+const MARKED_LINE: &str = "#fff1c2";
+
+/// A code block as `<pre><code>`: the language as a class and the highlighted lines as
+/// `data-lines` (read back by the import), the colours and marks as inline styles (what Moodle
+/// shows; the import keeps only the text).
+fn write_code(body: &mut String, block: &CodeBlock, tokens: Option<&CodeTokens>) {
+    body.push_str("<pre");
+    if !block.highlighted_lines.is_empty() {
+        let lines: Vec<String> = block.highlighted_lines.iter().map(u32::to_string).collect();
+        let _ = write!(body, " data-lines=\"{}\"", lines.join(","));
+    }
+    body.push_str("><code");
+    if !block.language.is_empty() {
+        let _ = write!(
+            body,
+            " class=\"language-{}\"",
+            html::escape(&block.language)
+        );
+    }
+    body.push('>');
+    for (k, source) in block.source.split('\n').enumerate() {
+        if k > 0 {
+            body.push('\n');
+        }
+        let number = u32::try_from(k + 1).unwrap_or(u32::MAX);
+        let marked = block.highlighted_lines.contains(&number);
+        if marked {
+            let _ = write!(body, "<span style=\"background-color: {MARKED_LINE}\">");
+        }
+        // Tokens are used only when they give this very line back.
+        let runs = tokens
+            .and_then(|t| t.lines.get(k))
+            .filter(|runs| runs.iter().map(|r| r.text.as_str()).collect::<String>() == source);
+        match runs {
+            Some(runs) => {
+                for run in runs {
+                    match token_colour(run.kind) {
+                        Some(colour) => {
+                            let _ = write!(
+                                body,
+                                "<span style=\"color: {colour}\">{}</span>",
+                                html::escape(&run.text)
+                            );
+                        }
+                        None => body.push_str(&html::escape(&run.text)),
+                    }
+                }
+            }
+            None => body.push_str(&html::escape(source)),
+        }
+        if marked {
+            body.push_str("</span>");
+        }
+    }
+    body.push_str("</code></pre>");
 }
 
 /// `33.33333`, `-50`, `100`: Moodle's own way of writing weights.
@@ -741,6 +815,18 @@ fn report_settings(paper: &Paper, issues: &mut Vec<Issue>) {
         ));
     }
     let multiple = paper.questions.iter().any(|q| q.correct_count() > 1);
+    // Moodle's `shownumcorrect` counts the right answers after the attempt, not before it.
+    if multiple && paper.show_answer_count {
+        issues.push(Issue::new(
+            Severity::Info,
+            "EXPORT_ANSWER_COUNT",
+            Location::Paper,
+            "Moodle cannot tell students how many answers are correct before they answer: this \
+             paper's count stays behind.",
+            "Moodle ne peut pas annoncer aux élèves le nombre de bonnes réponses avant qu'ils \
+             répondent : celui de ce sujet reste en arrière.",
+        ));
+    }
     if multiple && paper.scoring == Scoring::AllOrNothing {
         issues.push(Issue::new(
             Severity::Warning,

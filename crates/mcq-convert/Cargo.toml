@@ -10,11 +10,13 @@ rust-version.workspace = true
 mcq-model.workspace = true
 mcq-format.workspace = true
 mcq-edit.workspace = true
+mcq-math.workspace = true
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 roxmltree = "0.20"
 
 [dev-dependencies]
 mcq-lint.workspace = true
+mcq-highlight.workspace = true
 
 [lints]
 workspace = true

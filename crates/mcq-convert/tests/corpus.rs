@@ -9,6 +9,11 @@ use mcq_convert::{ImportOptions, Source, import, moodle};
 use mcq_edit::Project;
 use mcq_model::{Paper, Scoring, Severity};
 
+/// Code tokens as the CLI and the Studio give them to the export.
+fn highlight(project: &Project) -> Vec<mcq_model::CodeTokens> {
+    mcq_highlight::Highlighter::new().paper(&project.paper)
+}
+
 fn corpus() -> Vec<PathBuf> {
     let list = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../_prive/corpus-local.txt");
     let Ok(text) = std::fs::read_to_string(list) else {
@@ -71,7 +76,7 @@ fn real_papers_survive_the_moodle_round_trip() {
             paper,
             ..Project::default()
         };
-        let exported = moodle::export(&project);
+        let exported = moodle::export(&project, &highlight(&project));
         let options = ImportOptions {
             title: String::new(),
             lang: project.paper.lang.clone(),
@@ -88,6 +93,9 @@ fn real_papers_survive_the_moodle_round_trip() {
             assert_eq!(got, want, "{}", path.display());
         }
         assert_eq!(back.project.paper, expected, "{}", path.display());
-        assert_eq!(moodle::export(&back.project).xml, exported.xml);
+        assert_eq!(
+            moodle::export(&back.project, &highlight(&back.project)).xml,
+            exported.xml
+        );
     }
 }

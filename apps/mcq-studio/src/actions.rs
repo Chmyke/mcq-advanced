@@ -222,7 +222,14 @@ pub fn export_moodle(
     t: &'static Texts,
 ) {
     let s = studio.read();
-    let exported = moodle::export(&s.project);
+    let code: Vec<_> = s
+        .project
+        .paper
+        .questions
+        .iter()
+        .flat_map(crate::preview::tokens)
+        .collect();
+    let exported = moodle::export(&s.project, &code);
     let name = format!("{}.xml", qcmz::file_stem(&s.project));
     platform::download(&name, &b64::encode(exported.xml.as_bytes()));
     let said: Vec<&str> = exported.issues.iter().map(|i| t.issue(i)).collect();

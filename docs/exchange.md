@@ -63,6 +63,16 @@ number is the theme id), then each question as `multichoice`, media embedded. Mu
 questions get Moodle's partial credit: each correct option is worth 100/n %, each wrong one
 -100/n %, which is this tool's own partial credit.
 
+Formulas leave as `\(...\)` and `\[...\]`, the delimiters of Moodle's MathJax filter, and the
+import turns them, and `$$...$$`, back into `$...$` and `$$...$$`; any other dollar sign is a
+dollar. Code leaves coloured as in the player's light theme, highlighted lines on a pale
+background; the import keeps its text, language and highlighted lines. Moodle cannot tell
+students how many answers to tick before they answer, so `showAnswerCount` stays behind.
+
+To see how a Moodle site shows all of this, export `examples/moodle-check/moodle-check.qcm.md`
+(formulas, prices, coloured code, picture, sound, video, several answers, true or false, text
+styles) and import it into a test question bank: each statement says what it should show.
+
 A bank holds questions, not quiz settings: duration, penalties, question order and author notes
 stay behind (the export says which), to be set in the Moodle quiz. Everything else comes back
 unchanged when the bank is imported again, and exporting it again gives the same file: the tests

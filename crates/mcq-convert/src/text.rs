@@ -4,7 +4,24 @@
 
 use mcq_model::{Block, CodeBlock};
 
-/// Plain text as Markdown that renders the same characters.
+/// The formula starting at `k`, as MathJax writes it (`\(...\)`, `\[...\]`, `$$...$$`): its
+/// LaTeX, whether it is displayed, and the index after it.
+fn formula_at(chars: &[char], k: usize) -> Option<(String, bool, usize)> {
+    let close: &[char] = match (chars[k], chars.get(k + 1)) {
+        ('\\', Some('(')) => &['\\', ')'],
+        ('\\', Some('[')) => &['\\', ']'],
+        ('$', Some('$')) => &['$', '$'],
+        _ => return None,
+    };
+    let start = k + 2;
+    let end = (start..chars.len()).find(|&j| chars[j..].starts_with(close))?;
+    let latex: String = chars[start..end].iter().collect();
+    let latex = latex.trim();
+    (!latex.is_empty()).then(|| (latex.to_string(), close[1] != ')', end + 2))
+}
+
+/// Plain text as Markdown that renders the same characters; MathJax formulas become the
+/// format's `$...$` and `$$...$$`, their LaTeX unescaped.
 pub fn escape_inline(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
@@ -13,6 +30,14 @@ pub fn escape_inline(text: &str) -> String {
     let mut k = 0;
     while k < chars.len() {
         let c = chars[k];
+        if let Some((latex, display, next)) = formula_at(&chars, k) {
+            let delimiter = if display { "$$" } else { "$" };
+            out.push_str(delimiter);
+            out.push_str(&latex);
+            out.push_str(delimiter);
+            k = next;
+            continue;
+        }
         if matches!(c, '*' | '_' | '~') {
             // Emphasis is decided per run of the same character, by its neighbours.
             let end = chars[k..]
@@ -35,6 +60,8 @@ pub fn escape_inline(text: &str) -> String {
         let next = chars.get(k + 1).copied();
         let escape = match c {
             '`' => true,
+            // A dollar outside MathJax's delimiters is a dollar, as Moodle shows it.
+            '$' => true,
             '\\' => next.is_some_and(|n| n.is_ascii_punctuation()),
             // Only `](` can make a link or an image.
             ']' => next == Some('('),
@@ -209,6 +236,11 @@ mod tests {
         assert_eq!(escape_inline("C:\\Users and \\*"), "C:\\Users and \\\\\\*");
         assert_eq!(escape_inline("tab[0] or [a](b)"), "tab[0] or [a\\](b)");
         assert_eq!(escape_inline("AT&T &lt;"), "AT&T \\&lt;");
+        assert_eq!(
+            escape_inline(r"\( \frac{1}{2} \) costs $5, \[x_1\] and $$y$$"),
+            r"$\frac{1}{2}$ costs \$5, $$x_1$$ and $$y$$"
+        );
+        assert_eq!(escape_inline(r"open \( only"), r"open \\( only");
     }
 
     #[test]

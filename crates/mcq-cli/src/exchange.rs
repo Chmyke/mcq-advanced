@@ -153,7 +153,8 @@ pub fn export(args: &[String]) -> ExitCode {
         Ok(project) => project,
         Err(code) => return code,
     };
-    let exported = moodle::export(&project);
+    let code = mcq_highlight::Highlighter::new().paper(&project.paper);
+    let exported = moodle::export(&project, &code);
     print_issues(input, &exported.issues);
     match write_new(Path::new(out), exported.xml.as_bytes()) {
         Ok(()) => {
