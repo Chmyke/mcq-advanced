@@ -18,6 +18,7 @@ pub mod publish;
 pub mod settings;
 pub mod state;
 pub mod texts;
+pub mod welcome;
 
 pub use app::App;
 

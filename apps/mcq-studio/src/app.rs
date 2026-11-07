@@ -42,6 +42,8 @@ pub fn App() -> Element {
     let done = use_signal(|| None::<Rc<Done>>);
     let mut correction = use_signal(Correction::default);
     let tour = use_signal(|| false);
+    // Shown over a blank draft until the teacher picks a way to start.
+    let mut welcome = use_signal(|| false);
     // Analysed again only when the copies or the decisions change, not at every keystroke.
     let class = use_memo(move || ClassResults::from_correction(&correction.read()));
 
@@ -70,6 +72,7 @@ pub fn App() -> Element {
                 studio.set(Studio::new(Project::starter(t.new_paper_title, code)));
             }
         }
+        welcome.set(studio.read().is_blank());
         ready.set(true);
         let mut last_saved = studio.read().revision;
         // A paper given by link (`?open=...`, such as the website demo) opens over the draft,
@@ -172,12 +175,18 @@ pub fn App() -> Element {
                             key: "{label}",
                             icon, label, tip, shown: true,
                             aria_pressed: "{space == s}",
-                            onclick: move |_| studio.write().space = s,
+                            onclick: move |_| {
+                                // A notice belongs to the space it came from.
+                                if studio.peek().space != s {
+                                    notice.set(None);
+                                }
+                                studio.write().space = s;
+                            },
                         }
                     }
                 }
                 div { class: "prefs",
-                    IconButton { icon: Icon::FileNew, label: t.new_paper, tip: t.tip_new,
+                    IconButton { icon: Icon::FileNew, label: t.new_paper, tip: t.tip_new, shown: true,
                         onclick: move |_| async move {
                             let blank = studio.read().is_blank();
                             if blank || platform::confirm(t.confirm_replace).await {
@@ -186,7 +195,7 @@ pub fn App() -> Element {
                             }
                         },
                     }
-                    IconFile { icon: Icon::Open, label: t.import, tip: t.tip_import, accept: actions::PAPER_FILES,
+                    IconFile { icon: Icon::Open, label: t.import, tip: t.tip_import, accept: actions::PAPER_FILES, shown: true,
                         onchange: move |e: FormEvent| async move {
                             if let Some(file) = e.files().into_iter().next()
                                 && let Ok(bytes) = file.read_bytes().await
@@ -195,7 +204,7 @@ pub fn App() -> Element {
                             }
                         },
                     }
-                    IconButton { icon: Icon::Paste, label: t.paste, tip: t.tip_paste,
+                    IconButton { icon: Icon::Paste, label: t.paste, tip: t.tip_paste, shown: true,
                         onclick: move |_| async move {
                             match platform::read_clipboard().await {
                                 Some(text) => actions::open_pasted(studio, notice, t, &text).await,
@@ -203,7 +212,7 @@ pub fn App() -> Element {
                             }
                         },
                     }
-                    IconMenu { icon: Icon::Download, label: t.export, tip: t.tip_export,
+                    IconMenu { icon: Icon::Download, label: t.export, tip: t.tip_export, shown: true,
                         button { onclick: move |_| actions::export_qcmz(studio), "{t.export_qcmz}" }
                         button { onclick: move |_| actions::export_source(studio), "{t.export_source}" }
                         button { onclick: move |_| actions::export_student(studio), "{t.export_student}" }
@@ -224,6 +233,9 @@ pub fn App() -> Element {
                 if saved() { span { class: "muted saved", "{t.saved_locally}" } }
             }
             if tour() { Tour { studio, t } }
+            if ready() && welcome() && space == Space::Write && studio.read().is_blank() {
+                crate::welcome::Welcome { studio, correction, notice, tour, welcome, lang: lang(), t }
+            }
             if ready() {
                 div { class: "studio-main",
                     match space {

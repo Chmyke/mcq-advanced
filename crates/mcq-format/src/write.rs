@@ -80,6 +80,10 @@ fn write_header(out: &mut String, paper: &Paper) {
     let _ = writeln!(out, "shuffleQuestions: {}", paper.shuffle_questions);
     let _ = writeln!(out, "shuffleOptions: {}", paper.shuffle_options);
     let _ = writeln!(out, "showAnswerCount: {}", paper.show_answer_count);
+    // Written only when off, so papers that never touched it read as before.
+    if !paper.allow_extra_time {
+        let _ = writeln!(out, "extraTime: false");
+    }
     out.push_str("---\n");
 }
 

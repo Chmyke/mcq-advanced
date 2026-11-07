@@ -79,39 +79,73 @@ const db = await new Promise((ok, ko) => {
 });
 "#;
 
-/// Keeps the draft (a `.qcmz` in base 64) in the browser's database: no size limit to speak of,
-/// unlike `localStorage`.
-pub async fn save_draft(base64: String) -> bool {
+/// Where the draft is kept in the browser's database.
+const DRAFT_KEY: &str = "current";
+/// Where the teacher's identity file is kept, still locked by its passphrase.
+const IDENTITY_KEY: &str = "identity";
+
+/// Keeps `value` (base 64) under `key` in the browser's database: no size limit to speak of,
+/// unlike `localStorage`. An empty value removes the key.
+async fn store_put(key: &str, value: String) -> bool {
     let script = format!(
         "{OPEN_DB}
-const data = await dioxus.recv();
+const [key, data] = await dioxus.recv();
 await new Promise((ok, ko) => {{
   const t = db.transaction('drafts', 'readwrite');
-  t.objectStore('drafts').put(data, 'current');
+  if (data) t.objectStore('drafts').put(data, key); else t.objectStore('drafts').delete(key);
   t.oncomplete = ok; t.onerror = () => ko(t.error);
 }});
 return true;"
     );
     let wrapped = format!("try {{ {script} }} catch (e) {{ return false; }}");
     let eval = document::eval(&wrapped);
-    if eval.send(base64).is_err() {
+    if eval.send((key.to_string(), value)).is_err() {
         return false;
     }
     eval.join::<bool>().await.unwrap_or(false)
 }
 
-/// The draft kept by `save_draft`, if any.
-pub async fn load_draft() -> Option<String> {
+/// The value kept under `key` by `store_put`, if any.
+async fn store_get(key: &str) -> Option<String> {
     let script = format!(
         "try {{ {OPEN_DB}
+const key = await dioxus.recv();
 const value = await new Promise((ok) => {{
-  const r = db.transaction('drafts').objectStore('drafts').get('current');
+  const r = db.transaction('drafts').objectStore('drafts').get(key);
   r.onsuccess = () => ok(r.result || ''); r.onerror = () => ok('');
 }});
 return value; }} catch (e) {{ return ''; }}"
     );
-    let value: String = document::eval(&script).join().await.ok()?;
+    let eval = document::eval(&script);
+    eval.send(key.to_string()).ok()?;
+    let value: String = eval.join().await.ok()?;
     (!value.is_empty()).then_some(value)
+}
+
+/// Keeps the draft (a `.qcmz` in base 64) in the browser.
+pub async fn save_draft(base64: String) -> bool {
+    store_put(DRAFT_KEY, base64).await
+}
+
+/// The draft kept by `save_draft`, if any.
+pub async fn load_draft() -> Option<String> {
+    store_get(DRAFT_KEY).await
+}
+
+/// Keeps the teacher's identity file (base 64) in the browser. It stays locked by its
+/// passphrase: whoever opens this browser still needs the passphrase to use it.
+pub async fn keep_identity(base64: String) -> bool {
+    store_put(IDENTITY_KEY, base64).await
+}
+
+/// The identity file kept by `keep_identity`, if any.
+pub async fn kept_identity() -> Option<String> {
+    store_get(IDENTITY_KEY).await
+}
+
+/// Forgets the identity kept in this browser.
+pub async fn forget_identity() -> bool {
+    store_put(IDENTITY_KEY, String::new()).await
 }
 
 /// The paper named by the page's `?open=` link, as `(file name, bytes)`: `Some(None)` when the
@@ -188,6 +222,18 @@ pub async fn read_clipboard() -> Option<String> {
         .await
         .ok()
         .flatten()
+}
+
+/// Puts `text` on the clipboard; false when the browser refuses. The text goes to the script
+/// as a message, never spliced into it.
+pub async fn copy_text(text: &str) -> bool {
+    let eval = document::eval(
+        "const t = await dioxus.recv(); try { await navigator.clipboard.writeText(t); return true; } catch (e) { return false; }",
+    );
+    if eval.send(text.to_string()).is_err() {
+        return false;
+    }
+    eval.join::<bool>().await.unwrap_or(false)
 }
 
 /// Asks the browser's yes/no question.

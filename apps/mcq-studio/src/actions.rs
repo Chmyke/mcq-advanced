@@ -177,18 +177,23 @@ pub async fn open_pasted(
     t: &'static Texts,
     text: &str,
 ) {
-    match mcq_format::paper_in_pasted(text) {
-        Some(paper) => {
-            open_paper(
-                studio,
-                notice,
-                t,
-                "pasted.qcm.md",
-                paper.as_bytes().to_vec(),
-            )
-            .await
-        }
-        None => notice.set(Some(t.paste_not_paper.to_string())),
+    if let Some(paper) = mcq_format::paper_in_pasted(text) {
+        return open_paper(
+            studio,
+            notice,
+            t,
+            "pasted.qcm.md",
+            paper.as_bytes().to_vec(),
+        )
+        .await;
+    }
+    // What AIs and teachers write unprompted: Aiken (`ANSWER: B`), GIFT or Moodle XML, read
+    // as the import reads those files.
+    let name = format!("{}.txt", t.new_paper_title);
+    if mcq_convert::Source::detect(&name, text).is_some() {
+        open_paper(studio, notice, t, &name, text.as_bytes().to_vec()).await;
+    } else {
+        notice.set(Some(t.paste_not_paper.to_string()));
     }
 }
 

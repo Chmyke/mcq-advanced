@@ -57,6 +57,12 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                 legend { "{t.settings_paper}" }
                 label { r#for: "p-title", "{t.title}" }
                 input { id: "p-title", r#type: "text", value: "{paper.title}",
+                    // The starter title is selected on entry: typing replaces it.
+                    onfocus: move |_| {
+                        if studio.peek().project.paper.title == t.new_paper_title {
+                            let _ = document::eval("setTimeout(() => { const i = document.getElementById('p-title'); if (i) i.select(); }, 0);");
+                        }
+                    },
                     oninput: move |e| studio.write().edit_paper(|p| p.title = e.value()) }
                 label { r#for: "p-description", "{t.description}" }
                 textarea { id: "p-description", rows: "3", value: "{paper.description}",
@@ -115,6 +121,11 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                     input { r#type: "checkbox", checked: paper.show_answer_count,
                         onchange: move |e| studio.write().edit_paper(|p| p.show_answer_count = e.checked()) }
                     "{t.show_answer_count}"
+                }
+                label { class: "check",
+                    input { r#type: "checkbox", checked: paper.allow_extra_time,
+                        onchange: move |e| studio.write().edit_paper(|p| p.allow_extra_time = e.checked()) }
+                    "{t.allow_extra_time}"
                 }
             }
             fieldset { class: "card",

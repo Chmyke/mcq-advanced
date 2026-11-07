@@ -31,7 +31,7 @@ fn sample_round_trips() {
 #[test]
 fn edge_cases_round_trip() {
     round_trip(
-        "---\ntitle: \"Edges\"\npenalty: 0,333\nshuffleOptions: no\nshowAnswerCount: false\n---\n\
+        "---\ntitle: \"Edges\"\npenalty: 0,333\nshuffleOptions: no\nshowAnswerCount: false\nextraTime: no\n---\n\
          # THEME empty\n\
          # THEME t | Topic\n\
          ## Q q1 | level 5 | 7s | answers 1\nLine one\nLine two?\n\

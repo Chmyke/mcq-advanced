@@ -14,16 +14,9 @@ pub enum Kind {
     TrueFalse,
 }
 
-const TRUE_WORDS: [&str; 2] = ["true", "vrai"];
-const FALSE_WORDS: [&str; 2] = ["false", "faux"];
-
 /// The type a question shows in the editor, read from its options.
 pub fn kind(question: &Question) -> Kind {
-    let word = |o: &AnswerOption| o.text.trim().to_lowercase();
-    if let [a, b] = question.options.as_slice()
-        && TRUE_WORDS.contains(&word(a).as_str())
-        && FALSE_WORDS.contains(&word(b).as_str())
-    {
+    if question.is_true_false() {
         return Kind::TrueFalse;
     }
     if question.correct_count() > 1 {

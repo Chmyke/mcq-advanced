@@ -200,11 +200,12 @@ fn the_diagnosis_reads_as_sentences_in_the_teachers_order() {
     );
     assert!(
         html.contains(&format!(
-            "loops-3 · corrigé ou énoncé à vérifier : les meilleurs préfèrent {}",
+            "» · corrigé ou énoncé à vérifier : les meilleurs préfèrent {}",
             quoted("Choice 2 of loops-3")
-        )),
-        "{html}"
+        )) && !html.contains("loops-3 · "),
+        "the question by its number and statement, never its id: {html}"
     );
+    assert!(html.contains("Q3 « "), "{html}");
     assert!(
         html.contains("Student 02 et Student 03 : mêmes réponses"),
         "{html}"
@@ -302,7 +303,7 @@ fn a_doubtful_key_is_settled_in_one_click_and_undone_in_another() {
     assert!(rekeyed.mean_mark > before.mean_mark);
     assert!(
         html.contains(&format!(
-            "loops-3 : corrigé rectifié, bonne réponse {}",
+            "» : corrigé rectifié, bonne réponse {}",
             quoted("Choice 2 of loops-3")
         )),
         "{html}"
@@ -319,7 +320,7 @@ fn a_doubtful_key_is_settled_in_one_click_and_undone_in_another() {
     let n = paper.questions.len() - 1;
     assert!(
         html.contains(&format!(
-            "loops-3 neutralisée : hors barème, chaque copie est notée sur {n} questions"
+            "» neutralisée : hors barème, chaque copie est notée sur {n} questions"
         )),
         "{html}"
     );
@@ -401,19 +402,14 @@ fn a_copy_timeline_tells_changes_and_absences_in_order() {
         let timeline = mcq_analysis::timeline::timeline(&paper, &copy.submission);
         assert!(timeline.away_count >= 5, "{timeline:?}");
         let _ = report;
-        mcq_studio::correct::timeline_view(
-            &copy.submission.student_name,
-            &timeline,
-            &paper,
-            &FR,
-            Lang::Fr,
-        )
+        mcq_studio::correct::timeline_view(&copy.submission.student_name, &timeline, &paper, &FR)
     });
     assert!(html.contains("Chronologie de la copie"), "{html}");
     assert!(
-        html.contains("sortie(s) de la fenêtre d&#39;épreuve"),
-        "{html}"
+        html.contains("sorties de la fenêtre d&#39;épreuve, 4 min 00 s dehors"),
+        "plural and duration: {html}"
     );
+    assert!(html.contains("0 changements de réponse"), "{html}");
     assert!(html.contains("quitte la fenêtre d&#39;épreuve ("), "{html}");
     assert!(html.contains("rend sa copie"), "{html}");
     assert!(html.contains("timeline-strip"), "{html}");

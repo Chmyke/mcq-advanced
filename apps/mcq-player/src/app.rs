@@ -40,10 +40,9 @@ struct Graded {
 }
 
 fn save(session: &Session) {
-    platform::storage_set(
-        &platform::save_key(&session.paper_id, &session.student_name),
-        &b64::encode(&encode_session(session)),
-    );
+    let key = platform::save_key(&session.paper_id, &session.student_name);
+    platform::storage_set(&key, &b64::encode(&encode_session(session)));
+    platform::storage_stamp(&key);
 }
 
 #[component]
@@ -63,6 +62,9 @@ pub fn App() -> Element {
     let mut error = use_signal(|| None::<&'static str>);
     let mut notice = use_signal(|| None::<&'static str>);
     let mut resumed = use_signal(|| false);
+    // The sealed copy went to a file this time; until then the teacher does not have it.
+    let mut copy_saved = use_signal(|| false);
+    let mut erased = use_signal(|| false);
     // Dark unless the student picks light; the pick is remembered on this device.
     let mut dark = use_signal(|| true);
     let mut text_scale = use_signal(|| 100_u32);
@@ -118,14 +120,10 @@ pub fn App() -> Element {
         let _ = document::eval("setTimeout(() => window.scrollTo(0, 0), 0);");
         true
     };
-    // The question just left, for the pace view.
-    let mut left = use_signal(|| None::<usize>);
     let mut last_current = use_signal(|| 0_usize);
     use_effect(move || {
         let current = session.read().as_ref().map_or(0, |s| s.current);
-        let before = *last_current.peek();
-        if current != before {
-            left.set(Some(before));
+        if current != *last_current.peek() {
             last_current.set(current);
             focus_question();
         }
@@ -341,12 +339,19 @@ pub fn App() -> Element {
                         error.set(None);
                         spawn(async move {
                             let key = platform::save_key(&paper_id, &fresh.student_name);
-                            let restored = platform::storage_get(&key)
+                            let mut restored = platform::storage_get(&key)
                                 .await
                                 .and_then(|text| b64::decode(&text))
                                 .and_then(|bytes| decode_session(&bytes).ok())
                                 .filter(|s| s.paper_id == paper_id && s.items.len() == fresh.items.len());
+                            // The time the page stayed closed counts, and shows on the copy.
+                            if let Some(s) = restored.as_mut() {
+                                s.reopened_after(platform::seconds_since_stamp(&key).await);
+                                save(s);
+                            }
                             resumed.set(restored.is_some());
+                            copy_saved.set(false);
+                            erased.set(false);
                             let current = restored.unwrap_or(fresh);
                             let done = current.submitted;
                             session.set(Some(current));
@@ -421,10 +426,11 @@ pub fn App() -> Element {
             };
             let status = s.time_status(&o.paper);
             let gauge = s.pace(&o.paper);
-            let left_delta = left().and_then(|i| s.share_delta(&o.paper, i).map(|d| (i, d)));
             let total = s.items.len();
             let answered = s.answered_count();
             let unanswered = total - answered;
+            let incomplete = s.incomplete_count(&o.paper);
+            let complete = answered - incomplete;
             let flagged = s.flagged_count();
             let current = s.current;
             let question_element = s.current_item().and_then(|item| {
@@ -468,10 +474,10 @@ pub fn App() -> Element {
                     h1 { class: "sr-only", "{o.paper.title}" }
                     div { class: "status-bar",
                         {render::clock(&status, s.elapsed_seconds, t)}
-                        span { class: "progress", "{answered} / {total} {t.answered}" }
+                        span { class: "progress", "{complete} / {total} {t.answered}" }
                     }
-                    {render::segments(&s, gauge.map(|g| g.time_fraction), t, EventHandler::new(move |i: usize| go_to(session, i)))}
-                    if let Some(gauge) = gauge { {render::pace_view(&gauge, left_delta, t)} }
+                    {render::segments(&s, &o.paper, gauge.map(|g| g.time_fraction), t, EventHandler::new(move |i: usize| go_to(session, i)))}
+                    if let Some(gauge) = gauge { {render::pace_view(&gauge, t)} }
                     // Always in the page, so screen readers announce what appears inside it.
                     div { class: "live", role: "status",
                         if status.overtime_seconds > 0 {
@@ -489,7 +495,11 @@ pub fn App() -> Element {
                     if stage() == Stage::Confirm {
                         div { class: "confirm card", role: "dialog", "aria-labelledby": "confirm-title",
                             h2 { id: "confirm-title", tabindex: "-1", "{t.confirm_title}" }
-                            p { "{unanswered} {t.unanswered_left}, {flagged} {t.flagged_left}." }
+                            p {
+                                "{unanswered} {t.unanswered_left}, "
+                                if incomplete > 0 { strong { "{incomplete} {t.incomplete_left}" } ", " }
+                                "{flagged} {t.flagged_left}."
+                            }
                             div { class: "nav",
                                 button { onclick: move |_| close_confirm(stage), "{t.keep_working}" }
                                 button { class: "primary",
@@ -548,7 +558,7 @@ pub fn App() -> Element {
             let has_end_code = o.header.has_end_code;
             let receipt = sealed.read().as_ref().map(|r| r.receipt.clone());
             let file_name = copy_file_name(session);
-            let show = move |_| {
+            let mut show = move |()| {
                 let typed = end_code();
                 let unlock = if practice {
                     KeyUnlock::Practice
@@ -561,32 +571,64 @@ pub fn App() -> Element {
                     error.set(Some(lang().texts().wrong_code));
                 }
             };
+            let saved_line =
+                crate::texts::fill(t.saved_to, &[("file", platform::file_name(&file_name))]);
+            // An exam's copy reaches the teacher only as a file: saving it comes first.
+            let has_copy = receipt.is_some();
+            let ready = practice || !has_copy || copy_saved();
             rsx! {
                 section { class: "submitted card",
                     h1 { "{t.submitted_title}" }
                     if let Some(receipt) = receipt.clone() {
-                        p { "{t.receipt}" }
-                        p { class: "big mono", "{receipt}" }
-                        p { class: "muted", "{t.receipt_hint}" }
-                        button { class: "primary",
+                        if !copy_saved() { p { class: "notice warn", "{t.not_sent_yet}" } }
+                        button { class: if copy_saved() { "" } else { "primary" },
                             onclick: move |_| {
                                 if let Some(r) = sealed.read().as_ref() {
                                     platform::download(&file_name, &b64::encode(&r.bytes));
+                                    copy_saved.set(true);
                                 }
                             },
                             "{t.save_copy}"
                         }
+                        if copy_saved() { p { class: "notice", role: "status", "{saved_line}" } }
+                        p { "{t.receipt}" }
+                        p { class: "big mono", "{receipt}" }
+                        p { class: "muted", "{t.receipt_hint}" }
                     }
-                    if practice {
-                        button { onclick: show, "{t.show_correction}" }
-                    } else if has_end_code {
-                        label { r#for: "end", "{t.end_code}" }
-                        input { id: "end", r#type: "text", class: "mono", autocomplete: "off",
-                            placeholder: "{t.code_placeholder}", value: "{end_code}",
-                            oninput: move |e| end_code.set(e.value()),
+                    if ready && !erased() {
+                        if practice {
+                            button { onclick: move |_| show(()), "{t.show_correction}" }
+                        } else if has_end_code {
+                            form {
+                                onsubmit: move |evt: FormEvent| {
+                                    evt.prevent_default();
+                                    show(());
+                                },
+                                label { r#for: "end", "{t.end_code}" }
+                                input { id: "end", r#type: "text", class: "mono", autocomplete: "off",
+                                    placeholder: "{t.code_placeholder}", value: "{end_code}",
+                                    oninput: move |e| end_code.set(e.value()),
+                                }
+                                p { class: "muted", "{t.end_code_hint}" }
+                                button { r#type: "submit", "{t.show_correction}" }
+                            }
                         }
-                        p { class: "muted", "{t.end_code_hint}" }
-                        button { onclick: show, "{t.show_correction}" }
+                    }
+                    if has_copy && copy_saved() {
+                        if erased() {
+                            p { class: "notice", role: "status", "{t.erased}" }
+                        } else {
+                            button { class: "link",
+                                onclick: move |_| {
+                                    if let Some(s) = session.read().as_ref() {
+                                        platform::storage_remove(&platform::save_key(&s.paper_id, &s.student_name));
+                                    }
+                                    erased.set(true);
+                                },
+                                "{t.erase_copy}"
+                            }
+                            p { class: "muted", "{t.erase_hint}" }
+                        }
                     }
                     if let Some(message) = error() { p { class: "error", role: "alert", "{message}" } }
                 }
@@ -636,6 +678,7 @@ pub fn App() -> Element {
                 ResultAction::SaveCopy => {
                     if let Some(r) = sealed.read().as_ref() {
                         platform::download(&copy_file_name(session), &b64::encode(&r.bytes));
+                        copy_saved.set(true);
                     }
                 }
                 ResultAction::Share => {

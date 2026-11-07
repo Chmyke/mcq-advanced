@@ -372,13 +372,27 @@ pub fn question_review(
 ) -> Option<Element> {
     let item = session.items.get(index)?;
     let question = full.question(&item.question_id)?;
-    let (status_label, class) = status_text(status(result, &item.question_id), t);
+    let (mut status_label, mut class) = status_text(status(result, &item.question_id), t);
+    // Right boxes only, too few of them: nothing was wrong, something was missing.
+    let ticked_only_right = item
+        .selected
+        .iter()
+        .all(|id| question.option(id).is_some_and(|o| o.is_correct));
+    if status_label == t.wrong && ticked_only_right && question.is_incomplete(item.selected.len()) {
+        (status_label, class) = (t.incomplete, "part");
+    }
     let theme = full
         .theme(&question.theme_id)
         .map(|th| th.title.clone())
         .unwrap_or_default();
     let level = level_number(question.level);
-    let expected = question.effective_seconds();
+    // The same share the exam's gauge showed; the author's estimate when there was no limit.
+    let limit = session.limit_seconds(full);
+    let expected = if limit > 0 {
+        limit / u32::try_from(session.items.len().max(1)).unwrap_or(u32::MAX)
+    } else {
+        question.effective_seconds()
+    };
     let spent = item.seconds_spent;
     let time_line = crate::texts::fill(
         t.time_line,
@@ -484,10 +498,7 @@ pub fn review_screen(
 ) -> Element {
     let mark = mark_text(result, t);
     let word = appreciation(result.mark(20.0), t);
-    let minutes = crate::texts::fill(
-        t.minutes_taken,
-        &[("m", (session.elapsed_seconds / 60).to_string())],
-    );
+    let minutes = format_duration(session.elapsed_seconds);
     let overtime = (result.overtime_seconds > 0).then(|| {
         crate::texts::fill(
             t.overtime_note,
@@ -511,6 +522,7 @@ pub fn review_screen(
         })
         .collect();
     let weak = weak_themes(full, result);
+    let single_theme = themes.len() <= 1;
     let current = state.current(session, result);
     let list = indices(session, result, state.filter);
     let position = current
@@ -558,7 +570,8 @@ pub fn review_screen(
                         }
                     }
                 }
-                if !weak.is_empty() {
+                // With one theme, the bar above already says it.
+                if !weak.is_empty() && !single_theme {
                     h2 { "{t.to_review_title}" }
                     ol { class: "weak-themes",
                         for (k, th) in weak.into_iter().enumerate() {

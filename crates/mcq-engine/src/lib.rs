@@ -57,7 +57,8 @@ impl Session {
             .map(|question| {
                 let mut option_order: Vec<String> =
                     question.options.iter().map(|o| o.id.clone()).collect();
-                if paper.shuffle_options {
+                // True then false, always: a reversed pair only trips the student up.
+                if paper.shuffle_options && !question.is_true_false() {
                     rng.shuffle(&mut option_order);
                 }
                 SessionItem {
@@ -215,8 +216,44 @@ impl Session {
         ));
     }
 
+    /// The page was closed for `seconds` while the exam ran, then the copy was reopened. The
+    /// clock is the room's: those seconds count, and the teacher sees them as a window exit.
+    pub fn reopened_after(&mut self, seconds: u32) {
+        if self.submitted || self.elapsed_seconds == 0 || seconds == 0 {
+            return;
+        }
+        // A window hidden before it closed already logged its exit.
+        let exit_open = self
+            .log
+            .iter()
+            .rev()
+            .find(|e| matches!(e.kind, LogKind::FocusLost | LogKind::FocusBack))
+            .is_some_and(|e| e.kind == LogKind::FocusLost);
+        if !exit_open {
+            self.focus_lost();
+        }
+        self.elapsed_seconds = self.elapsed_seconds.saturating_add(seconds);
+        self.focus_back(seconds);
+    }
+
     pub fn answered_count(&self) -> usize {
         self.items.iter().filter(|i| !i.selected.is_empty()).count()
+    }
+
+    /// Multiple-answer questions ticked short of the count announced to the student; 0 when the
+    /// paper does not announce counts, since the student could not know.
+    pub fn incomplete_count(&self, paper: &Paper) -> usize {
+        if !paper.show_answer_count {
+            return 0;
+        }
+        self.items
+            .iter()
+            .filter(|i| {
+                paper
+                    .question(&i.question_id)
+                    .is_some_and(|q| q.is_incomplete(i.selected.len()))
+            })
+            .count()
     }
 
     pub fn flagged_count(&self) -> usize {

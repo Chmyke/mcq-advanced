@@ -178,6 +178,13 @@ fn stem_rules() {
         ["MISSING_QUESTION"]
     );
     assert!(codes(&with_stem("Pick the yellow fruit:")).is_empty());
+    // True or false judges a statement: no question to ask.
+    let mut statement = with_stem("Bananas are yellow.");
+    let q = &mut statement.questions[0];
+    q.options.truncate(2);
+    q.options[0].text = "True".into();
+    q.options[1].text = "False".into();
+    assert!(!codes(&statement).contains(&"MISSING_QUESTION"));
 }
 
 #[test]

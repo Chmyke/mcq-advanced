@@ -20,6 +20,20 @@ pub struct Texts {
     /// The browser kept the clipboard to itself.
     pub paste_refused: &'static str,
     pub paste_not_paper: &'static str,
+    pub welcome_title: &'static str,
+    pub welcome_text: &'static str,
+    pub welcome_write: &'static str,
+    pub welcome_write_hint: &'static str,
+    pub welcome_import_hint: &'static str,
+    pub copy_prompt: &'static str,
+    pub welcome_ai_hint: &'static str,
+    pub welcome_demo: &'static str,
+    pub welcome_demo_hint: &'static str,
+    pub prompt_copied: &'static str,
+    pub prompt_saved: &'static str,
+    pub prompt_file: &'static str,
+    /// In place of the validator's list while the question is still empty.
+    pub untouched_hint: &'static str,
     pub export_qcmz: &'static str,
     pub export_source: &'static str,
     pub export_student: &'static str,
@@ -172,6 +186,9 @@ pub struct Texts {
     pub shuffle_questions: &'static str,
     pub shuffle_options: &'static str,
     pub show_answer_count: &'static str,
+    pub allow_extra_time: &'static str,
+    /// The fold holding a question's id and time.
+    pub advanced: &'static str,
     pub themes: &'static str,
     pub theme_title: &'static str,
     pub course_ref: &'static str,
@@ -191,6 +208,16 @@ pub struct Texts {
     pub confirm_passphrase: &'static str,
     pub create_and_download: &'static str,
     pub identity_ready: &'static str,
+    pub identity_saved: &'static str,
+    pub identity_download_again: &'static str,
+    pub identity_kept: &'static str,
+    pub identity_forget: &'static str,
+    pub identity_keep: &'static str,
+    /// `{n}`: warnings left when publishing is allowed.
+    pub publish_warnings: &'static str,
+    pub distribute_title: &'static str,
+    /// `{file}` is the package's name.
+    pub distribute_steps: [&'static str; 4],
     pub wrong_passphrase: &'static str,
     pub passphrases_differ: &'static str,
     pub passphrase_too_short: &'static str,
@@ -224,6 +251,62 @@ impl Texts {
     /// A validator message in the interface language.
     pub fn issue<'a>(&self, issue: &'a Issue) -> &'a str {
         issue.message_in(self.lang == Lang::Fr)
+    }
+
+    /// A validator message as the editor shows it: where the core names the file's syntax
+    /// (`RULE:`, `[x]`...), the editor names the field to fill instead.
+    pub fn form_issue(&self, issue: &Issue) -> String {
+        let fields: [(&str, String); 5] = match self.lang {
+            Lang::Fr => [
+                (
+                    "marquez la bonne avec `[x]`",
+                    "cochez le rond ou la case de la bonne réponse".to_string(),
+                ),
+                ("ajoutez `RULE:`", format!("remplissez « {} »", self.rule)),
+                (
+                    "ajoutez `COURSE:` au thème ou `REVIEW:` à la question",
+                    format!(
+                        "remplissez « {} » sous la question, ou celui du thème dans {}",
+                        self.review, self.space_settings
+                    ),
+                ),
+                (
+                    "ajoutez de `level 1` à `level 5`",
+                    format!("choisissez-le dans « {} »", self.level),
+                ),
+                (
+                    "ajoutez `title:` dans l'en-tête",
+                    format!("remplissez « {} » dans {}", self.title, self.space_settings),
+                ),
+            ],
+            Lang::En => [
+                (
+                    "mark it with `[x]`",
+                    "tick the circle or box beside the right answer".to_string(),
+                ),
+                ("add `RULE:`", format!("fill in “{}”", self.rule)),
+                (
+                    "add `COURSE:` to the theme or `REVIEW:` to the question",
+                    format!(
+                        "fill in “{}” under the question, or the theme's in {}",
+                        self.review, self.space_settings
+                    ),
+                ),
+                (
+                    "add `level 1` to `level 5`",
+                    format!("choose one in “{}”", self.level),
+                ),
+                (
+                    "add `title:` to the header",
+                    format!("fill in “{}” in {}", self.title, self.space_settings),
+                ),
+            ],
+        };
+        let mut text = self.issue(issue).to_string();
+        for (syntax, field) in &fields {
+            text = text.replace(syntax, field);
+        }
+        text
     }
 
     /// How many errors and warnings the validator reports, as a screen reader announces it.
@@ -291,7 +374,20 @@ pub static EN: Texts = Texts {
     paste: "Paste",
     tip_paste: "Paste a paper copied from an AI's answer or a text editor",
     paste_refused: "The browser did not give access to the clipboard: click an empty part of the page and press Ctrl+V.",
-    paste_not_paper: "The clipboard holds no paper: copy the whole answer, from its first --- line.",
+    paste_not_paper: "The clipboard holds no paper the Studio can read. Give the AI the Studio's prompt first (Copy the AI prompt, on the welcome screen), then copy its whole answer, from its first --- line.",
+    welcome_title: "Write a quiz",
+    welcome_text: "Four ways to start. Whatever you pick, everything stays in this browser: no account, no server.",
+    welcome_write: "Write a question",
+    welcome_write_hint: "Type it here: the validator comments as you write and the student preview follows below.",
+    welcome_import_hint: "A paper (.qcmz, .qcm.md) or a Moodle XML, GIFT, Aiken or CSV bank.",
+    copy_prompt: "Copy the AI prompt",
+    welcome_ai_hint: "Paste it into your AI with your course at the end, copy its whole answer, then press Paste.",
+    welcome_demo: "See a sample class",
+    welcome_demo_hint: "A fictional paper and 32 copies already corrected, with a short tour.",
+    prompt_copied: "Prompt copied: paste it into your AI, add your course at the end, then press Paste here with its answer.",
+    prompt_saved: "The browser kept the clipboard to itself: the prompt was saved as a text file to open and copy.",
+    prompt_file: "mcq-advanced-ai-prompt.txt",
+    untouched_hint: "The validator comments on the question as soon as you write it.",
     export_qcmz: "Export .qcmz",
     export_source: "Export .qcm.md",
     export_student: "Paper without answers",
@@ -456,6 +552,8 @@ pub static EN: Texts = Texts {
     shuffle_questions: "Shuffle the questions",
     shuffle_options: "Shuffle the answers",
     show_answer_count: "Tell how many answers to tick",
+    allow_extra_time: "Let students declare extra time (a third, a half, double, untimed); their copy shows it",
+    advanced: "More settings: id and time",
     themes: "Themes",
     theme_title: "Title",
     course_ref: "Where to revise",
@@ -475,6 +573,19 @@ pub static EN: Texts = Texts {
     confirm_passphrase: "Same passphrase again",
     create_and_download: "Create and download",
     identity_ready: "Identity ready. Fingerprint:",
+    identity_saved: "Your identity was saved as teacher.mcqid, usually in your Downloads folder. Put it somewhere safe (a USB key, your cloud storage): with its passphrase, it is the only key to your students' copies.",
+    identity_download_again: "Download my identity again",
+    identity_kept: "Your identity is kept in this browser: type its passphrase to unlock it.",
+    identity_forget: "Forget the identity kept in this browser",
+    identity_keep: "Keep my identity in this browser (still locked by its passphrase)",
+    publish_warnings: "The validator still has {n} {n:warning|warnings}: you can publish, but read them in Write first.",
+    distribute_title: "How students take it",
+    distribute_steps: [
+        "Send {file} to your students (school platform, email, USB key) or put it online.",
+        "They open it in the player, in any browser, nothing to install: https://mickaelmancini.com/mcq-advanced/player/ (or in the MCQ Advanced app).",
+        "When the exam starts, give the opening code: it is on the room sheet below.",
+        "At the end, each student saves their copy (a .mcqres file) and sends it to you: open them in Correct.",
+    ],
     wrong_passphrase: "Wrong passphrase, or not an identity file.",
     passphrases_differ: "The two passphrases differ.",
     passphrase_too_short: "12 characters or more.",
@@ -495,10 +606,10 @@ pub static EN: Texts = Texts {
     sheet_duration: "Duration",
     no_limit: "no limit",
     sheet_steps: [
-        "Open the paper in MCQ Advanced (file or link).",
+        "Open the paper in the player: https://mickaelmancini.com/mcq-advanced/player/ (or the MCQ Advanced app).",
         "Check that the fingerprint shown is the one on this sheet.",
         "Type your name, then the opening code.",
-        "When done, hand in and note your receipt code.",
+        "When done, hand in, save your copy, send the file to your teacher and note your receipt code.",
     ],
     sheet_correction_later: "The correction opens with a code given after the exam.",
     sheet_practice: "Practice paper: no code, the correction shows at the end.",
@@ -520,7 +631,20 @@ pub static FR: Texts = Texts {
     paste: "Coller",
     tip_paste: "Coller un QCM copié depuis la réponse d'une IA ou un éditeur de texte",
     paste_refused: "Le navigateur n'a pas donné accès au presse-papiers : cliquez sur une zone vide de la page et appuyez sur Ctrl+V.",
-    paste_not_paper: "Le presse-papiers ne contient pas de QCM : copiez toute la réponse, depuis sa première ligne ---.",
+    paste_not_paper: "Le presse-papiers ne contient pas de QCM lisible. Donnez d'abord à l'IA le prompt du Studio (Copier le prompt pour l'IA, sur l'écran d'accueil), puis copiez toute sa réponse, depuis sa première ligne ---.",
+    welcome_title: "Écrire un QCM",
+    welcome_text: "Quatre façons de commencer. Quel que soit votre choix, tout reste dans ce navigateur : ni compte, ni serveur.",
+    welcome_write: "Écrire une question",
+    welcome_write_hint: "Tapez-la ici : le validateur la commente au fil de l'écriture et l'aperçu étudiant suit en dessous.",
+    welcome_import_hint: "Un sujet (.qcmz, .qcm.md) ou une banque Moodle XML, GIFT, Aiken ou CSV.",
+    copy_prompt: "Copier le prompt pour l'IA",
+    welcome_ai_hint: "Collez-le dans votre IA avec votre cours à la fin, copiez toute sa réponse, puis appuyez sur Coller.",
+    welcome_demo: "Voir une classe d'exemple",
+    welcome_demo_hint: "Un sujet fictif et 32 copies déjà corrigées, avec une courte visite.",
+    prompt_copied: "Prompt copié : collez-le dans votre IA, ajoutez votre cours à la fin, puis appuyez ici sur Coller avec sa réponse.",
+    prompt_saved: "Le navigateur a gardé le presse-papiers pour lui : le prompt est enregistré dans un fichier texte à ouvrir et copier.",
+    prompt_file: "mcq-advanced-prompt-ia.txt",
+    untouched_hint: "Le validateur commente la question dès que vous l'écrivez.",
     export_qcmz: "Exporter .qcmz",
     export_source: "Exporter .qcm.md",
     export_student: "Sujet sans réponses",
@@ -685,6 +809,8 @@ pub static FR: Texts = Texts {
     shuffle_questions: "Mélanger les questions",
     shuffle_options: "Mélanger les réponses",
     show_answer_count: "Annoncer le nombre de réponses à cocher",
+    allow_extra_time: "Laisser les étudiants déclarer un temps majoré (tiers-temps, moitié, double, sans limite) ; leur copie l'indique",
+    advanced: "Plus de réglages : identifiant et temps",
     themes: "Thèmes",
     theme_title: "Titre",
     course_ref: "Où réviser",
@@ -704,6 +830,19 @@ pub static FR: Texts = Texts {
     confirm_passphrase: "La même phrase, encore",
     create_and_download: "Créer et télécharger",
     identity_ready: "Identité prête. Empreinte :",
+    identity_saved: "Votre identité est enregistrée sous teacher.mcqid, en général dans vos Téléchargements. Rangez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos élèves.",
+    identity_download_again: "Télécharger à nouveau mon identité",
+    identity_kept: "Votre identité est gardée dans ce navigateur : tapez sa phrase de passe pour la déverrouiller.",
+    identity_forget: "Oublier l'identité gardée dans ce navigateur",
+    identity_keep: "Garder mon identité dans ce navigateur (toujours verrouillée par sa phrase de passe)",
+    publish_warnings: "Le validateur signale encore {n} {n:avertissement|avertissements} : vous pouvez publier, mais relisez-les d'abord dans Écrire.",
+    distribute_title: "Comment les élèves le passent",
+    distribute_steps: [
+        "Envoyez {file} à vos élèves (ENT, messagerie, clé USB) ou mettez-le en ligne.",
+        "Ils l'ouvrent dans le lecteur, dans n'importe quel navigateur, sans rien installer : https://mickaelmancini.com/mcq-advanced/player/ (ou dans l'application MCQ Advanced).",
+        "Au début de l'épreuve, donnez le code d'ouverture : il est sur la fiche de salle ci-dessous.",
+        "À la fin, chaque élève enregistre sa copie (un fichier .mcqres) et vous l'envoie : ouvrez-les dans Corriger.",
+    ],
     wrong_passphrase: "Phrase de passe incorrecte, ou ce n'est pas un fichier d'identité.",
     passphrases_differ: "Les deux phrases diffèrent.",
     passphrase_too_short: "12 caractères au moins.",
@@ -724,10 +863,10 @@ pub static FR: Texts = Texts {
     sheet_duration: "Durée",
     no_limit: "sans limite",
     sheet_steps: [
-        "Ouvrez le sujet dans MCQ Advanced (fichier ou lien).",
+        "Ouvrez le sujet dans le lecteur : https://mickaelmancini.com/mcq-advanced/player/ (ou l'application MCQ Advanced).",
         "Vérifiez que l'empreinte affichée est celle de cette fiche.",
         "Saisissez votre nom, puis le code d'ouverture.",
-        "À la fin, remettez votre copie et notez votre code de remise.",
+        "À la fin, rendez votre copie, enregistrez-la, envoyez le fichier à votre enseignant et notez votre code de remise.",
     ],
     sheet_correction_later: "La correction s'ouvrira avec un code donné après l'épreuve.",
     sheet_practice: "Sujet d'entraînement : aucun code, la correction s'affiche à la fin.",
@@ -738,10 +877,22 @@ pub static FR: Texts = Texts {
 };
 
 /// Puts values in a template: `{name}` becomes the value given for `name`.
+/// `{name:one|many}` becomes `one` when `name` is 1, `many` otherwise.
 pub fn fill(template: &str, values: &[(&str, String)]) -> String {
     let mut out = template.to_string();
     for (name, value) in values {
         out = out.replace(&format!("{{{name}}}"), value);
+        let open = format!("{{{name}:");
+        while let Some(start) = out.find(&open) {
+            let Some(len) = out[start..].find('}') else {
+                break;
+            };
+            let forms = out[start + open.len()..start + len].to_string();
+            let (one, many) = forms.split_once('|').unwrap_or((&forms, &forms));
+            let singular = value.trim().parse::<u64>().is_ok_and(|n| n == 1);
+            let chosen = if singular { one } else { many }.to_string();
+            out.replace_range(start..=start + len, &chosen);
+        }
     }
     out
 }
@@ -852,16 +1003,16 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
     use_published: "Use the paper published in this session",
     add_copies: "Add copies (.mcqres)",
     drop_hint: "You can also drop the package and the copies anywhere on the page.",
-    waiting: "{n} file(s) waiting for your identity.",
+    waiting: "{n} {n:file|files} waiting for your identity.",
     package_ready: "Paper: {title}",
-    copies_in: "{n} copy(ies) opened.",
+    copies_in: "{n} {n:copy|copies} opened.",
     refused: "Not taken",
     refused_unknown: "not a package or a copy",
     refused_not_yours: "made for another teacher's identity",
     refused_already_in: "this copy is already in",
     refused_damaged: "damaged or altered file",
     clear: "Start again",
-    summary: "{n} copy(ies) · mean {mean}/20 · median {median}/20 · mean time {minutes} min",
+    summary: "{n} {n:copy|copies} · mean {mean}/20 · median {median}/20 · mean time {minutes}",
     reliability: "Reliability of the paper (KR-20): {value}, {level}.",
     reliability_levels: [
         "very low: marks say little",
@@ -873,18 +1024,18 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
     items_not_computed: "Fewer than 8 copies: discrimination and reliability are not computed.",
     reteach_title: "1 · To teach again",
     reteach: "{theme}: {rate} % success, {share} % of the class not there yet",
-    reteach_doubtful: "Check first: {n} question(s) of this theme have a doubtful key or were reported by students ({ids}); the notion may be fine.",
+    reteach_doubtful: "Check first: {n} {n:question of this theme has|questions of this theme have} a doubtful key or were reported by students ({ids}); the notion may be fine.",
     reteach_none: "No theme is under the threshold for this class.",
-    thin_theme: "{theme} has only {n} question(s): its rate is not usable.",
+    thin_theme: "{theme} has only {n} {n:question|questions}: its rate is not usable.",
     traps_title: "2 · Shared confusions",
     trap: "{rate} % chose «{option}» ({question})",
     traps_none: "No distractor drew a quarter of the answers.",
     review_title: "3 · Questions to review",
     key_doubt_rival: "{question} · key or wording to check: the strongest students prefer «{rival}»",
     key_doubt: "{question} · discriminates the wrong way (D = {d}): probably ambiguous",
-    reported: "{question} · reported as unclear or wrong by {n} student(s): reread the statement and the key",
+    reported: "{question} · reported as unclear or wrong by {n} {n:student|students}: reread the statement and the key",
     too_hard: "{question} · missed by {pct} % of the class",
-    dead: "{question} · {n} distractor(s) never chosen",
+    dead: "{question} · {n} {n:distractor|distractors} never chosen",
     too_easy: "{question} · succeeded by everyone",
     weak: "{question} · separates strong and weak students poorly (D = {d})",
     review_none: "No question needs rewriting.",
@@ -899,22 +1050,22 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
     anomalies_hint: "An anomaly is a reason to ask a question, never a verdict.",
     other_paper: "{name}: a copy of another paper, left out",
     same_name: "{name}: {n} copies under this name",
-    unknown_questions: "{name}: {n} answer(s) to questions missing from the key",
+    unknown_questions: "{name}: {n} {n:answer|answers} to questions missing from the key",
     identical: "{first} and {second}: the same answers, {n} identical mistakes among them",
-    left_window: "{name}: left the exam window {n} times ({minutes} min away)",
-    overtime: "{name}: {minutes} min over the time limit (the mark ignores it)",
-    fast: "{name}: a very good copy handed in after {minutes} min",
+    left_window: "{name}: left the exam window {n} {n:time|times} ({minutes} away)",
+    overtime: "{name}: {minutes} over the time limit (the mark ignores it)",
+    fast: "{name}: a very good copy handed in after {minutes}",
     extra_time: "{name}: extra time declared ({extension}), to check against your list of arrangements",
     untimed: "{name}: extra time without limit declared, to check against your list of arrangements",
     marks_title: "5 · Marks",
     columns: [
-        "Name", "Mark /20", "Correct", "Wrong", "Blank", "Minutes", "Receipt",
+        "Name", "Mark /20", "Correct", "Wrong", "Blank", "Time", "Receipt",
     ],
     open_sheet: "Sheet",
     open_timeline: "Timeline",
     timeline_title: "Timeline of the copy",
     timeline_hint: "Facts to talk about with the student, never a verdict.",
-    timeline_summary: "{changes} answer change(s): {rw} from right to wrong, {wr} from wrong to right, {ww} from wrong to wrong. {away} exit(s) from the exam window, {minutes} min away.",
+    timeline_summary: "{changes} answer {changes:change|changes}: {rw} from right to wrong, {wr} from wrong to right, {ww} from wrong to wrong. {away} {away:exit|exits} from the exam window, {minutes} away.",
     timeline_empty: "Nothing was recorded for this copy.",
     tl_answer: "Q{q}: «{options}»",
     tl_right: "right",
@@ -960,16 +1111,16 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     use_published: "Utiliser le sujet publié dans cette session",
     add_copies: "Ajouter des copies (.mcqres)",
     drop_hint: "Vous pouvez aussi glisser le paquet et les copies n'importe où sur la page.",
-    waiting: "{n} fichier(s) en attente de votre identité.",
+    waiting: "{n} {n:fichier|fichiers} en attente de votre identité.",
     package_ready: "Sujet : {title}",
-    copies_in: "{n} copie(s) ouverte(s).",
+    copies_in: "{n} {n:copie ouverte|copies ouvertes}.",
     refused: "Non pris",
     refused_unknown: "ni un paquet ni une copie",
     refused_not_yours: "fait pour l'identité d'un autre professeur",
     refused_already_in: "cette copie est déjà là",
     refused_damaged: "fichier abîmé ou modifié",
     clear: "Recommencer",
-    summary: "{n} copie(s) · moyenne {mean}/20 · médiane {median}/20 · durée moyenne {minutes} min",
+    summary: "{n} {n:copie|copies} · moyenne {mean}/20 · médiane {median}/20 · durée moyenne {minutes}",
     reliability: "Fiabilité du sujet (KR-20) : {value}, {level}.",
     reliability_levels: [
         "très faible : les notes disent peu",
@@ -981,18 +1132,18 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     items_not_computed: "Moins de 8 copies : discrimination et fiabilité ne sont pas calculées.",
     reteach_title: "1 · À réenseigner",
     reteach: "{theme} : {rate} % de réussite, {share} % de la classe non acquis",
-    reteach_doubtful: "À vérifier d'abord : {n} question(s) de ce thème ont un corrigé douteux ou ont été signalées par des élèves ({ids}) ; la notion est peut-être acquise.",
+    reteach_doubtful: "À vérifier d'abord : {n} {n:question de ce thème a un corrigé douteux ou a été signalée|questions de ce thème ont un corrigé douteux ou ont été signalées} par des élèves ({ids}) ; la notion est peut-être acquise.",
     reteach_none: "Aucun thème n'est sous le seuil pour cette classe.",
-    thin_theme: "{theme} n'a que {n} question(s) : son taux n'est pas exploitable.",
+    thin_theme: "{theme} n'a que {n} {n:question|questions} : son taux n'est pas exploitable.",
     traps_title: "2 · Idées fausses partagées",
     trap: "{rate} % ont choisi «{option}» ({question})",
     traps_none: "Aucun distracteur n'a attiré le quart des réponses.",
     review_title: "3 · Questions à revoir",
     key_doubt_rival: "{question} · corrigé ou énoncé à vérifier : les meilleurs préfèrent «{rival}»",
     key_doubt: "{question} · discrimine à l'envers (D = {d}) : probablement ambiguë",
-    reported: "{question} · signalée floue ou erronée par {n} élève(s) : relire l'énoncé et le corrigé",
+    reported: "{question} · signalée floue ou erronée par {n} {n:élève|élèves} : relire l'énoncé et le corrigé",
     too_hard: "{question} · ratée par {pct} % de la classe",
-    dead: "{question} · {n} distracteur(s) jamais choisi(s)",
+    dead: "{question} · {n} {n:distracteur jamais choisi|distracteurs jamais choisis}",
     too_easy: "{question} · réussie par tout le monde",
     weak: "{question} · sépare mal les forts et les faibles (D = {d})",
     review_none: "Aucune question ne demande de réécriture.",
@@ -1007,11 +1158,11 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     anomalies_hint: "Une anomalie est une raison de poser une question, jamais un verdict.",
     other_paper: "{name} : copie d'un autre sujet, écartée",
     same_name: "{name} : {n} copies sous ce nom",
-    unknown_questions: "{name} : {n} réponse(s) à des questions absentes du corrigé",
+    unknown_questions: "{name} : {n} {n:réponse|réponses} à des questions absentes du corrigé",
     identical: "{first} et {second} : mêmes réponses, dont {n} erreurs identiques",
-    left_window: "{name} : {n} sorties de la fenêtre d'épreuve ({minutes} min dehors)",
-    overtime: "{name} : temps dépassé de {minutes} min (la note n'en tient pas compte)",
-    fast: "{name} : très bonne copie rendue en {minutes} min",
+    left_window: "{name} : {n} {n:sortie|sorties} de la fenêtre d'épreuve ({minutes} dehors)",
+    overtime: "{name} : temps dépassé de {minutes} (la note n'en tient pas compte)",
+    fast: "{name} : très bonne copie rendue en {minutes}",
     extra_time: "{name} : temps majoré déclaré ({extension}), à vérifier avec votre liste d'aménagements",
     untimed: "{name} : temps majoré sans limite déclaré, à vérifier avec votre liste d'aménagements",
     marks_title: "5 · Notes",
@@ -1021,14 +1172,14 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
         "Justes",
         "Fausses",
         "Sans réponse",
-        "Minutes",
+        "Durée",
         "Code de remise",
     ],
     open_sheet: "Fiche",
     open_timeline: "Chronologie",
     timeline_title: "Chronologie de la copie",
     timeline_hint: "Des faits pour en parler avec l'élève, jamais un verdict.",
-    timeline_summary: "{changes} changement(s) de réponse : {rw} de juste à faux, {wr} de faux à juste, {ww} de faux à faux. {away} sortie(s) de la fenêtre d'épreuve, {minutes} min dehors.",
+    timeline_summary: "{changes} {changes:changement|changements} de réponse : {rw} de juste à faux, {wr} de faux à juste, {ww} de faux à faux. {away} {away:sortie|sorties} de la fenêtre d'épreuve, {minutes} dehors.",
     timeline_empty: "Rien n'a été enregistré pour cette copie.",
     tl_answer: "Q{q} : «{options}»",
     tl_right: "juste",
@@ -1166,3 +1317,60 @@ pub static DEMO_FR: DemoTexts = DemoTexts {
     ],
     identity_note: "Les copies sont ouvertes avec une identité d'exemple publique, qui ne sert qu'à elles. Pour publier un vrai sujet, créez votre propre identité.",
 };
+
+#[cfg(test)]
+mod tests {
+    use mcq_model::{Issue, Location, Severity};
+
+    use super::{EN, FR, fill};
+
+    #[test]
+    fn counts_pick_their_singular_or_plural() {
+        let one = fill("{n} {n:copie|copies}", &[("n", "1".to_string())]);
+        let many = fill("{n} {n:copie|copies}", &[("n", "3".to_string())]);
+        assert_eq!((one.as_str(), many.as_str()), ("1 copie", "3 copies"));
+        assert_eq!(
+            fill(
+                "{a} {a:x|y}, {b} {b:x|y}",
+                &[("a", "1".into()), ("b", "0".into())]
+            ),
+            "1 x, 0 y"
+        );
+    }
+
+    #[test]
+    fn the_editor_names_fields_where_the_core_names_syntax() {
+        let issue = Issue::new(
+            Severity::Warning,
+            "NO_RULE",
+            Location::Paper,
+            "No rule to remember: add `RULE:`.",
+            "Aucune règle à retenir : ajoutez `RULE:`.",
+        );
+        assert_eq!(
+            FR.form_issue(&issue),
+            "Aucune règle à retenir : remplissez « Règle à retenir »."
+        );
+        assert_eq!(
+            EN.form_issue(&issue),
+            "No rule to remember: fill in “Rule to remember”."
+        );
+    }
+
+    #[test]
+    fn no_core_message_reaches_the_editor_with_its_syntax() {
+        let mut project = mcq_edit::Project::default();
+        project.paper.questions.push(mcq_model::Question {
+            id: "q1".into(),
+            options: vec![mcq_model::AnswerOption::default(); 2],
+            ..mcq_model::Question::default()
+        });
+        for issue in project.issues() {
+            for text in [FR.form_issue(&issue), EN.form_issue(&issue)] {
+                for syntax in ["`RULE:`", "`[x]`", "`COURSE:`", "`level 1`", "`title:`"] {
+                    assert!(!text.contains(syntax), "{text}");
+                }
+            }
+        }
+    }
+}

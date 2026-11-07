@@ -103,14 +103,7 @@ pub fn issue_list(issues: &[&Issue], t: &'static Texts, with_location: bool) -> 
                 String::new()
             };
             let link = rule_link(issue.code, t.lang);
-            (
-                place,
-                class,
-                label,
-                issue.code,
-                t.issue(issue).to_string(),
-                link,
-            )
+            (place, class, label, issue.code, t.form_issue(issue), link)
         })
         .collect();
     rsx! {
@@ -239,7 +232,10 @@ fn question_list(
                                 icon: Icon::Plus, label: t.add_question, tip: t.tip_add_question,
                                 onclick: {
                                     let theme_id = theme_id.clone();
-                                    move |_| studio.write().add_question(&theme_id)
+                                    move |_| {
+                                        studio.write().add_question(&theme_id);
+                                        to_top();
+                                    }
                                 },
                             }
                         }
@@ -275,7 +271,10 @@ fn question_list(
                                     ondragend: move |_| studio.write().end_drag(),
                                     onclick: {
                                         let id = id.clone();
-                                        move |_| studio.write().select(&id)
+                                        move |_| {
+                                            studio.write().select(&id);
+                                            to_top();
+                                        }
                                     },
                                     span { class: "q-num", "{n + 1}" }
                                     span { class: "q-text", "{text}" }
@@ -290,6 +289,11 @@ fn question_list(
             }
         }
     }
+}
+
+/// Another question opens at its top, not where the previous one was scrolled.
+fn to_top() {
+    let _ = document::eval("setTimeout(() => window.scrollTo(0, 0), 0);");
 }
 
 #[allow(clippy::too_many_arguments)] // WHY: one screen of one question; grouping would only rename.
@@ -310,6 +314,8 @@ fn question_editor(
     let index = paper.questions.iter().position(|q| q.id == id).unwrap_or(0);
     let kind = s.kind(question);
     let mine = state::issues_for(paper, issues, &id);
+    // A question not yet written gets no list of errors: it would only say it is empty.
+    let untouched = state::is_untouched(question);
     let themes: Vec<(String, String)> = paper
         .themes
         .iter()
@@ -340,7 +346,6 @@ fn question_editor(
                 }
             }
             div { class: "fields",
-                IdField { key: "{id}", studio, id: id.clone(), t_id: t.id, t_empty: t.id_empty, t_bad: t.id_bad, t_taken: t.id_taken }
                 div { class: "field",
                     label { r#for: "q-theme", "{t.theme}" }
                     select {
@@ -364,14 +369,21 @@ fn question_editor(
                         }
                     }
                 }
-                div { class: "field narrow",
-                    label { r#for: "q-seconds", "{t.seconds}" }
-                    input {
-                        id: "q-seconds", r#type: "number", min: "0", placeholder: "{t.seconds_auto}", value: "{seconds}",
-                        oninput: { let id = id.clone(); move |e: FormEvent| {
-                            let seconds = e.value().trim().parse().unwrap_or(0);
-                            studio.write().edit_question(&id, |q| q.estimated_seconds = seconds);
-                        } },
+            }
+            // Rarely changed, and technical: out of the way until asked for.
+            details { class: "advanced",
+                summary { "{t.advanced}" }
+                div { class: "fields",
+                    IdField { key: "{id}", studio, id: id.clone(), t_id: t.id, t_empty: t.id_empty, t_bad: t.id_bad, t_taken: t.id_taken }
+                    div { class: "field narrow",
+                        label { r#for: "q-seconds", "{t.seconds}" }
+                        input {
+                            id: "q-seconds", r#type: "number", min: "0", placeholder: "{t.seconds_auto}", value: "{seconds}",
+                            oninput: { let id = id.clone(); move |e: FormEvent| {
+                                let seconds = e.value().trim().parse().unwrap_or(0);
+                                studio.write().edit_question(&id, |q| q.estimated_seconds = seconds);
+                            } },
+                        }
                     }
                 }
             }
@@ -433,26 +445,26 @@ fn question_editor(
             section { class: "answers", "aria-labelledby": "answers-title",
                 h2 { id: "answers-title", "{t.answers}" }
                 p { class: "muted hint", "{t.answers_hint}" }
-                for (k, option) in question.options.iter().enumerate() {
+                for (k, option, letter) in question.options.iter().enumerate().map(|(k, o)| (k, o, mcq_player::render::option_key(k))) {
                     div { key: "{k}", class: if option.is_correct { "answer correct" } else { "answer" },
                         input {
                             r#type: if kind == Kind::Multiple { "checkbox" } else { "radio" },
                             name: "correct-{id}",
                             checked: option.is_correct,
-                            "aria-label": "{t.correct} {k + 1}",
+                            "aria-label": "{t.correct} {letter}",
                             onclick: { let id = id.clone(); move |_| studio.write().toggle_correct(&id, k) },
                         }
                         div { class: "answer-texts",
                             input {
                                 r#type: "text", class: "answer-text",
-                                "aria-label": "{t.answer_placeholder} {k + 1}",
-                                placeholder: "{t.answer_placeholder} {k + 1}",
+                                "aria-label": "{t.answer_placeholder} {letter}",
+                                placeholder: "{t.answer_placeholder} {letter}",
                                 value: "{option.text}",
                                 oninput: { let id = id.clone(); move |e: FormEvent| studio.write().edit_question(&id, |q| q.options[k].text = e.value()) },
                             }
                             textarea {
                                 class: "explanation-text", rows: "1",
-                                "aria-label": "{t.explanation_placeholder} ({k + 1})",
+                                "aria-label": "{t.explanation_placeholder} ({letter})",
                                 placeholder: "{t.explanation_placeholder}",
                                 value: "{option.explanation}",
                                 oninput: { let id = id.clone(); move |e: FormEvent| studio.write().edit_question(&id, |q| q.options[k].explanation = e.value()) },
@@ -486,8 +498,12 @@ fn question_editor(
             section { class: "advice", "aria-labelledby": "advice-title",
                 h2 { id: "advice-title", "{t.validator}" }
                 // Read out when the count changes, not at every keystroke: the list itself is not live.
-                p { class: "sr-only", role: "status", "{t.issue_count(&mine)}" }
-                {issue_list(&mine, t, false)}
+                if untouched {
+                    p { class: "muted", "{t.untouched_hint}" }
+                } else {
+                    p { class: "sr-only", role: "status", "{t.issue_count(&mine)}" }
+                    {issue_list(&mine, t, false)}
+                }
             }
             if let Some(results) = results {
                 {class_results(question, &results, t)}

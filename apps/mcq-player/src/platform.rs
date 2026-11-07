@@ -48,6 +48,41 @@ pub fn storage_set(key: &str, value: &str) {
     ));
 }
 
+/// Writes the current time, in seconds, next to `key`: when the page closes, the last stamp says
+/// when the exam stopped counting.
+pub fn storage_stamp(key: &str) {
+    if !script_safe(key) {
+        return;
+    }
+    let _ = document::eval(&format!(
+        "try {{ localStorage.setItem('{key}-at', String(Math.floor(Date.now() / 1000))); }} catch (e) {{}}"
+    ));
+}
+
+/// Seconds since the last `storage_stamp` of `key`, 0 without one or with a clock gone back.
+pub async fn seconds_since_stamp(key: &str) -> u32 {
+    if !script_safe(key) {
+        return 0;
+    }
+    let script = format!(
+        "try {{ const v = Number(localStorage.getItem('{key}-at')); \
+         return v > 0 ? Math.max(0, Math.floor(Date.now() / 1000) - v) : 0; }} catch (e) {{ return 0; }}"
+    );
+    let seconds: f64 = document::eval(&script).join().await.unwrap_or(0.0);
+    // WHY: a value from the page, clamped before the cast.
+    seconds.clamp(0.0, f64::from(u32::MAX)) as u32
+}
+
+/// Removes `key` and its stamp.
+pub fn storage_remove(key: &str) {
+    if !script_safe(key) {
+        return;
+    }
+    let _ = document::eval(&format!(
+        "try {{ localStorage.removeItem('{key}'); localStorage.removeItem('{key}-at'); }} catch (e) {{}}"
+    ));
+}
+
 /// The theme picked on this device, shared by the player and the Studio.
 const THEME_KEY: &str = "mcq-theme";
 
@@ -65,18 +100,53 @@ fn stored_dark(value: Option<&str>) -> bool {
     value != Some("light")
 }
 
+/// A file name safe to splice into a script: accents dropped (`Léa` gives `Lea`), anything
+/// else outside letters, digits, `.` and `-` turned into `_`.
+pub fn file_name(name: &str) -> String {
+    name.chars()
+        .map(|c| match ascii_letter(c) {
+            Some(plain) => plain,
+            None if c.is_ascii_alphanumeric() || c == '.' || c == '-' => c,
+            None => '_',
+        })
+        .collect()
+}
+
+/// The plain letter under a Latin accented one, as names are written in class.
+fn ascii_letter(c: char) -> Option<char> {
+    const TABLE: [(&str, char); 14] = [
+        ("àáâãäåāă", 'a'),
+        ("ÀÁÂÃÄÅĀĂ", 'A'),
+        ("çćč", 'c'),
+        ("ÇĆČ", 'C'),
+        ("èéêëēěę", 'e'),
+        ("ÈÉÊËĒĚĘ", 'E'),
+        ("ìíîïī", 'i'),
+        ("ÌÍÎÏĪ", 'I'),
+        ("ñń", 'n'),
+        ("ÑŃ", 'N'),
+        ("òóôõöøō", 'o'),
+        ("ÒÓÔÕÖØŌ", 'O'),
+        ("ùúûüūů", 'u'),
+        ("ÙÚÛÜŪŮ", 'U'),
+    ];
+    match c {
+        'ÿ' | 'ý' => Some('y'),
+        'Ÿ' | 'Ý' => Some('Y'),
+        'š' => Some('s'),
+        'Š' => Some('S'),
+        'ž' => Some('z'),
+        'Ž' => Some('Z'),
+        _ => TABLE
+            .iter()
+            .find(|(accented, _)| accented.contains(c))
+            .map(|(_, plain)| *plain),
+    }
+}
+
 /// Offers a file to save; in the desktop webview it lands in the Downloads folder.
 pub fn download(file_name: &str, base64: &str) {
-    let name: String = file_name
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
+    let name = self::file_name(file_name);
     if !script_safe(base64) {
         return;
     }
@@ -200,6 +270,14 @@ mod tests {
         let key = save_key(&[0xAB; 16], "Zoë O'Brien");
         assert!(script_safe(&key), "{key}");
         assert!(!script_safe("x'); alert(1); ('"));
+    }
+
+    #[test]
+    fn file_names_keep_the_letters_of_accented_names() {
+        assert_eq!(file_name("Léa Testeuse.mcqres"), "Lea_Testeuse.mcqres");
+        assert_eq!(file_name("Zoë O'Brien.mcqres"), "Zoe_O_Brien.mcqres");
+        assert_eq!(file_name("Ånæs Çelik"), "An_s_Celik");
+        assert!(script_safe(&file_name("x'); alert(1); ('")));
     }
 
     #[test]

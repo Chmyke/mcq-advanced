@@ -63,7 +63,21 @@ impl Studio {
             drag: None,
         };
         studio.refresh_media_urls();
+        studio.open_statement();
         studio
+    }
+
+    /// A question without a statement shows an empty paragraph to type in, rather than a
+    /// toolbar to discover. An empty paragraph writes nothing to the file.
+    fn open_statement(&mut self) {
+        let Some(id) = self.selected.clone() else {
+            return;
+        };
+        if let Some(q) = self.project.paper.questions.iter_mut().find(|q| q.id == id)
+            && q.body.is_empty()
+        {
+            q.body.push(Block::Text(String::new()));
+        }
     }
 
     fn touch(&mut self) {
@@ -81,13 +95,7 @@ impl Studio {
 
     /// Nothing written yet: replacing it loses nothing.
     pub fn is_blank(&self) -> bool {
-        self.project.media.is_empty()
-            && self
-                .project
-                .paper
-                .questions
-                .iter()
-                .all(|q| q.body.is_empty() && q.options.iter().all(|o| o.text.is_empty()))
+        self.project.media.is_empty() && self.project.paper.questions.iter().all(is_untouched)
     }
 
     /// Reader findings first, then the linter's and the media checks.
@@ -99,6 +107,7 @@ impl Studio {
 
     pub fn select(&mut self, id: &str) {
         self.selected = Some(id.to_string());
+        self.open_statement();
     }
 
     pub fn selected_question(&self) -> Option<&Question> {
@@ -125,6 +134,7 @@ impl Studio {
         self.edit_paper(|paper| added = Some(ops::add_question(paper, theme_id)));
         if added.is_some() {
             self.selected = added;
+            self.open_statement();
         }
     }
 
@@ -292,6 +302,15 @@ impl Studio {
 }
 
 /// The issues about one question: by id, or by a source line inside it.
+/// Nothing written in the question yet: an empty statement, empty answers.
+pub fn is_untouched(question: &Question) -> bool {
+    question
+        .body
+        .iter()
+        .all(|b| matches!(b, Block::Text(text) if text.trim().is_empty()))
+        && question.options.iter().all(|o| o.text.trim().is_empty())
+}
+
 pub fn issues_for<'a>(paper: &Paper, issues: &'a [Issue], question_id: &str) -> Vec<&'a Issue> {
     issues
         .iter()

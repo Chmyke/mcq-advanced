@@ -35,8 +35,26 @@ fn decimal(value: f64, digits: usize, lang: Lang) -> String {
     }
 }
 
+/// A duration as the clock shows it: `45 s` under a minute, `4 min 05 s` past it.
 fn minutes(seconds: u32) -> String {
-    (seconds / 60).to_string()
+    mcq_engine::format_duration(seconds)
+}
+
+/// A question as the teacher knows it: its number in the paper and the start of its statement,
+/// never its technical id.
+fn question_name(paper: &Paper, id: &str, lang: Lang) -> String {
+    let Some(n) = paper.questions.iter().position(|q| q.id == id) else {
+        return id.to_string();
+    };
+    let start = paper
+        .question(id)
+        .map(|q| crate::state::summary(q, 45))
+        .unwrap_or_default();
+    match (start.is_empty(), lang) {
+        (true, _) => format!("Q{}", n + 1),
+        (false, Lang::Fr) => format!("Q{} « {start} »", n + 1),
+        (false, Lang::En) => format!("Q{} “{start}”", n + 1),
+    }
 }
 
 fn option_text(paper: &Paper, question: &str, option: &str) -> String {
@@ -170,6 +188,7 @@ struct Lines {
 /// One sentence per finding of a kind, in the report's order.
 fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -> Lines {
     let d = |v: f64| decimal(v, 2, lang);
+    let qname = |id: &str| question_name(paper, id, lang);
     let formulas = option_formulas(paper);
     let text = |line: String| vec![Piece::Text(line)];
     let (mut reteach, mut traps, mut review) = (Vec::new(), Vec::new(), Vec::new());
@@ -204,7 +223,14 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                         c.reteach_doubtful,
                         &[
                             ("n", doubtful.len().to_string()),
-                            ("ids", doubtful.join(", ")),
+                            (
+                                "ids",
+                                doubtful
+                                    .iter()
+                                    .map(|id| qname(id))
+                                    .collect::<Vec<_>>()
+                                    .join(", "),
+                            ),
                         ],
                     )
                 });
@@ -216,7 +242,7 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                 rate,
             } => traps.push(fill_quoted(
                 c.trap,
-                &[("rate", pct(*rate)), ("question", question.clone())],
+                &[("rate", pct(*rate)), ("question", qname(question))],
                 &[("option", quoted(paper, &formulas, question, option))],
             )),
             Finding::KeyDoubt {
@@ -227,12 +253,12 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                 match rival {
                     Some(rival) => fill_quoted(
                         c.key_doubt_rival,
-                        &[("question", question.clone()), ("d", d(*discrimination))],
+                        &[("question", qname(question)), ("d", d(*discrimination))],
                         &[("rival", quoted(paper, &formulas, question, rival))],
                     ),
                     None => text(fill(
                         c.key_doubt,
-                        &[("question", question.clone()), ("d", d(*discrimination))],
+                        &[("question", qname(question)), ("d", d(*discrimination))],
                     )),
                 },
                 Some(key_choices(paper, &formulas, question, rival.as_deref())),
@@ -240,27 +266,27 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
             Finding::Reported { question, students } => review.push((
                 text(fill(
                     c.reported,
-                    &[("question", question.clone()), ("n", students.to_string())],
+                    &[("question", qname(question)), ("n", students.to_string())],
                 )),
                 None,
             )),
             Finding::TooHard { question, facility } => review.push((
                 text(fill(
                     c.too_hard,
-                    &[("question", question.clone()), ("pct", pct(1.0 - facility))],
+                    &[("question", qname(question)), ("pct", pct(1.0 - facility))],
                 )),
                 None,
             )),
             Finding::DeadDistractors { question, count } => review.push((
                 text(fill(
                     c.dead,
-                    &[("question", question.clone()), ("n", count.to_string())],
+                    &[("question", qname(question)), ("n", count.to_string())],
                 )),
                 None,
             )),
             Finding::TooEasy { question, .. } => {
                 review.push((
-                    text(fill(c.too_easy, &[("question", question.clone())])),
+                    text(fill(c.too_easy, &[("question", qname(question))])),
                     None,
                 ));
             }
@@ -270,7 +296,7 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
             } => review.push((
                 text(fill(
                     c.weak,
-                    &[("question", question.clone()), ("d", d(*discrimination))],
+                    &[("question", qname(question)), ("d", d(*discrimination))],
                 )),
                 None,
             )),
@@ -363,7 +389,12 @@ fn reliability_line(value: f64, c: &CorrectTexts, lang: Lang) -> String {
 }
 
 /// The decisions in force, one sentence each with the question they are about.
-fn decision_lines(report: &Report, paper: &Paper, c: &CorrectTexts) -> Vec<(String, Sentence)> {
+fn decision_lines(
+    report: &Report,
+    paper: &Paper,
+    c: &CorrectTexts,
+    lang: Lang,
+) -> Vec<(String, Sentence)> {
     let formulas = option_formulas(paper);
     let neutralized = report
         .adjustments
@@ -378,11 +409,14 @@ fn decision_lines(report: &Report, paper: &Paper, c: &CorrectTexts) -> Vec<(Stri
             let line = match &a.decision {
                 Decision::Neutralize => vec![Piece::Text(fill(
                     c.decided_neutral,
-                    &[("question", a.question.clone()), ("n", graded.to_string())],
+                    &[
+                        ("question", question_name(paper, &a.question, lang)),
+                        ("n", graded.to_string()),
+                    ],
                 ))],
                 Decision::Rekey(options) => fill_quoted(
                     c.decided_rekey,
-                    &[("question", a.question.clone())],
+                    &[("question", question_name(paper, &a.question, lang))],
                     &[(
                         "options",
                         options
@@ -416,7 +450,7 @@ pub fn report_view(
     on_action: EventHandler<ReportAction>,
 ) -> Element {
     let c = t.correction;
-    let decisions = decision_lines(report, paper, c);
+    let decisions = decision_lines(report, paper, c, lang);
     let summary = fill(
         c.summary,
         &[
@@ -428,7 +462,14 @@ pub fn report_view(
             ),
             (
                 "minutes",
-                format!("{:.0}", report.mean_seconds.unwrap_or(0.0) / 60.0),
+                // WHY: a mean of seconds, rounded and clamped before the cast.
+                minutes(
+                    report
+                        .mean_seconds
+                        .unwrap_or(0.0)
+                        .round()
+                        .clamp(0.0, f64::from(u32::MAX)) as u32,
+                ),
             ),
         ],
     );
@@ -572,13 +613,7 @@ fn clock(seconds: u32) -> String {
 }
 
 /// One copy's timeline: a summary, a strip along the exam's duration, then each moment.
-pub fn timeline_view(
-    name: &str,
-    timeline: &Timeline,
-    paper: &Paper,
-    t: &'static Texts,
-    lang: Lang,
-) -> Element {
+pub fn timeline_view(name: &str, timeline: &Timeline, paper: &Paper, t: &'static Texts) -> Element {
     let c = t.correction;
     let summary = fill(
         c.timeline_summary,
@@ -588,10 +623,7 @@ pub fn timeline_view(
             ("wr", timeline.wrong_to_right.to_string()),
             ("ww", timeline.wrong_to_wrong.to_string()),
             ("away", timeline.away_count.to_string()),
-            (
-                "minutes",
-                decimal(f64::from(timeline.away_seconds) / 60.0, 1, lang),
-            ),
+            ("minutes", minutes(timeline.away_seconds)),
         ],
     );
     let formulas = option_formulas(paper);
@@ -921,7 +953,7 @@ pub fn CorrectSpace(
                     IconButton { class: "primary", icon: Icon::Print, label: c.print, tip: c.print_student_sheet, onclick: move |_| platform::print() }
                     IconButton { icon: Icon::Close, label: c.close_sheet, onclick: move |_| timeline_for.set(None) }
                 }
-                {timeline_view(&name, &timeline, paper, t, lang)}
+                {timeline_view(&name, &timeline, paper, t)}
             } else if let (Some(report), Some(paper)) = (report, paper) {
                 div { class: "actions",
                     IconMenu { icon: Icon::Download, label: c.export, tip: c.tip_export,

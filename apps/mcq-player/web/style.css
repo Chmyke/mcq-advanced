@@ -218,6 +218,7 @@ figcaption { color: var(--muted); font-size: .9em; }
 .segment::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 12px; box-sizing: border-box; border-radius: 3px; border: 1px solid var(--field-border); background: transparent; transition: background-color .2s ease, transform .2s ease; }
 .segment:hover::before { transform: scaleY(1.4); }
 .segment.answered::before { background: var(--accent); border-color: var(--accent); }
+.segment.answered.incomplete::before { background: linear-gradient(to right, var(--accent) 50%, transparent 50%); }
 .segment.flagged::before { background: var(--warn); border-color: var(--warn); }
 .segment.current::before { background: var(--accent); border-color: var(--text); border-width: 2px; transform: scaleY(1.5); }
 .segment.current.flagged::before { background: var(--warn); }

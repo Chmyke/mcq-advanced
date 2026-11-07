@@ -42,8 +42,10 @@ impl TimeStatus {
         }
         status.remaining_seconds = limit.saturating_sub(elapsed);
         status.overtime_seconds = elapsed.saturating_sub(limit);
-        status.final_warning =
-            status.remaining_seconds > 0 && status.remaining_seconds <= WARNING_SECONDS;
+        // An exam no longer than the warning would raise it from its first second.
+        status.final_warning = limit > WARNING_SECONDS
+            && status.remaining_seconds > 0
+            && status.remaining_seconds <= WARNING_SECONDS;
 
         if session.submitted || status.remaining_seconds == 0 {
             return status;
@@ -99,12 +101,5 @@ impl Session {
             lead_seconds: status.lead_seconds,
             time_fraction: f64::from(self.elapsed_seconds) / f64::from(status.limit_seconds),
         })
-    }
-
-    /// Seconds a question saved (positive) or took beyond its share (negative), once visited.
-    pub fn share_delta(&self, paper: &Paper, index: usize) -> Option<i64> {
-        let gauge = self.pace(paper)?;
-        let spent = self.items.get(index)?.seconds_spent;
-        (spent > 0).then(|| i64::from(gauge.share_seconds) - i64::from(spent))
     }
 }

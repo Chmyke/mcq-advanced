@@ -210,6 +210,73 @@ fn pace_alert_fires_once_and_rearms() {
 }
 
 #[test]
+fn a_short_exam_is_not_warned_from_its_first_second() {
+    let (mut p, mut s) = ordered(2);
+    p.duration_minutes = 5;
+    s.tick(1);
+    assert!(!s.time_status(&p).final_warning);
+    s.tick(290);
+    assert!(!s.time_status(&p).final_warning);
+}
+
+#[test]
+fn a_closed_page_counts_its_time_as_a_window_exit() {
+    let (_, mut s) = ordered(2);
+    s.reopened_after(40);
+    assert_eq!(s.elapsed_seconds, 0, "nothing counts before the start");
+    s.tick(10);
+    s.reopened_after(40);
+    assert_eq!(
+        (s.elapsed_seconds, s.focus_losses, s.seconds_away),
+        (50, 1, 40)
+    );
+    assert_eq!(
+        s.log.iter().map(|e| e.kind).collect::<Vec<_>>(),
+        [LogKind::FocusLost, LogKind::FocusBack]
+    );
+    assert_eq!(s.items[0].seconds_spent, 10, "no question took that time");
+
+    // Hidden, then closed: the exit is already logged.
+    s.focus_lost();
+    s.reopened_after(5);
+    assert_eq!((s.focus_losses, s.seconds_away), (2, 45));
+
+    s.submit();
+    s.reopened_after(100);
+    assert_eq!(s.elapsed_seconds, 55, "a handed-in copy never changes");
+}
+
+#[test]
+fn a_multiple_answer_ticked_short_is_incomplete_when_the_count_is_announced() {
+    let mut p = paper(2, 2);
+    p.shuffle_options = false;
+    let mut s = Session::new(&p, [1; 16], "Alex Example");
+    let first = s
+        .items
+        .iter()
+        .position(|i| i.question_id == p.questions[0].id)
+        .expect("the multiple question");
+    s.go_to(first);
+    let option = s.items[first].option_order[0].clone();
+    s.toggle(&p, &option);
+    assert_eq!(s.incomplete_count(&p), 1);
+    p.show_answer_count = false;
+    assert_eq!(s.incomplete_count(&p), 0, "the student could not know");
+}
+
+#[test]
+fn true_or_false_keeps_its_order_when_options_are_shuffled() {
+    let mut p = paper(1, 2);
+    p.questions[0].options.truncate(2);
+    p.questions[0].options[0].text = "Vrai".to_string();
+    p.questions[0].options[1].text = "Faux".to_string();
+    for seed in 0..20_u8 {
+        let s = Session::new(&p, [seed; 16], "Alex Example");
+        assert_eq!(s.items[0].option_order, ["q0-o1", "q0-o2"], "seed {seed}");
+    }
+}
+
+#[test]
 fn focus_events_are_counted_and_logged() {
     let (_, mut s) = ordered(1);
     s.focus_lost();
@@ -273,13 +340,6 @@ fn the_pace_gauge_shares_the_time_evenly_and_goes_away_past_the_limit() {
     // One answer is worth 60 s of the pace; 110 s have gone.
     assert_eq!(gauge.lead_seconds, -50);
     assert!((gauge.time_fraction - 110.0 / 600.0).abs() < 1e-9);
-    assert_eq!(
-        s.share_delta(&p, 0),
-        Some(40),
-        "the first question saved 40 s"
-    );
-    assert_eq!(s.share_delta(&p, 1), Some(-30));
-    assert_eq!(s.share_delta(&p, 5), None, "never visited");
     s.tick(600);
     assert_eq!(s.pace(&p), None, "past the limit");
     let mut free = paper(3, 1);

@@ -153,6 +153,8 @@ pub struct Paper {
     pub shuffle_options: bool,
     /// Tell the student how many options to tick on multiple-answer questions.
     pub show_answer_count: bool,
+    /// Students may declare extra time (a third, a half, double, untimed) before they start.
+    pub allow_extra_time: bool,
     /// Author notes written before the first theme: kept in the source, never shown to students.
     pub notes: String,
     pub themes: Vec<Theme>,
@@ -166,6 +168,7 @@ impl Paper {
             shuffle_questions: true,
             shuffle_options: true,
             show_answer_count: true,
+            allow_extra_time: true,
             ..Self::default()
         }
     }
@@ -277,6 +280,22 @@ impl Question {
     /// True when more than one option is to be ticked: the student ticks boxes, not a radio.
     pub fn is_multiple(&self) -> bool {
         self.answers_to_tick() > 1
+    }
+
+    /// Two options reading true then false (in English or French): a statement to judge, whose
+    /// options keep their order and whose statement needs no question.
+    pub fn is_true_false(&self) -> bool {
+        const TRUE_WORDS: [&str; 2] = ["true", "vrai"];
+        const FALSE_WORDS: [&str; 2] = ["false", "faux"];
+        let word = |o: &AnswerOption| o.text.trim().to_lowercase();
+        matches!(self.options.as_slice(), [a, b]
+            if TRUE_WORDS.contains(&word(a).as_str()) && FALSE_WORDS.contains(&word(b).as_str()))
+    }
+
+    /// Ticked, but fewer options than the question asks for. Only meaningful when the count is
+    /// announced to the student.
+    pub fn is_incomplete(&self, ticked: usize) -> bool {
+        self.is_multiple() && ticked > 0 && ticked < self.answers_to_tick()
     }
 
     pub fn first_correct(&self) -> Option<&AnswerOption> {

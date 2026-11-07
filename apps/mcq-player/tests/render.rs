@@ -246,6 +246,7 @@ fn overview_marks_current_answered_and_flagged() {
         session.next();
         render::segments(
             &session,
+            &opened.paper,
             None,
             Lang::En.texts(),
             EventHandler::new(|_: usize| {}),
@@ -507,7 +508,7 @@ fn the_exam_markup_is_handed_to_the_motion_check() {
         let item = session.current_item().expect("item").clone();
         let question = opened.paper.question(&item.question_id).expect("q");
         rsx! {
-            {render::segments(&session, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
+            {render::segments(&session, &opened.paper, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
             {render::question_view(question, &item, 0, 3, opened.content(), Lang::Fr.texts(), EventHandler::new(|_: String| {}), EventHandler::new(|()| {}), EventHandler::new(|()| {}))}
         }
     });
@@ -546,8 +547,8 @@ fn the_exam_shows_segments_and_a_calm_pace_gauge_with_letter_keys() {
         let item = session.current_item().expect("item").clone();
         let question = opened.paper.question(&item.question_id).expect("q");
         rsx! {
-            {render::segments(&session, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
-            {render::pace_view(&gauge, Some((0, -30)), Lang::Fr.texts())}
+            {render::segments(&session, &opened.paper, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
+            {render::pace_view(&gauge, Lang::Fr.texts())}
             {render::question_view(question, &item, 0, 3, opened.content(), Lang::Fr.texts(), EventHandler::new(|_: String| {}), EventHandler::new(|()| {}), EventHandler::new(|()| {}))}
         }
     });
@@ -561,9 +562,10 @@ fn the_exam_shows_segments_and_a_calm_pace_gauge_with_letter_keys() {
         "{html}"
     );
     assert!(html.contains("de retard"), "{html}");
-    assert!(
-        html.contains("Question 1 : 30 s de plus que sa part"),
-        "{html}"
+    assert_eq!(
+        html.matches("pace-text").count(),
+        1,
+        "one line of pace: {html}"
     );
     assert!(
         html.contains(">A</span>"),
@@ -617,6 +619,24 @@ fn intro_offers_extra_time_and_shows_the_stretched_duration() {
     assert!(html.contains("13 min 20 s · Tiers-temps (+1/3)"), "{html}");
     assert_eq!(html.matches("type=\"radio\"").count(), 5, "{html}");
     assert!(!html.contains("disabled"), "{html}");
+}
+
+#[test]
+fn intro_offers_no_extra_time_when_the_teacher_turned_it_off() {
+    let html = render(|| {
+        let mut opened = opened();
+        opened.paper.allow_extra_time = false;
+        render::intro(
+            &opened.paper,
+            &opened.formulas,
+            &opened.header,
+            Lang::Fr.texts(),
+            EventHandler::new(|()| {}),
+            false,
+            no_extra_time(),
+        )
+    });
+    assert!(!html.contains("Temps majoré"), "{html}");
 }
 
 #[test]
@@ -703,6 +723,7 @@ fn overview_shows_a_reported_glyph_apart_from_the_flag_colour() {
         session.toggle_flag();
         render::segments(
             &session,
+            &opened.paper,
             None,
             Lang::En.texts(),
             EventHandler::new(|_: usize| {}),

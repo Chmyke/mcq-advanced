@@ -330,6 +330,7 @@ fn cell_class(session: &Session, i: usize, item: &SessionItem) -> &'static str {
 /// One segment per question, coloured by state, and a cursor where the time stands.
 pub fn segments(
     session: &Session,
+    paper: &Paper,
     time_fraction: Option<f64>,
     t: &'static Texts,
     on_go: EventHandler<usize>,
@@ -339,8 +340,14 @@ pub fn segments(
         .iter()
         .enumerate()
         .map(|(i, item)| {
+            let incomplete = paper.show_answer_count
+                && paper
+                    .question(&item.question_id)
+                    .is_some_and(|q| q.is_incomplete(item.selected.len()));
             let answered = if item.selected.is_empty() {
                 t.state_unanswered
+            } else if incomplete {
+                t.state_incomplete
             } else {
                 t.state_answered
             };
@@ -351,7 +358,11 @@ pub fn segments(
             if item.reported {
                 name = format!("{name}, {}", t.state_reported);
             }
-            (i, cell_class(session, i, item), item.reported, name)
+            let class = match (cell_class(session, i, item), incomplete) {
+                ("answered", true) => "answered incomplete",
+                (class, _) => class,
+            };
+            (i, class, item.reported, name)
         })
         .collect();
     let cursor = time_fraction.map(|f| format!("{:.2}", (f * 100.0).clamp(0.0, 100.0)));
@@ -374,9 +385,9 @@ pub fn segments(
     }
 }
 
-/// The pace, calmly: the share of the question on screen, the lead or lag, and what the
-/// question just left saved or cost. No red, no green: time informs, it never judges.
-pub fn pace_view(gauge: &PaceGauge, left: Option<(usize, i64)>, t: &'static Texts) -> Element {
+/// The pace, calmly: a gauge for the question on screen (its figures on hover and for screen
+/// readers) and one line, the lead or lag. No red, no green: time informs, it never judges.
+pub fn pace_view(gauge: &PaceGauge, t: &'static Texts) -> Element {
     let fill = |template: &str, values: &[(&str, String)]| crate::texts::fill(template, values);
     let used = if gauge.share_seconds == 0 {
         0.0
@@ -406,23 +417,13 @@ pub fn pace_view(gauge: &PaceGauge, left: Option<(usize, i64)>, t: &'static Text
             &[("d", format_duration(lead.unsigned_abs() as u32))],
         )
     };
-    let left_line = left.map(|(i, delta)| {
-        let d = format_duration(delta.unsigned_abs() as u32);
-        let template = if delta >= 0 {
-            t.pace_left_saved
-        } else {
-            t.pace_left_over
-        };
-        fill(template, &[("n", (i + 1).to_string()), ("d", d)])
-    });
     rsx! {
         div { class: "pace", role: "status", "aria-live": "off",
             span { class: if used > 100.0 { "pace-gauge over" } else { "pace-gauge" },
+                role: "img", "aria-label": "{question}", title: "{question}",
                 span { class: "pace-fill", style: "width: {width}%" }
             }
-            span { class: "pace-text", "{question}" }
             span { class: "pace-text", "{overall}" }
-            if let Some(line) = left_line { span { class: "pace-text muted", "{line}" } }
         }
     }
 }
@@ -568,7 +569,7 @@ pub fn intro(
                 dt { "{t.scoring}" } dd { "{scoring} {costs}" }
             }
             p { "{advice}" }
-            if paper.duration_minutes > 0 {
+            if paper.duration_minutes > 0 && paper.allow_extra_time {
                 fieldset { class: "extra-time",
                     legend { "{t.extra_time}" }
                     for extension in TimeExtension::ALL {

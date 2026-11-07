@@ -319,7 +319,8 @@ fn check_stem(question: &Question, out: &mut Out) {
             ),
         );
     }
-    if !stem.contains('?') && !stem.trim_end().ends_with(':') {
+    // A true or false question judges a statement: it asks nothing by nature.
+    if !question.is_true_false() && !stem.contains('?') && !stem.trim_end().ends_with(':') {
         out.warn(
             "MISSING_QUESTION",
             at(question),
@@ -407,7 +408,8 @@ fn check_formulas(texts: &[&str], place: Location, out: &mut Out) {
 }
 
 fn check_duration(paper: &Paper, out: &mut Out) {
-    let minutes = paper.estimated_seconds_with_margin() / 60;
+    // Rounded up, as the settings show it: 40 s is about 1 min, never 0.
+    let minutes = paper.estimated_seconds_with_margin().div_ceil(60);
     out.info(
         "DURATION",
         Location::Paper,

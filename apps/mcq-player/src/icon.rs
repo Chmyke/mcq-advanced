@@ -295,7 +295,13 @@ pub fn IconButton(
 /// otherwise look alike (four exports, three downloads). Choosing one or pressing Escape
 /// closes the list.
 #[component]
-pub fn IconMenu(icon: Icon, label: String, tip: Option<String>, children: Element) -> Element {
+pub fn IconMenu(
+    icon: Icon,
+    label: String,
+    tip: Option<String>,
+    #[props(default)] shown: bool,
+    children: Element,
+) -> Element {
     let mut open = use_signal(|| false);
     rsx! {
         div { class: "icon-menu",
@@ -304,7 +310,7 @@ pub fn IconMenu(icon: Icon, label: String, tip: Option<String>, children: Elemen
                     open.set(false);
                 }
             },
-            IconButton { icon, label, tip, aria_expanded: if open() { "true" } else { "false" }, onclick: move |_| open.toggle() }
+            IconButton { icon, label, tip, shown, aria_expanded: if open() { "true" } else { "false" }, onclick: move |_| open.toggle() }
             if open() {
                 div { class: "menu-list", onclick: move |_| open.set(false), {children} }
             }
@@ -320,11 +326,12 @@ pub fn IconFile(
     tip: Option<String>,
     accept: String,
     #[props(default)] multiple: bool,
+    #[props(default)] shown: bool,
     onchange: EventHandler<FormEvent>,
 ) -> Element {
     let tip = tip.unwrap_or_else(|| label.clone());
     rsx! {
-        label { class: "file", "data-icon": "tip",
+        label { class: "file", "data-icon": if shown { "shown" } else { "tip" },
             Glyph { icon }
             span { class: "label", "aria-hidden": "true", "{label}" }
             span { class: "tip", "aria-hidden": "true", "{tip}" }

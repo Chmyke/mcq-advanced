@@ -69,6 +69,12 @@ pub fn PublishSpace(
     let mut error = use_signal(|| None::<String>);
 
     let blocking = mcq_publish::blocking_issues(&studio.read().project.paper).len();
+    let warnings = studio
+        .read()
+        .issues()
+        .iter()
+        .filter(|i| i.severity == mcq_model::Severity::Warning)
+        .count();
 
     let publish = move |_| async move {
         let Some(teacher) = identity.read().clone() else {
@@ -136,6 +142,9 @@ pub fn PublishSpace(
                     input { r#type: "radio", name: "mode", checked: practice(), onchange: move |_| practice.set(true) }
                     "{t.mode_practice}"
                 }
+                if blocking == 0 && warnings > 0 {
+                    p { class: "muted", {crate::texts::fill(t.publish_warnings, &[("n", warnings.to_string())])} }
+                }
                 // A decisive action: the word stays, the icon only echoes the Publish space.
                 button {
                     class: "primary",
@@ -163,6 +172,12 @@ pub fn PublishSpace(
                             let last = Rc::clone(&last);
                             move |_| platform::download(&last.file_name, &b64::encode(&last.published.package))
                         } }
+                    }
+                    h2 { "{t.distribute_title}" }
+                    ol {
+                        for (k, step) in t.distribute_steps.iter().enumerate() {
+                            li { key: "{k}", {crate::texts::fill(step, &[("file", last.file_name.clone())])} }
+                        }
                     }
                 }
                 {room_sheet(&last.sheet, t)}

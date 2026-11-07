@@ -128,6 +128,19 @@ table.marks td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 body.dropping .studio-main { outline: 3px dashed var(--accent); outline-offset: -6px; }
 
+/* Wide screens: the student preview stays beside the question being written. */
+@media (min-width: 85rem) {
+  .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 26rem); gap: 1rem; align-items: start; }
+  .workspace > .preview { margin-top: 0; position: sticky; top: 4.5rem; }
+}
+
+.welcome-studio { max-width: 90rem; margin: .75rem auto 0; }
+.welcome-ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: .75rem; }
+.welcome-ways .way { display: flex; flex-direction: column; align-items: flex-start; gap: .4rem; }
+.welcome-ways .way p { margin: 0; }
+details.advanced { margin: .6rem 0 0; }
+details.advanced > summary { cursor: pointer; color: var(--muted); }
+
 @media (max-width: 900px) {
   .studio-top { position: static; }
   .write { grid-template-columns: 1fr; }

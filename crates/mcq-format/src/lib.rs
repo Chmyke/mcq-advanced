@@ -166,6 +166,7 @@ impl Reader {
             "shufflequestions" => set(&mut self.paper.shuffle_questions, parse_bool(value)),
             "shuffleoptions" => set(&mut self.paper.shuffle_options, parse_bool(value)),
             "showanswercount" => set(&mut self.paper.show_answer_count, parse_bool(value)),
+            "extratime" => set(&mut self.paper.allow_extra_time, parse_bool(value)),
             "scoring" => set(&mut self.paper.scoring, parse_scoring(value)),
             _ => {
                 self.warn(
