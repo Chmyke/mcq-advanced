@@ -8,15 +8,16 @@ use mcq_model::{LogKind, Paper, Submission};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
     /// The student settled on an answer to a question (single answers: the click that moved the
-    /// tick; multiple answers: each box). `right` tells whether the answer, as it then stood,
-    /// was entirely right.
+    /// tick; multiple answers: each box). `status` is how the answer, as it then stood, would be
+    /// graded: right, partly right (some credit under partial scoring) or wrong.
     Answer {
-        /// 1-based, in the student's order.
+        /// 1-based, in the paper's order (the teacher's numbering), never the shuffled order the
+        /// student saw; 0 for a question missing from the key.
         question: usize,
         question_id: String,
         /// Option ids ticked once this moment is over.
         selected: Vec<String>,
-        right: bool,
+        status: Status,
         /// The answer replaced one that was already given.
         change: Option<Change>,
     },
@@ -64,10 +65,11 @@ impl Timeline {
     }
 }
 
-fn is_right(paper: &Paper, question_id: &str, selected: &[String]) -> bool {
-    paper
-        .question(question_id)
-        .is_some_and(|q| mcq_grade::score(q, selected, paper.scoring).0 == Status::Correct)
+/// How the answer would be graded, with the same rule as the marks.
+fn graded(paper: &Paper, question_id: &str, selected: &[String]) -> Status {
+    paper.question(question_id).map_or(Status::Wrong, |q| {
+        mcq_grade::score(q, selected, paper.scoring).0
+    })
 }
 
 /// The timeline of a copy, against the answer key in force.
@@ -77,9 +79,10 @@ pub fn timeline(paper: &Paper, copy: &Submission) -> Timeline {
         ..Timeline::default()
     };
     let number = |id: &str| {
-        copy.answers
+        paper
+            .questions
             .iter()
-            .position(|a| a.question_id == id)
+            .position(|q| q.id == id)
             .map_or(0, |i| i + 1)
     };
     // What each question holds as the journal is replayed.
@@ -129,9 +132,12 @@ pub fn timeline(paper: &Paper, copy: &Submission) -> Timeline {
                         question_id,
                     }
                 } else {
-                    let right = is_right(paper, &question_id, &after);
+                    let status = graded(paper, &question_id, &after);
+                    // A change is judged on entirely right answers: partly right counts as wrong.
+                    let right = status == Status::Correct;
                     let change = (!before.is_empty()).then(|| {
-                        match (is_right(paper, &question_id, &before), right) {
+                        let was_right = graded(paper, &question_id, &before) == Status::Correct;
+                        match (was_right, right) {
                             (true, _) => Change::RightToWrong,
                             (false, true) => Change::WrongToRight,
                             (false, false) => Change::WrongToWrong,
@@ -147,7 +153,7 @@ pub fn timeline(paper: &Paper, copy: &Submission) -> Timeline {
                         question,
                         question_id,
                         selected: after,
-                        right,
+                        status,
                         change,
                     }
                 };

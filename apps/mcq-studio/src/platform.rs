@@ -83,6 +83,8 @@ const db = await new Promise((ok, ko) => {
 const DRAFT_KEY: &str = "current";
 /// Where the teacher's identity file is kept, still locked by its passphrase.
 const IDENTITY_KEY: &str = "identity";
+/// Where the last published package is kept, with its file name and title.
+const PUBLISHED_KEY: &str = "published";
 
 /// Keeps `value` (base 64) under `key` in the browser's database: no size limit to speak of,
 /// unlike `localStorage`. An empty value removes the key.
@@ -146,6 +148,16 @@ pub async fn kept_identity() -> Option<String> {
 /// Forgets the identity kept in this browser.
 pub async fn forget_identity() -> bool {
     store_put(IDENTITY_KEY, String::new()).await
+}
+
+/// Keeps the last paper published from this browser (`KeptPaper::encode`), for Correct.
+pub async fn keep_published(text: String) -> bool {
+    store_put(PUBLISHED_KEY, text).await
+}
+
+/// The paper kept by `keep_published`, if any.
+pub async fn kept_published() -> Option<String> {
+    store_get(PUBLISHED_KEY).await
 }
 
 /// The paper named by the page's `?open=` link, as `(file name, bytes)`: `Some(None)` when the

@@ -251,7 +251,8 @@ fn a_revision_sheet_lists_mistakes_and_where_to_start() {
     let ids: Vec<&str> = s.mistakes.iter().map(|m| m.question.id.as_str()).collect();
     assert_eq!(ids, vec!["q1", "q3", "q5"]);
     assert_eq!(s.mistakes[1].chosen, Vec::<String>::new(), "a blank");
-    assert_eq!(s.start_with, vec!["Theme 1".to_string()]);
+    let start: Vec<&str> = s.start_with.iter().map(|t| t.title.as_str()).collect();
+    assert_eq!(start, vec!["Theme 1"]);
     assert_eq!(s.themes.len(), 2);
 }
 
@@ -495,6 +496,7 @@ fn a_corrected_key_marks_every_copy_again() {
 #[test]
 fn a_timeline_replays_answers_changes_and_absences() {
     use mcq_analysis::timeline::{Change, Event, timeline};
+    use mcq_grade::Status;
     use mcq_model::{LogEntry, LogKind};
     let p = paper(3, 1);
     let mut c = copy(&p, "Alex", &[Some(1), Some(0), None], 600);
@@ -526,10 +528,14 @@ fn a_timeline_replays_answers_changes_and_absences() {
         .map(|m| match &m.event {
             Event::Answer {
                 question,
-                right,
+                status,
                 change,
                 ..
-            } => format!("{}:Q{question}:{right}:{change:?}", m.seconds),
+            } => format!(
+                "{}:Q{question}:{}:{change:?}",
+                m.seconds,
+                *status == Status::Correct
+            ),
             Event::Cleared { question, .. } => format!("{}:Q{question}:cleared", m.seconds),
             Event::Away { seconds } => format!("{}:away {seconds}", m.seconds),
             Event::Submitted => format!("{}:submit", m.seconds),
@@ -548,6 +554,111 @@ fn a_timeline_replays_answers_changes_and_absences() {
             "590:away 0",
             "600:submit",
         ]
+    );
+}
+
+#[test]
+fn a_timeline_numbers_questions_as_the_paper_does_not_as_the_student_saw_them() {
+    use mcq_analysis::timeline::{Event, timeline};
+    use mcq_model::{LogEntry, LogKind};
+    let p = paper(3, 1);
+    let mut c = copy(&p, "Alex", &[Some(0), Some(0), Some(0)], 600);
+    // Shuffled: the student met q2 first.
+    c.submission.answers.reverse();
+    c.submission.log = vec![
+        LogEntry::new(10, LogKind::Tick, "q2", "q2-o1"),
+        LogEntry::new(20, LogKind::Tick, "q0", "q0-o1"),
+    ];
+    let numbers: Vec<usize> = timeline(&p, &c.submission)
+        .moments
+        .iter()
+        .filter_map(|m| match &m.event {
+            Event::Answer { question, .. } => Some(*question),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(numbers, vec![3, 1]);
+}
+
+#[test]
+fn a_timeline_grades_a_partial_answer_as_the_marks_do() {
+    use mcq_analysis::timeline::{Event, timeline};
+    use mcq_grade::Status;
+    use mcq_model::{LogEntry, LogKind, Scoring};
+    // One question, three right options out of five.
+    let mut p = paper(1, 1);
+    p.scoring = Scoring::Partial;
+    for (k, o) in p.questions[0].options.iter_mut().enumerate() {
+        o.is_correct = k < 3;
+    }
+    p.questions[0].options.push(mcq_model::AnswerOption {
+        id: "q0-o5".into(),
+        text: "Option 4".into(),
+        ..mcq_model::AnswerOption::default()
+    });
+    let statuses = |p: &Paper, ticks: &[(u32, &str)]| -> Vec<Status> {
+        let mut c = copy(p, "Alex", &[None], 600);
+        c.submission.log = ticks
+            .iter()
+            .map(|(s, o)| LogEntry::new(*s, LogKind::Tick, "q0", o))
+            .collect();
+        timeline(p, &c.submission)
+            .moments
+            .iter()
+            .filter_map(|m| match &m.event {
+                Event::Answer { status, .. } => Some(*status),
+                _ => None,
+            })
+            .collect()
+    };
+    // 1 right of 3; then a wrong one joins (credit 0); then two more right (credit 2/3);
+    // then the last right one (one wrong left: still partial).
+    let ticks = [(10, "q0-o1"), (20, "q0-o4"), (30, "q0-o2"), (40, "q0-o3")];
+    assert_eq!(
+        statuses(&p, &ticks),
+        vec![
+            Status::Partial,
+            Status::Wrong,
+            Status::Partial,
+            Status::Partial
+        ]
+    );
+    // All or nothing: a subset of the key earns nothing.
+    p.scoring = Scoring::AllOrNothing;
+    assert_eq!(statuses(&p, &ticks[..1]), vec![Status::Wrong]);
+}
+
+#[test]
+fn a_revision_sheet_says_where_to_revise_from_the_question_or_its_theme() {
+    let mut p = paper(6, 2);
+    p.themes[1].course_ref = "Chapter 2".into();
+    p.questions[5].course_ref = "Chapter 2, section 4".into();
+    let picks = [Some(0), Some(1), Some(0), None, Some(0), Some(2)];
+    let c = copy(&p, "Alex", &picks, 600);
+    let report = analyse(&p, ID, std::slice::from_ref(&c));
+    let s = sheet::revision_sheet(&p, &report, &report.students[0], &c);
+    let revise: Vec<&str> = s.mistakes.iter().map(|m| m.revise.as_str()).collect();
+    assert_eq!(
+        revise,
+        vec!["Chapter 2", "Chapter 2", "Chapter 2, section 4"],
+        "the theme's reference unless the question has its own"
+    );
+    assert_eq!(s.start_with[0].title, "Theme 1");
+    assert_eq!(s.start_with[0].course_ref, "Chapter 2");
+}
+
+#[test]
+fn a_question_left_blank_is_not_counted_as_missed() {
+    let p = paper(2, 1);
+    let report = analyse(&p, ID, &[copy(&p, "Alex", &[Some(0), None], 600)]);
+    assert!(
+        report.findings.contains(&Finding::TooHard {
+            question: "q1".into(),
+            facility: 0.0,
+            blank: 1.0,
+        }),
+        "{:?}",
+        report.findings
     );
 }
 

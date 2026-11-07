@@ -6,6 +6,7 @@ use mcq_analysis::timeline::{Timeline, timeline};
 use mcq_analysis::{Adjustment, Copy, Report, analyse_with};
 use mcq_crypto::{Error, Identity, KeyUnlock};
 use mcq_model::Paper;
+use mcq_player::b64;
 
 /// A published package with its answer key, opened by its teacher.
 #[derive(Debug, Clone, PartialEq)]
@@ -13,6 +14,42 @@ pub struct Package {
     pub file_name: String,
     pub paper_id: [u8; 16],
     pub key: Paper,
+}
+
+/// The last package published from this browser, kept so that Correct opens on it without asking
+/// for the file again. The package is the published file itself: its answer key still opens with
+/// the teacher's identity only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeptPaper {
+    pub file_name: String,
+    pub title: String,
+    pub package: Vec<u8>,
+}
+
+impl KeptPaper {
+    /// One line per field, each in base 64: a title may hold any character.
+    pub fn encode(&self) -> String {
+        [
+            self.file_name.as_bytes(),
+            self.title.as_bytes(),
+            self.package.as_slice(),
+        ]
+        .map(b64::encode)
+        .join("\n")
+    }
+
+    /// What `encode` gave; `None` for anything else, so a damaged record is simply ignored.
+    pub fn decode(text: &str) -> Option<Self> {
+        let mut fields = text.split('\n').map(b64::decode);
+        let file_name = String::from_utf8(fields.next()??).ok()?;
+        let title = String::from_utf8(fields.next()??).ok()?;
+        let package = fields.next()??;
+        (fields.next().is_none() && is_package(&package)).then_some(Self {
+            file_name,
+            title,
+            package,
+        })
+    }
 }
 
 /// Why a file was not taken.
@@ -53,6 +90,28 @@ impl Correction {
             }
             None => self.refused.push((name.to_string(), Refusal::Unknown)),
         }
+    }
+
+    /// A package waits for the identity.
+    pub fn package_pending(&self) -> bool {
+        self.pending.iter().any(|(_, bytes)| is_package(bytes))
+    }
+
+    /// Takes the last published paper by default: only when no package is in or on its way, and
+    /// not again once it was refused (another teacher's identity), so nothing piles up.
+    pub fn take_kept(&mut self, kept: &KeptPaper, identity: Option<&Identity>) {
+        let refused = self.refused.iter().any(|(name, _)| *name == kept.file_name);
+        if self.package.is_none() && !self.package_pending() && !refused {
+            self.add_file(&kept.file_name, kept.package.clone(), identity);
+        }
+    }
+
+    /// True when the paper in is the kept one (same published paper).
+    pub fn holds(&self, kept: &KeptPaper) -> bool {
+        let paper_id = mcq_crypto::inspect(&kept.package).map(|h| h.paper_id);
+        self.package
+            .as_ref()
+            .is_some_and(|p| paper_id.is_ok_and(|id| id == p.paper_id))
     }
 
     /// Opens the files that were waiting for the identity.

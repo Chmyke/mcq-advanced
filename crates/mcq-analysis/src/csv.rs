@@ -123,7 +123,7 @@ pub const FR: Labels = Labels {
     themes_header: [
         "Thème",
         "Questions",
-        "Étudiants",
+        "Candidats",
         "Réussite moyenne %",
         "Acquis",
         "Fragile",

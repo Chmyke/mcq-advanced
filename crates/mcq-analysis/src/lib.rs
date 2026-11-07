@@ -174,9 +174,12 @@ pub enum Finding {
         rival: Option<String>,
         discrimination: f64,
     },
+    /// Few got it. `blank` is the share of the copies that left it empty, told apart from the
+    /// ones that answered and missed it: an empty answer is not a wrong idea.
     TooHard {
         question: String,
         facility: f64,
+        blank: f64,
     },
     /// Distractors nobody picked: they do not work as distractors.
     DeadDistractors {
@@ -597,6 +600,7 @@ fn findings(report: &Report) -> Vec<Finding> {
                 Finding::TooHard {
                     question: q.id.clone(),
                     facility: q.facility,
+                    blank: f64::from(q.blank) / f64::from(q.asked),
                 },
             ));
         }

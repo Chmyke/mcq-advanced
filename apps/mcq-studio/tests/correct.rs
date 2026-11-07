@@ -8,9 +8,12 @@ use mcq_analysis::{Adjustment, Copy, analyse, synth};
 use mcq_crypto::rand_core::{TryCryptoRng, TryRng};
 use mcq_crypto::{Identity, KdfParams};
 use mcq_engine::Session;
+use mcq_model::{
+    Answer, AnswerOption, Block, LogEntry, LogKind, Paper, Question, Scoring, Submission, Theme,
+};
 use mcq_publish::{Mode, publish};
 use mcq_studio::correct::{ReportAction, report_view, sheet_view};
-use mcq_studio::correction::{Correction, Package, Refusal};
+use mcq_studio::correction::{Correction, KeptPaper, Package, Refusal};
 use mcq_studio::texts::{EN, FR, Lang};
 
 const SAMPLE: &str = include_str!("../../../crates/mcq-format/tests/fixtures/sample.qcm.md");
@@ -216,7 +219,7 @@ fn the_diagnosis_reads_as_sentences_in_the_teachers_order() {
     assert!(html.contains("Fiabilité du sujet (KR-20) : 0,"), "{html}");
     assert!(!html.contains("Moins de 30 copies"), "40 copies: {html}");
     assert_eq!(
-        html.matches("aria-label=\"Fiche de révision de cet élève\"")
+        html.matches("aria-label=\"Fiche de révision de ce candidat\"")
             .count(),
         40,
         "one sheet per copy"
@@ -405,7 +408,13 @@ fn a_copy_timeline_tells_changes_and_absences_in_order() {
         let timeline = mcq_analysis::timeline::timeline(&paper, &copy.submission);
         assert!(timeline.away_count >= 5, "{timeline:?}");
         let _ = report;
-        mcq_studio::correct::timeline_view(&copy.submission.student_name, &timeline, &paper, &FR)
+        mcq_studio::correct::timeline_view(
+            &copy.submission.student_name,
+            &timeline,
+            &paper,
+            &FR,
+            Lang::Fr,
+        )
     });
     assert!(html.contains("Chronologie de la copie"), "{html}");
     assert!(
@@ -416,4 +425,187 @@ fn a_copy_timeline_tells_changes_and_absences_in_order() {
     assert!(html.contains("quitte la fenêtre d&#39;épreuve ("), "{html}");
     assert!(html.contains("rend sa copie"), "{html}");
     assert!(html.contains("timeline-strip"), "{html}");
+}
+
+/// Two fictional questions: a single answer, then three right options out of four, graded with
+/// partial credit; each theme says where to revise it.
+fn small_paper() -> Paper {
+    let mut paper = Paper::new();
+    paper.title = "Fictional paper".into();
+    paper.scoring = Scoring::Partial;
+    paper.themes.push(Theme {
+        id: "t0".into(),
+        title: "Colours".into(),
+        course_ref: "Colours, chapter 1".into(),
+        ..Theme::default()
+    });
+    for (n, (statement, right)) in [
+        ("The sky on a clear day is blue.", 1),
+        ("Pick the primary colours.", 3),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = format!("q{n}");
+        paper.questions.push(Question {
+            body: vec![Block::Text(statement.into())],
+            options: (0..4)
+                .map(|o| AnswerOption {
+                    id: format!("{id}-o{o}"),
+                    text: format!("Option {o}"),
+                    is_correct: o < right,
+                    ..AnswerOption::default()
+                })
+                .collect(),
+            theme_id: "t0".into(),
+            id,
+            ..Question::default()
+        });
+    }
+    paper
+}
+
+/// A copy of `small_paper` that met the questions in reverse order.
+fn small_copy(paper: &Paper, picks: [&[&str]; 2]) -> Copy {
+    let answers = paper
+        .questions
+        .iter()
+        .zip(picks)
+        .rev()
+        .map(|(q, picked)| Answer {
+            question_id: q.id.clone(),
+            selected: picked.iter().map(|o| o.to_string()).collect(),
+            seconds_spent: 30,
+            reported: false,
+        })
+        .collect();
+    Copy {
+        submission: Submission {
+            paper_id: [7; 16],
+            student_name: "Alex Example".into(),
+            answers,
+            elapsed_seconds: 300,
+            ..Submission::default()
+        },
+        copy_id: "R-Alex".into(),
+    }
+}
+
+#[test]
+fn a_timeline_names_questions_as_the_teacher_numbered_them() {
+    let html = render(|| {
+        let paper = small_paper();
+        let mut copy = small_copy(&paper, [&["q0-o0"], &["q1-o0"]]);
+        // Shown first to the student, the second question of the paper.
+        copy.submission.log = vec![
+            LogEntry::new(5, LogKind::Tick, "q1", "q1-o0"),
+            LogEntry::new(9, LogKind::Tick, "q0", "q0-o0"),
+            LogEntry::new(12, LogKind::Untick, "q1", "q1-o0"),
+        ];
+        let timeline = mcq_analysis::timeline::timeline(&paper, &copy.submission);
+        mcq_studio::correct::timeline_view("Alex Example", &timeline, &paper, &FR, Lang::Fr)
+    });
+    assert!(
+        html.contains("Q2 « Pick the primary colours. » : «"),
+        "the paper's number and statement: {html}"
+    );
+    assert!(
+        html.contains("(en partie juste)"),
+        "one right box of three, no wrong one: {html}"
+    );
+    assert!(
+        html.contains("Q1 « The sky on a clear day is blue. » : «"),
+        "{html}"
+    );
+    assert!(html.contains("(juste)"), "{html}");
+    assert!(
+        html.contains("Q2 « Pick the primary colours. » : réponse effacée"),
+        "{html}"
+    );
+    let partial = html.find("(en partie juste)").unwrap_or(0);
+    let right = html.find("(juste)").unwrap_or(0);
+    assert!(partial < right, "in the order of the exam: {html}");
+}
+
+#[test]
+fn a_revision_sheet_points_to_the_theme_when_the_question_has_no_reference() {
+    let html = render(|| {
+        let paper = small_paper();
+        let copy = small_copy(&paper, [&["q0-o1"], &[]]);
+        let report = analyse(&paper, [7; 16], std::slice::from_ref(&copy));
+        let sheet =
+            mcq_analysis::sheet::revision_sheet(&paper, &report, &report.students[0], &copy);
+        sheet_view(&sheet, &FR, Lang::Fr)
+    });
+    assert_eq!(
+        html.matches("Réviser : Colours, chapter 1").count(),
+        2,
+        "under each mistake: {html}"
+    );
+    assert!(
+        html.contains("Colours<span class=\"muted\"> → Colours, chapter 1</span>"),
+        "where to start, with where to revise: {html}"
+    );
+}
+
+#[test]
+fn a_question_left_blank_reads_as_left_blank_not_missed() {
+    let html = render(|| {
+        let paper = small_paper();
+        let copy = small_copy(&paper, [&["q0-o0"], &[]]);
+        let report = analyse(&paper, [7; 16], std::slice::from_ref(&copy));
+        report_view(
+            &report,
+            &paper,
+            &FR,
+            Lang::Fr,
+            EventHandler::new(|_: ReportAction| {}),
+        )
+    });
+    assert!(
+        html.contains("» · laissée vide par 100 % de la classe"),
+        "{html}"
+    );
+    assert!(!html.contains("ratée par 100 %"), "{html}");
+}
+
+#[test]
+fn the_last_published_paper_comes_back_without_asking_for_the_file() {
+    let mut rng = TestRng(17);
+    let teacher = Identity::generate(&mut rng);
+    let stranger = Identity::generate(&mut rng);
+    let (package, _) = exam(&teacher, &mut rng, &[]);
+    let kept = KeptPaper {
+        file_name: "exam.mcqpack".into(),
+        title: "Fictional « paper »\nwith a new line".into(),
+        package,
+    };
+    assert_eq!(KeptPaper::decode(&kept.encode()), Some(kept.clone()));
+    assert_eq!(KeptPaper::decode("not a record"), None);
+    assert_eq!(KeptPaper::decode(""), None);
+
+    // Before the identity: it waits, its title already known.
+    let mut c = Correction::default();
+    c.take_kept(&kept, None);
+    assert!(c.package_pending() && !c.holds(&kept));
+    c.take_kept(&kept, None);
+    assert_eq!(c.pending(), 1, "taken once");
+    c.open_pending(&teacher);
+    assert!(c.holds(&kept));
+
+    // Another package in: the kept one does not replace it.
+    let (other, _) = exam(&teacher, &mut rng, &[]);
+    let mut c = Correction::default();
+    c.add_file("other.mcqpack", other, Some(&teacher));
+    c.take_kept(&kept, Some(&teacher));
+    assert!(c.package.is_some() && !c.holds(&kept));
+
+    // Another teacher's browser: refused once, not again at every visit.
+    let mut c = Correction::default();
+    c.take_kept(&kept, Some(&stranger));
+    c.take_kept(&kept, Some(&stranger));
+    assert_eq!(
+        c.refused,
+        vec![("exam.mcqpack".to_string(), Refusal::NotYours)]
+    );
 }

@@ -10,6 +10,7 @@ use mcq_player::b64;
 use mcq_player::icon::{Glyph, Icon, IconButton};
 use mcq_publish::{Mode, Published, RoomSheet};
 
+use crate::correction::KeptPaper;
 use crate::identity::IdentityCard;
 use crate::platform;
 use crate::state::Studio;
@@ -109,11 +110,17 @@ pub fn PublishSpace(
             KdfParams::CODE,
             &mut platform::rng(),
         );
+        let mut kept = None;
         match result {
             Ok(published) => {
                 let file_name = format!("{}.mcqpack", qcmz::file_stem(&s.project));
                 platform::download(&file_name, &b64::encode(&published.package));
                 let sheet = RoomSheet::new(&s.project.paper, &published);
+                kept = Some(KeptPaper {
+                    file_name: file_name.clone(),
+                    title: s.project.paper.title.clone(),
+                    package: published.package.clone(),
+                });
                 done.set(Some(Rc::new(Done {
                     published,
                     sheet,
@@ -122,6 +129,11 @@ pub fn PublishSpace(
                 error.set(None);
             }
             Err(e) => error.set(Some(e.to_string())),
+        }
+        drop(s);
+        // Correct opens on it next time, even after the browser was closed.
+        if let Some(kept) = kept {
+            platform::keep_published(kept.encode()).await;
         }
         busy.set(false);
     };

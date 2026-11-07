@@ -17,6 +17,8 @@ pub struct ThemeLine {
     pub mastery: Mastery,
     /// Fewer than `MIN_THEME_QUESTIONS` questions: too few to conclude.
     pub too_few: bool,
+    /// Where to revise the theme, as the teacher wrote it in the settings; may be empty.
+    pub course_ref: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,6 +30,9 @@ pub struct Mistake {
     /// The analysis doubts the key: the sheet must not assert the answer before the teacher
     /// has checked it.
     pub key_in_doubt: bool,
+    /// Where to revise: the question's own reference, otherwise its theme's (the player's
+    /// rule); empty when neither has one.
+    pub revise: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,8 +44,8 @@ pub struct RevisionSheet {
     pub themes: Vec<ThemeLine>,
     /// In the order the student met them.
     pub mistakes: Vec<Mistake>,
-    /// Titles of the weakest fragile or to-relearn themes, weakest first.
-    pub start_with: Vec<String>,
+    /// The weakest fragile or to-relearn themes, weakest first, each with where to revise it.
+    pub start_with: Vec<ThemeLine>,
 }
 
 /// The sheet of one student; `report` tells which keys are in doubt and which the teacher
@@ -58,13 +63,15 @@ pub fn revision_sheet(
         .themes
         .iter()
         .filter(|t| t.total > 0)
-        .map(|t| ThemeLine {
-            title: paper
-                .theme(&t.theme_id)
-                .map_or_else(|| t.theme_id.clone(), |th| th.title.clone()),
-            rate: t.rate(),
-            mastery: t.mastery(),
-            too_few: (t.total as usize) < MIN_THEME_QUESTIONS,
+        .map(|t| {
+            let theme = paper.theme(&t.theme_id);
+            ThemeLine {
+                title: theme.map_or_else(|| t.theme_id.clone(), |th| th.title.clone()),
+                rate: t.rate(),
+                mastery: t.mastery(),
+                too_few: (t.total as usize) < MIN_THEME_QUESTIONS,
+                course_ref: theme.map(|th| th.course_ref.clone()).unwrap_or_default(),
+            }
         })
         .collect();
     let mut weak: Vec<&ThemeLine> = themes
@@ -72,11 +79,7 @@ pub fn revision_sheet(
         .filter(|t| matches!(t.mastery, Mastery::Fragile | Mastery::ToRelearn))
         .collect();
     weak.sort_by(|a, b| a.rate.total_cmp(&b.rate));
-    let start_with = weak
-        .into_iter()
-        .take(START_WITH)
-        .map(|t| t.title.clone())
-        .collect();
+    let start_with = weak.into_iter().take(START_WITH).cloned().collect();
     let mistakes = student
         .grade
         .to_review()
@@ -93,10 +96,19 @@ pub fn revision_sheet(
                 .findings
                 .iter()
                 .any(|f| matches!(f, Finding::KeyDoubt { question: id, .. } if *id == question.id));
+            let revise = if question.course_ref.trim().is_empty() {
+                paper
+                    .theme(&question.theme_id)
+                    .map(|th| th.course_ref.clone())
+                    .unwrap_or_default()
+            } else {
+                question.course_ref.clone()
+            };
             Some(Mistake {
                 question,
                 chosen,
                 key_in_doubt,
+                revise,
             })
         })
         .collect();

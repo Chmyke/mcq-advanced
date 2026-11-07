@@ -9,13 +9,13 @@ use mcq_analysis::sheet::RevisionSheet;
 use mcq_analysis::timeline::{Change, Event, Timeline};
 use mcq_analysis::{Adjustment, Anomaly, Decision, Finding, Report, csv};
 use mcq_crypto::Identity;
-use mcq_grade::Mastery;
+use mcq_grade::{Mastery, Status};
 use mcq_math::Formulas;
 use mcq_model::{Block, Paper, TimeExtension};
 use mcq_player::icon::{Icon, IconButton, IconMenu};
 use mcq_player::{b64, markdown, render};
 
-use crate::correction::{Correction, Refusal};
+use crate::correction::{Correction, KeptPaper, Refusal};
 use crate::identity::IdentityCard;
 use crate::platform;
 use crate::preview;
@@ -270,11 +270,12 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                 )),
                 None,
             )),
-            Finding::TooHard { question, facility } => review.push((
-                text(fill(
-                    c.too_hard,
-                    &[("question", qname(question)), ("pct", pct(1.0 - facility))],
-                )),
+            Finding::TooHard {
+                question,
+                facility,
+                blank,
+            } => review.push((
+                text(too_hard_line(c, qname(question), *facility, *blank)),
                 None,
             )),
             Finding::DeadDistractors { question, count } => review.push((
@@ -307,6 +308,21 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
         traps,
         review,
     }
+}
+
+/// A question few got: the copies that answered and missed it apart from the ones left empty.
+fn too_hard_line(c: &CorrectTexts, question: String, facility: f64, blank: f64) -> String {
+    let missed = pct((1.0 - facility - blank).max(0.0));
+    let blank = pct(blank);
+    let template = match (missed == "0", blank == "0") {
+        (_, true) => c.too_hard,
+        (true, false) => c.too_hard_all_blank,
+        (false, false) => c.too_hard_blank,
+    };
+    fill(
+        template,
+        &[("question", question), ("pct", missed), ("blank", blank)],
+    )
 }
 
 fn anomaly_line(anomaly: &Anomaly, c: &CorrectTexts) -> String {
@@ -622,8 +638,17 @@ fn clock(seconds: u32) -> String {
 }
 
 /// One copy's timeline: a summary, a strip along the exam's duration, then each moment.
-pub fn timeline_view(name: &str, timeline: &Timeline, paper: &Paper, t: &'static Texts) -> Element {
+pub fn timeline_view(
+    name: &str,
+    timeline: &Timeline,
+    paper: &Paper,
+    t: &'static Texts,
+    lang: Lang,
+) -> Element {
     let c = t.correction;
+    // The teacher's numbering and the start of the statement, as in the analysis; never the
+    // shuffled order the student saw.
+    let qname = |id: &str| question_name(paper, id, lang);
     let summary = fill(
         c.timeline_summary,
         &[
@@ -645,11 +670,11 @@ pub fn timeline_view(name: &str, timeline: &Timeline, paper: &Paper, t: &'static
     for moment in &timeline.moments {
         let (line, class) = match &moment.event {
             Event::Answer {
-                question,
                 question_id,
                 selected,
-                right,
+                status,
                 change,
+                ..
             } => {
                 let options: Vec<String> = selected
                     .iter()
@@ -657,10 +682,16 @@ pub fn timeline_view(name: &str, timeline: &Timeline, paper: &Paper, t: &'static
                     .collect();
                 let mut line = fill_quoted(
                     c.tl_answer,
-                    &[("q", question.to_string())],
+                    &[("question", qname(question_id))],
                     &[("options", options.join("», «"))],
                 );
-                let mut tail = format!(" ({})", if *right { c.tl_right } else { c.tl_wrong });
+                let right = *status == Status::Correct;
+                let verdict = match status {
+                    Status::Correct => c.tl_right,
+                    Status::Partial => c.tl_partly,
+                    Status::Wrong | Status::Unanswered => c.tl_wrong,
+                };
+                let mut tail = format!(" ({verdict})");
                 let class = match change {
                     Some(change) => {
                         let k = match change {
@@ -675,14 +706,15 @@ pub fn timeline_view(name: &str, timeline: &Timeline, paper: &Paper, t: &'static
                             Change::WrongToWrong => "tl-change",
                         }
                     }
-                    None if *right => "tl-answer good",
+                    None if right => "tl-answer good",
+                    None if *status == Status::Partial => "tl-answer",
                     None => "tl-answer bad",
                 };
                 line.push(Piece::Text(tail));
                 (line, class)
             }
-            Event::Cleared { question, .. } => (
-                text(fill(c.tl_cleared, &[("q", question.to_string())])),
+            Event::Cleared { question_id, .. } => (
+                text(fill(c.tl_cleared, &[("question", qname(question_id))])),
                 "tl-answer",
             ),
             Event::Away { seconds: 0 } => (text(c.tl_away_open.to_string()), "tl-away"),
@@ -792,7 +824,7 @@ pub fn sheet_view(sheet: &RevisionSheet, t: &'static Texts, lang: Lang) -> Eleme
                 })
                 .collect();
             let rule = q.rule.clone();
-            let review = q.course_ref.clone();
+            let review = m.revise.clone();
             let doubt = m.key_in_doubt;
             rsx! {
                 article { class: "mistake",
@@ -837,7 +869,11 @@ pub fn sheet_view(sheet: &RevisionSheet, t: &'static Texts, lang: Lang) -> Eleme
             for (k, element) in mistakes.into_iter().enumerate() { div { key: "{k}", {element} } }
             if !sheet.start_with.is_empty() {
                 h2 { "{c.sheet_start}" }
-                ol { for (k, title) in sheet.start_with.iter().enumerate() { li { key: "{k}", "{title}" } } }
+                ol { for (k, theme) in sheet.start_with.iter().enumerate() {
+                    li { key: "{k}", "{theme.title}"
+                        if !theme.course_ref.is_empty() { span { class: "muted", " → {theme.course_ref}" } }
+                    }
+                } }
             }
         }
     }
@@ -867,6 +903,29 @@ pub fn CorrectSpace(
     let c = t.correction;
     let mut sheet_for = use_signal(|| None::<String>);
     let mut timeline_for = use_signal(|| None::<String>);
+    // The last paper published: from this session, otherwise kept by the browser.
+    // Shared, not copied at every render: a package with media weighs megabytes.
+    let mut kept = use_signal(|| None::<Rc<KeptPaper>>);
+
+    // Opens on the last published paper unless another one is already in.
+    use_future(move || async move {
+        let session = done.peek().as_ref().map(|last| KeptPaper {
+            file_name: last.file_name.clone(),
+            title: last.sheet.title.clone(),
+            package: last.published.package.clone(),
+        });
+        let latest = match session {
+            Some(latest) => Some(latest),
+            None => platform::kept_published()
+                .await
+                .and_then(|text| KeptPaper::decode(&text)),
+        };
+        if let Some(latest) = latest {
+            let id = identity.peek().clone();
+            correction.write().take_kept(&latest, id.as_deref());
+            kept.set(Some(Rc::new(latest)));
+        }
+    });
 
     // Files that arrived before the identity open as soon as it is unlocked.
     use_effect(move || {
@@ -887,9 +946,17 @@ pub fn CorrectSpace(
         .collect();
     let waiting = state.pending();
     let copies = state.copies.len();
-    let package_line = paper
-        .as_ref()
-        .map(|p| fill(c.package_ready, &[("title", p.title.clone())]));
+    // The title shows as soon as the kept paper is in, even while it waits for the identity.
+    let kept_now = kept.read().clone();
+    let title = paper.as_ref().map(|p| p.title.clone()).or_else(|| {
+        kept_now
+            .as_ref()
+            .filter(|_| state.package_pending())
+            .map(|k| k.title.clone())
+    });
+    let package_line = title.map(|title| fill(c.package_ready, &[("title", title)]));
+    // Another paper is in, or none: the last published one is a click away.
+    let offer_kept = kept_now.filter(|k| !state.holds(k) && !state.package_pending());
     let sheet = match (&report, sheet_for()) {
         (Some(report), Some(copy_id)) => state.sheet(report, &copy_id),
         _ => None,
@@ -898,7 +965,6 @@ pub fn CorrectSpace(
         (Some(report), Some(copy_id)) => state.timeline(report, &copy_id),
         _ => None,
     };
-    let published = done.read().clone();
     let labels = if lang == Lang::Fr { &csv::FR } else { &csv::EN };
     drop(state);
 
@@ -925,8 +991,8 @@ pub fn CorrectSpace(
                             },
                         }
                     }
-                    if let Some(last) = published {
-                        button { onclick: move |_| add(last.file_name.clone(), last.published.package.clone()), "{c.use_published}" }
+                    if let Some(last) = offer_kept {
+                        button { onclick: move |_| add(last.file_name.clone(), last.package.clone()), "{c.use_published}" }
                     }
                     label { class: "file",
                         "{c.add_copies}"
@@ -940,7 +1006,16 @@ pub fn CorrectSpace(
                             },
                         }
                     }
-                    button { onclick: move |_| { correction.set(Correction::default()); sheet_for.set(None); timeline_for.set(None); }, "{c.clear}" }
+                    button { onclick: move |_| {
+                        let mut fresh = Correction::default();
+                        if let Some(last) = kept.peek().as_ref() {
+                            let id = identity.peek().clone();
+                            fresh.take_kept(last, id.as_deref());
+                        }
+                        correction.set(fresh);
+                        sheet_for.set(None);
+                        timeline_for.set(None);
+                    }, "{c.clear}" }
                 }
                 p { class: "muted", "{c.drop_hint}" }
                 if let Some(line) = package_line { p { strong { "{line}" } } }
@@ -962,7 +1037,7 @@ pub fn CorrectSpace(
                     IconButton { class: "primary", icon: Icon::Print, label: c.print, tip: c.print_student_sheet, onclick: move |_| platform::print() }
                     IconButton { icon: Icon::Close, label: c.close_sheet, onclick: move |_| timeline_for.set(None) }
                 }
-                {timeline_view(&name, &timeline, paper, t)}
+                {timeline_view(&name, &timeline, paper, t, lang)}
             } else if let (Some(report), Some(paper)) = (report, paper) {
                 div { class: "actions",
                     IconMenu { icon: Icon::Download, label: c.export, tip: c.tip_export,
