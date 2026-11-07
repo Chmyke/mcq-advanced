@@ -10,10 +10,18 @@ use mcq_model::{Level, Paper, TimeExtension};
 
 use crate::{Anomaly, Decision, Finding, Report, TOO_EASY, TOO_HARD};
 
+/// A word or phrase in the singular and the plural.
+pub struct Plural {
+    pub one: &'static str,
+    pub many: &'static str,
+}
+
 /// The words of the spreadsheets, in one language.
 pub struct Labels {
     /// `,` in French, `.` in English.
     pub decimal: char,
+    /// French takes the singular for 0 and 1, English for 1 only.
+    pub zero_is_singular: bool,
     pub notes_header: [&'static str; 9],
     pub themes_header: [&'static str; 10],
     pub questions_header: [&'static str; 11],
@@ -31,16 +39,19 @@ pub struct Labels {
     pub too_hard: &'static str,
     pub too_easy: &'static str,
     /// Followed by the count.
-    pub dead_distractors: &'static str,
+    pub dead_distractors: Plural,
     pub shared_confusion: &'static str,
     pub never_chosen: &'static str,
     pub other_paper: &'static str,
     pub same_name: &'static str,
-    pub unknown_questions: &'static str,
+    /// Followed by the count, in brackets.
+    pub unknown_questions: Plural,
     pub identical: &'static str,
-    pub left_window: &'static str,
+    /// Followed by the count, in brackets.
+    pub left_window: Plural,
     pub overtime: &'static str,
     pub fast: &'static str,
+    pub hurried: &'static str,
     /// Followed by the extension, such as "+1/3".
     pub extra_time: &'static str,
     pub untimed: &'static str,
@@ -48,6 +59,7 @@ pub struct Labels {
 
 pub const EN: Labels = Labels {
     decimal: '.',
+    zero_is_singular: false,
     notes_header: [
         "Name",
         "Mark /20",
@@ -93,22 +105,33 @@ pub const EN: Labels = Labels {
     rekeyed: "KEY CORRECTED: marked with the right rows below",
     too_hard: "missed by almost everyone",
     too_easy: "succeeded by everyone",
-    dead_distractors: "dead distractor(s):",
+    dead_distractors: Plural {
+        one: "dead distractor:",
+        many: "dead distractors:",
+    },
     shared_confusion: "SHARED CONFUSION",
     never_chosen: "never chosen",
     other_paper: "another paper",
     same_name: "same name",
-    unknown_questions: "unknown questions",
+    unknown_questions: Plural {
+        one: "unknown question",
+        many: "unknown questions",
+    },
     identical: "identical to",
-    left_window: "left the window",
+    left_window: Plural {
+        one: "left the window",
+        many: "left the window",
+    },
     overtime: "overtime",
     fast: "unusually fast",
+    hurried: "rushed",
     extra_time: "extra time",
     untimed: "extra time without limit",
 };
 
 pub const FR: Labels = Labels {
     decimal: ',',
+    zero_is_singular: true,
     notes_header: [
         "Nom",
         "Note /20",
@@ -154,16 +177,26 @@ pub const FR: Labels = Labels {
     rekeyed: "CORRIGÉ RECTIFIÉ : noté selon les lignes BONNE ci-dessous",
     too_hard: "ratée par presque tout le monde",
     too_easy: "réussie par tout le monde",
-    dead_distractors: "distracteur(s) mort(s) :",
+    dead_distractors: Plural {
+        one: "distracteur mort :",
+        many: "distracteurs morts :",
+    },
     shared_confusion: "IDÉE FAUSSE PARTAGÉE",
     never_chosen: "jamais choisi",
     other_paper: "autre sujet",
     same_name: "doublon de nom",
-    unknown_questions: "questions inconnues du sujet",
+    unknown_questions: Plural {
+        one: "question inconnue du sujet",
+        many: "questions inconnues du sujet",
+    },
     identical: "identique à",
-    left_window: "sorties de fenêtre",
+    left_window: Plural {
+        one: "sortie de fenêtre",
+        many: "sorties de fenêtre",
+    },
     overtime: "temps dépassé",
     fast: "terminé anormalement vite",
+    hurried: "rendu à la hâte",
     extra_time: "temps majoré",
     untimed: "temps majoré sans limite",
 };
@@ -177,6 +210,15 @@ fn field(text: &str) -> String {
         format!("\"{}\"", text.replace('"', "\"\""))
     } else {
         text.to_string()
+    }
+}
+
+/// The form of `words` that agrees with `count`.
+fn agree(count: usize, words: &Plural, labels: &Labels) -> &'static str {
+    if count == 1 || (count == 0 && labels.zero_is_singular) {
+        words.one
+    } else {
+        words.many
     }
 }
 
@@ -213,7 +255,8 @@ fn anomalies_of(report: &Report, name: &str, labels: &Labels) -> String {
                 labels.same_name.to_string()
             }
             Anomaly::UnknownQuestions { name: n, count } if n == name => {
-                format!("{} ({count})", labels.unknown_questions)
+                let words = agree(*count, &labels.unknown_questions, labels);
+                format!("{words} ({count})")
             }
             Anomaly::Identical { first, second, .. } if first == name => {
                 format!("{} {second}", labels.identical)
@@ -222,10 +265,12 @@ fn anomalies_of(report: &Report, name: &str, labels: &Labels) -> String {
                 format!("{} {first}", labels.identical)
             }
             Anomaly::LeftWindow { name: n, times, .. } if n == name => {
-                format!("{} ({times})", labels.left_window)
+                let words = agree(*times as usize, &labels.left_window, labels);
+                format!("{words} ({times})")
             }
             Anomaly::Overtime { name: n, .. } if n == name => labels.overtime.to_string(),
             Anomaly::Fast { name: n, .. } if n == name => labels.fast.to_string(),
+            Anomaly::Hurried { name: n, .. } if n == name => labels.hurried.to_string(),
             Anomaly::ExtraTime { name: n, extension } if n == name => match extension {
                 TimeExtension::Untimed => labels.untimed.to_string(),
                 _ => format!("{} {}", labels.extra_time, extension.label()),
@@ -352,7 +397,7 @@ pub fn questions(paper: &Paper, report: &Report, labels: &Labels) -> String {
         } else if stats.facility >= TOO_EASY {
             labels.too_easy.to_string()
         } else if report.items_computed && dead > 0 {
-            format!("{} {dead}", labels.dead_distractors)
+            format!("{} {dead}", agree(dead, &labels.dead_distractors, labels))
         } else {
             String::new()
         };
@@ -434,6 +479,18 @@ mod tests {
     fn numbers_use_the_language_decimal() {
         assert_eq!(number(15.0, &FR), "15,0");
         assert_eq!(number(12.345, &EN), "12.3");
+    }
+
+    #[test]
+    fn counted_words_agree_with_the_count() {
+        let words = &FR.dead_distractors;
+        assert_eq!(agree(0, words, &FR), "distracteur mort :");
+        assert_eq!(agree(1, words, &FR), "distracteur mort :");
+        assert_eq!(agree(2, words, &FR), "distracteurs morts :");
+        let words = &EN.dead_distractors;
+        assert_eq!(agree(0, words, &EN), "dead distractors:");
+        assert_eq!(agree(1, words, &EN), "dead distractor:");
+        assert_eq!(agree(2, words, &EN), "dead distractors:");
     }
 
     #[test]

@@ -335,6 +335,67 @@ pub fn issues_for<'a>(paper: &Paper, issues: &'a [Issue], question_id: &str) -> 
         .collect()
 }
 
+/// Advice to enrich the correction or balance the levels: worth following, but nothing a
+/// candidate trips over during the exam. Publishing counts it apart, and the paper's findings
+/// sum up the advice that repeats question after question.
+pub const ADVICE: [&str; 7] = [
+    "NO_EXPLANATION",
+    "PARTIAL_EXPLANATION",
+    "NO_RULE",
+    "NO_COURSE_REF",
+    "LEVEL_MISSING",
+    "NOT_ENOUGH_APPLY",
+    "TOO_MUCH_RECALL",
+];
+
+/// The advice given question by question, summed up for the whole paper.
+pub const REPEATED_ADVICE: [&str; 4] = [
+    "NO_EXPLANATION",
+    "PARTIAL_EXPLANATION",
+    "NO_RULE",
+    "NO_COURSE_REF",
+];
+
+pub fn is_advice(issue: &Issue) -> bool {
+    ADVICE.contains(&issue.code)
+}
+
+/// The question an issue is about, when it is about one.
+fn question_of<'a>(paper: &'a Paper, issue: &'a Issue) -> Option<&'a str> {
+    match &issue.location {
+        Location::Question(id) => paper.question(id).map(|q| q.id.as_str()),
+        Location::Line(line) => question_at_line(paper, *line),
+        _ => None,
+    }
+}
+
+/// How many questions each repeated advice concerns, in the order of `REPEATED_ADVICE`,
+/// leaving out the advice no question has.
+pub fn repeated_advice(paper: &Paper, issues: &[Issue]) -> Vec<(&'static str, usize)> {
+    REPEATED_ADVICE
+        .iter()
+        .map(|code| {
+            let questions: BTreeSet<&str> = issues
+                .iter()
+                .filter(|issue| issue.code == *code)
+                .filter_map(|issue| question_of(paper, issue))
+                .collect();
+            (*code, questions.len())
+        })
+        .filter(|(_, n)| *n > 0)
+        .collect()
+}
+
+/// How many questions have at least one piece of advice.
+pub fn questions_with_advice(paper: &Paper, issues: &[Issue]) -> usize {
+    issues
+        .iter()
+        .filter(|issue| is_advice(issue))
+        .filter_map(|issue| question_of(paper, issue))
+        .collect::<BTreeSet<_>>()
+        .len()
+}
+
 /// The issues about the paper as a whole, its themes, or lines outside any question.
 pub fn paper_issues<'a>(paper: &Paper, issues: &'a [Issue]) -> Vec<&'a Issue> {
     issues
@@ -366,9 +427,14 @@ fn question_at_line(paper: &Paper, line: usize) -> Option<&str> {
         .map(|q| q.id.as_str())
 }
 
-/// The first words of a statement, for the question list.
+/// The first words of a statement, for the question list and the class analysis: the text as
+/// read, without the marks of bold, italics, code or formulas (`**`, `__`, backticks, `$`).
 pub fn summary(question: &Question, max_chars: usize) -> String {
-    let text = question.statement_text();
+    let text = question
+        .statement_text()
+        .replace("**", "")
+        .replace("__", "")
+        .replace(['`', '$'], "");
     let flat: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= max_chars {
         flat

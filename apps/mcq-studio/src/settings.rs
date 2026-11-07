@@ -64,6 +64,7 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
     let estimated = paper.estimated_seconds_with_margin().div_ceil(60);
     let issues = s.issues();
     let general: Vec<&Issue> = state::paper_issues(paper, &issues);
+    let advice = state::repeated_advice(paper, &issues);
     let themes: Vec<(String, String, String, bool)> = paper
         .themes
         .iter()
@@ -185,7 +186,17 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
             }
             section { class: "card",
                 h2 { "{t.paper_findings}" }
-                {issue_list(&general, t, true)}
+                if !advice.is_empty() {
+                    ul { class: "issues",
+                        for (code, n) in advice {
+                            li { key: "{code}", class: "issue warning",
+                                span { class: "issue-level", "{t.severity_advice}" }
+                                span { {crate::texts::fill(t.advice_summary(code), &[("n", n.to_string())])} }
+                            }
+                        }
+                    }
+                }
+                {issue_list(&general, t, Some(paper))}
             }
         }
     }

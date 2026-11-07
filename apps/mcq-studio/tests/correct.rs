@@ -421,7 +421,10 @@ fn a_copy_timeline_tells_changes_and_absences_in_order() {
         html.contains("sorties de la fenêtre d&#39;épreuve, 4 min 00 s dehors"),
         "plural and duration: {html}"
     );
-    assert!(html.contains("0 changements de réponse"), "{html}");
+    assert!(
+        html.contains("0 changement de réponse"),
+        "French: 0 takes the singular: {html}"
+    );
     assert!(html.contains("quitte la fenêtre d&#39;épreuve ("), "{html}");
     assert!(html.contains("rend sa copie"), "{html}");
     assert!(html.contains("timeline-strip"), "{html}");

@@ -1,6 +1,9 @@
 //! Exam scenarios on fictional papers.
 
-use mcq_engine::{Session, decode_session, encode_session, format_duration, normalize_name};
+use mcq_engine::{
+    Session, decode_session, encode_session, format_duration, name_key, normalize_name,
+    plain_letter,
+};
 use mcq_model::{AnswerOption, Block, LogKind, Paper, Question, Theme, TimeExtension};
 
 const ID: [u8; 16] = [3; 16];
@@ -303,6 +306,24 @@ fn helpers() {
     assert_eq!(format_duration(42), "42 s");
     assert_eq!(format_duration(185), "3 min 05 s");
     assert_eq!(normalize_name("  Alex \t Example "), "Alex Example");
+}
+
+#[test]
+fn a_name_key_ignores_case_accents_and_spaces() {
+    let key = name_key("Inès Morel");
+    assert_eq!(key, "INES MOREL");
+    for typed in ["ines morel", "  INÈS   morel ", "Ines Morel", "inés morel"] {
+        assert_eq!(name_key(typed), key, "{typed}");
+    }
+    assert_eq!(name_key("Zoë O\u{2019}Brien"), name_key("zoe o'brien"));
+    assert_eq!(name_key("Lætitia Çelik"), "LAETITIA CELIK");
+    assert_eq!(name_key("Œdipe Łukasz Šárka"), "OEDIPE LUKASZ SARKA");
+    assert_eq!(name_key("Jürgen Groß"), "JURGEN GROSS");
+    assert_ne!(name_key("Ines Morel"), name_key("Inès Morelle"));
+    // Letters outside the Latin table keep their own key.
+    assert_eq!(name_key("Олег"), "ОЛЕГ");
+    assert_eq!(plain_letter('é'), Some('e'));
+    assert_eq!(plain_letter('x'), None);
 }
 
 #[test]

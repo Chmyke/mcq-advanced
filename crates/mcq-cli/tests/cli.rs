@@ -46,8 +46,8 @@ fn sample_with_its_media_passes() {
     let paper = dir.write("sample.qcm.md", SAMPLE);
     let (code, out) = run(&[&paper]);
     assert_eq!(code, 0, "{out}");
-    assert!(out.contains("0 error(s)"), "{out}");
-    assert!(out.contains("OK: 1 paper(s) checked"), "{out}");
+    assert!(out.contains("0 errors"), "{out}");
+    assert!(out.contains("OK: 1 paper checked"), "{out}");
 }
 
 #[test]

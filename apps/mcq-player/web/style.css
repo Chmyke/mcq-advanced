@@ -98,7 +98,9 @@ button[data-icon="tip"], .file[data-icon="tip"] { padding: .35rem .5rem; min-wid
 }
 @media (hover: none) {
   [data-icon]:not([data-icon="text"]) { flex-direction: column; gap: .1rem; }
-  [data-icon] > .tip { display: none; }
+  /* A tap leaves the button "hovered": its tip would stay up. The keyboard still shows it. */
+  [data-icon] > .tip, [data-icon]:hover > .tip { display: none; }
+  [data-icon]:focus-visible > .tip, [data-icon]:has(input:focus-visible) > .tip { display: block; }
   [data-icon].next > .glyph { order: 0; }
   [data-icon] > .label, [data-icon="shown"] > .label { display: block; font-size: .7rem; font-weight: 400; line-height: 1.1; }
 }
@@ -128,6 +130,10 @@ button[data-icon="tip"], .file[data-icon="tip"] { padding: .35rem .5rem; min-wid
 .extra-time .choice input { width: 1.15em; height: 1.15em; accent-color: var(--accent); margin: 0; }
 .extra-time .choice:has(input:disabled) { cursor: default; color: var(--muted); }
 .extra-time p { margin: .25rem 0 .5rem; }
+/* The keys help only where there is a keyboard: computers, with a mouse or a touchpad. */
+@media (hover: none), (pointer: coarse) { .keyboard-hint { display: none; } }
+.resume-papers { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; margin: .5rem 0 1rem; }
+.resume-papers .notice { margin: 0; }
 
 .status-bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; top: 0; background: var(--bg); padding: .5rem 0; z-index: 1; }
 .clock { display: flex; gap: .5rem; align-items: baseline; }
@@ -144,7 +150,22 @@ button[data-icon="tip"], .file[data-icon="tip"] { padding: .35rem .5rem; min-wid
 .prose p { margin: .4em 0; }
 /* Formulas: native MathML, converted when the paper was published. */
 math { font-size: 1.1em; }
-math[display="block"] { margin: .5em 0; overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+/* A formula wider than the screen scrolls sideways: a shade on the cut edge says there is more,
+   and goes when that edge is reached (the covers scroll with the formula, the shades do not). */
+math[display="block"] {
+  margin: .5em 0; overflow-x: auto; overflow-y: hidden; max-width: 100%; padding-bottom: .2em;
+  --math-bg: var(--surface); --math-shade: color-mix(in srgb, var(--text) 30%, transparent);
+  background:
+    linear-gradient(to right, var(--math-bg) 40%, transparent) left / 1.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--math-bg) 40%, transparent) right / 1.5rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--math-shade), transparent) left / .6rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--math-shade), transparent) right / .6rem 100% no-repeat scroll;
+  background-color: var(--math-bg);
+  scrollbar-width: thin; scrollbar-color: var(--muted) transparent;
+}
+/* The covers take the colour of the box the formula sits in. */
+:is(.rule, .notice, .option.checked) math[display="block"] { --math-bg: var(--accent-soft); }
+.notice.warn math[display="block"] { --math-bg: var(--warn-bg); }
 .formula-source { color: var(--warn); }
 .prose code, .option-text code, .review code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code-bg); padding: .05em .35em; border-radius: 4px; font-size: .92em; }
 .media { max-width: 100%; border-radius: 8px; margin: .5rem 0; }

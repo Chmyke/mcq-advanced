@@ -10,5 +10,8 @@ rust-version.workspace = true
 mcq-model.workspace = true
 mcq-grade.workspace = true
 
+[dev-dependencies]
+mcq-engine.workspace = true
+
 [lints]
 workspace = true

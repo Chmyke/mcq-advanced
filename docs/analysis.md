@@ -55,10 +55,11 @@ An anomaly is a reason to ask a question, never a verdict, and never changes a m
 | Same name | Several copies under one name (case and spaces aside): all kept. |
 | Unknown questions | Answers to questions missing from the key. |
 | Identical copies | The same answers on every question, at least 4 identical wrong ones. |
-| Left the window | 5 times or more. |
+| Left the window | 3 times or more, or at least once with time away reaching 10 % of the copy's time (a 16-minute copy: 96 seconds). |
 | Extra time | The student declared extra time (one third, half, double or no limit): not a fault, a point to check against the teacher's own list of arrangements. |
 | Overtime | Past the student's own time limit, extra time included. |
-| Unusually fast | Under 10 % of the estimated time with at least 70 % success. |
+| Unusually fast | Under 10 % of the estimated time (margin included) with at least 70 % success. |
+| Hurried | Under 25 % of the estimated time (margin included), whatever the success, when not already unusually fast: handed in in 21 seconds for about 4 minutes planned. |
 
 ## Small classes
 
@@ -84,8 +85,10 @@ key used) and on the revision sheets, which show the key the copies were marked 
 The player journals every tick, every change of answer, each exit from the exam window and the
 hand-in, with the exam time. Each copy's timeline lists them in order on a strip along the
 exam's duration, and counts the answer changes by kind (right to wrong, wrong to right, wrong to
-wrong) with the key in force, and the time spent away. These are facts to talk about with the
-student, never a verdict.
+wrong) with the key in force, and the time spent away. Every change of an answer already given
+counts, even within the same second: a student who ticks C then B at once changed their answer.
+One click that replaces the answer of a single-answer question is one change, not a clear and a
+new answer. These are facts to talk about with the student, never a verdict.
 
 ## Revision sheets
 

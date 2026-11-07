@@ -46,14 +46,20 @@ pub const RETEACH_RATE: f64 = 0.5;
 pub const RETEACH_SHARE: f64 = 0.4;
 /// Below this many questions a theme rate says little.
 pub const MIN_THEME_QUESTIONS: usize = 3;
-/// Leaving the exam window this many times is reported.
-pub const FOCUS_LOSSES: u32 = 5;
+/// Leaving the exam window this many times is reported...
+pub const FOCUS_LOSSES: u32 = 3;
+/// ...as is a single exit once the time away reaches this share of the copy's time: four exits
+/// and ten minutes away out of sixteen say more than five exits of a few seconds.
+pub const AWAY_SHARE: f64 = 0.1;
 /// Two copies sharing at least this many identical wrong answers are reported.
 pub const SHARED_WRONG: usize = 4;
 /// A copy handed in under this share of the estimated time...
 pub const FAST_SHARE: f64 = 0.1;
 /// ...with at least this success rate is reported.
 pub const FAST_SUCCESS: f32 = 0.7;
+/// A copy handed in under this share of the estimated time is reported, whatever its success,
+/// unless it is already `Fast`.
+pub const HURRIED_SHARE: f64 = 0.25;
 
 /// A copy opened by the teacher, with the id that tells it apart from the others.
 #[derive(Debug, Clone, PartialEq)]
@@ -212,6 +218,8 @@ pub enum Anomaly {
         second: String,
         shared_wrong: usize,
     },
+    /// Left the exam window `FOCUS_LOSSES` times or more, or for `AWAY_SHARE` of the copy's
+    /// time or more.
     LeftWindow {
         name: String,
         times: u32,
@@ -227,6 +235,13 @@ pub enum Anomaly {
     },
     /// Very good and very quick.
     Fast { name: String, elapsed_seconds: u32 },
+    /// Handed in far sooner than the paper takes, whatever the result: answered in a hurry.
+    /// `estimated_seconds` is the paper's estimated time, margin included.
+    Hurried {
+        name: String,
+        elapsed_seconds: u32,
+        estimated_seconds: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -729,7 +744,8 @@ fn anomalies(paper: &Paper, kept: &[&Copy], report: &Report) -> Vec<Anomaly> {
     }
 
     let limit = paper.duration_minutes * 60;
-    let budget = f64::from(paper.estimated_seconds_with_margin());
+    let estimated = paper.estimated_seconds_with_margin();
+    let budget = f64::from(estimated);
     for (copy, student) in kept.iter().zip(&report.students) {
         let s = &copy.submission;
         let left = s
@@ -738,11 +754,16 @@ fn anomalies(paper: &Paper, kept: &[&Copy], report: &Report) -> Vec<Anomaly> {
             .filter(|e| e.kind == LogKind::FocusLost)
             .count() as u32;
         let times = s.focus_losses.max(left);
-        if times >= FOCUS_LOSSES {
+        let seconds_away = s
+            .seconds_away
+            .max(timeline::timeline(paper, s).away_seconds);
+        let long_away = s.elapsed_seconds > 0
+            && f64::from(seconds_away) >= f64::from(s.elapsed_seconds) * AWAY_SHARE;
+        if times >= FOCUS_LOSSES || (times > 0 && long_away) {
             out.push(Anomaly::LeftWindow {
                 name: s.student_name.clone(),
                 times,
-                seconds_away: s.seconds_away,
+                seconds_away,
             });
         }
         if s.extension != TimeExtension::None {
@@ -764,6 +785,12 @@ fn anomalies(paper: &Paper, kept: &[&Copy], report: &Report) -> Vec<Anomaly> {
             out.push(Anomaly::Fast {
                 name: s.student_name.clone(),
                 elapsed_seconds: s.elapsed_seconds,
+            });
+        } else if f64::from(s.elapsed_seconds) < budget * HURRIED_SHARE {
+            out.push(Anomaly::Hurried {
+                name: s.student_name.clone(),
+                elapsed_seconds: s.elapsed_seconds,
+                estimated_seconds: estimated,
             });
         }
     }

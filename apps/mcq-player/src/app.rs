@@ -80,8 +80,10 @@ pub fn App() -> Element {
     // The paper came from a `?paper=` link, so the page's address can be passed on.
     let mut shareable = use_signal(|| false);
     let mut shared = use_signal(|| None::<&'static str>);
-    // The title of a copy left unfinished on this device, for the welcome screen.
-    let mut unfinished = use_signal(|| None::<String>);
+    // The papers with a copy left unfinished on this device (id in hex), for the welcome screen.
+    let mut unfinished = use_signal(Vec::<(String, render::UnfinishedPaper)>::new);
+    // A letter or digit pressed with no answer behind it, said once, until the next action.
+    let mut key_hint = use_signal(|| None::<String>);
     let mut can_share = use_signal(|| false);
     // A copy of the opened paper is unfinished on this device, under some name.
     let mut resumable = use_signal(|| false);
@@ -135,6 +137,16 @@ pub fn App() -> Element {
         let _ = document::eval("setTimeout(() => window.scrollTo(0, 0), 0);");
         true
     };
+    // A package chosen as a file or kept on this device: on to the identification screen.
+    let mut open_package = move |bytes: Vec<u8>| match mcq_crypto::inspect(&bytes) {
+        Ok(header) => {
+            loaded.set(Some(Rc::new(Loaded { bytes, header })));
+            shareable.set(false);
+            error.set(None);
+            stage.set(Stage::Identify);
+        }
+        Err(_) => error.set(Some(lang().texts().not_a_package)),
+    };
     let mut last_current = use_signal(|| 0_usize);
     use_effect(move || {
         let current = session.read().as_ref().map_or(0, |s| s.current);
@@ -164,7 +176,7 @@ pub fn App() -> Element {
     use_future(move || async move {
         dark.set(platform::remembered_dark().await);
         can_share.set(platform::can_share_files().await);
-        unfinished.set(unfinished_copy().await);
+        unfinished.set(unfinished_copies().await);
         let options = platform::link_options().await;
         let tag = if options.lang.is_empty() {
             platform::browser_language().await
@@ -250,6 +262,7 @@ pub fn App() -> Element {
                 }
                 key if stage() == Stage::Exam => {
                     let key = key.trim_start_matches("k:");
+                    key_hint.set(None);
                     match key {
                         "ArrowRight" | "PageDown" | "Enter" => s.next(),
                         "ArrowLeft" | "PageUp" => s.previous(),
@@ -265,12 +278,16 @@ pub fn App() -> Element {
                             let index = letter.or_else(|| {
                                 other.parse::<usize>().ok().and_then(|n| n.checked_sub(1))
                             });
+                            let count = s.current_item().map_or(0, |item| item.option_order.len());
                             let option = index.and_then(|i| {
                                 s.current_item()
                                     .and_then(|item| item.option_order.get(i).cloned())
                             });
                             if let Some(option) = option {
                                 s.toggle(&paper.paper, &option);
+                            } else if index.is_some() {
+                                // Ticking nothing in silence left the student wondering.
+                                key_hint.set(render::missing_answer(other, count, lang().texts()));
                             }
                         }
                     }
@@ -318,22 +335,24 @@ pub fn App() -> Element {
                                 error.set(Some(lang().texts().not_a_package));
                                 return;
                             };
-                            match mcq_crypto::inspect(&bytes) {
-                                Ok(header) => {
-                                    loaded.set(Some(Rc::new(Loaded { bytes: bytes.to_vec(), header })));
-                                    shareable.set(false);
-                                    error.set(None);
-                                    stage.set(Stage::Identify);
-                                }
-                                Err(_) => error.set(Some(lang().texts().not_a_package)),
-                            }
+                            open_package(bytes.to_vec());
                         },
                     }
                 }
                 p { class: "muted", "{t.open_hint}" }
-                if let Some(title) = unfinished() {
-                    p { class: "notice", role: "status", {crate::texts::fill(t.in_progress, &[("title", title)])} }
-                }
+                {render::unfinished_papers(
+                    &unfinished.read().iter().map(|(_, p)| p.clone()).collect::<Vec<_>>(),
+                    t,
+                    EventHandler::new(move |i: usize| {
+                        let Some(paper) = unfinished.read().get(i).map(|(id, _)| id.clone()) else { return };
+                        spawn(async move {
+                            match platform::kept_paper(&paper).await {
+                                Some(bytes) => open_package(bytes),
+                                None => error.set(Some(lang().texts().not_a_package)),
+                            }
+                        });
+                    }),
+                )}
                 if let Some(message) = error() { p { class: "error", role: "alert", "{message}" } }
                 p { class: "muted", "{t.privacy}" }
             }
@@ -374,16 +393,25 @@ pub fn App() -> Element {
                         error.set(None);
                         spawn(async move {
                             let key = platform::save_key(&paper_id, &fresh.student_name);
-                            let mut restored = platform::storage_get(&key)
-                                .await
-                                .and_then(|text| b64::decode(&text))
-                                .and_then(|bytes| decode_session(&bytes).ok())
-                                .filter(|s| s.paper_id == paper_id && s.items.len() == fresh.items.len());
-                            // The time the page stayed closed counts, and shows on the copy.
-                            if let Some(s) = restored.as_mut() {
-                                s.reopened_after(platform::seconds_since_stamp(&key).await);
-                                save(s);
+                            let legacy = platform::legacy_save_key(&paper_id, &fresh.student_name);
+                            let count = fresh.items.len();
+                            let mut found = load_session(&key, &paper_id, count).await.map(|s| (s, key.clone()));
+                            // A copy saved before accents were ignored, under its name in capitals.
+                            if found.is_none() && legacy != key {
+                                found = load_session(&legacy, &paper_id, count).await.map(|s| (s, legacy.clone()));
                             }
+                            let restored = match found {
+                                Some((mut s, at)) => {
+                                    // The time the page stayed closed counts, and shows on the copy.
+                                    s.reopened_after(platform::seconds_since_stamp(&at).await);
+                                    save(&s);
+                                    if at != key {
+                                        move_legacy_copy(&s, &at).await;
+                                    }
+                                    Some(s)
+                                }
+                                None => None,
+                            };
                             resumed.set(restored.is_some());
                             let title = paper_title(opened);
                             copy_saved.set(false);
@@ -391,10 +419,13 @@ pub fn App() -> Element {
                             let current = restored.unwrap_or(fresh);
                             let done = current.submitted;
                             if !done {
-                                platform::remember_in_progress(&key, &title);
+                                platform::remember_in_progress(&key, &title).await;
                             }
                             session.set(Some(current));
                             stage.set(if done { Stage::Submitted } else { Stage::Intro });
+                            // Kept until the answers are erased or a newer copy of the paper
+                            // replaces it: an unfinished copy resumes from the welcome screen.
+                            platform::keep_paper(&paper_id, &package.bytes).await;
                         });
                     },
                     div { class: "fingerprint",
@@ -481,18 +512,21 @@ pub fn App() -> Element {
                     o.content(),
                     t,
                     EventHandler::new(move |option: String| {
+                        key_hint.set(None);
                         if let Some(s) = session.write().as_mut() {
                             s.toggle(&paper.paper, &option);
                             save(s);
                         }
                     }),
                     EventHandler::new(move |()| {
+                        key_hint.set(None);
                         if let Some(s) = session.write().as_mut() {
                             s.toggle_flag();
                             save(s);
                         }
                     }),
                     EventHandler::new(move |()| {
+                        key_hint.set(None);
                         if let Some(s) = session.write().as_mut() {
                             s.toggle_report();
                             save(s);
@@ -501,6 +535,7 @@ pub fn App() -> Element {
                 ))
             });
             let mut go = move |f: fn(&mut Session)| {
+                key_hint.set(None);
                 if let Some(s) = session.write().as_mut() {
                     f(s);
                     save(s);
@@ -513,7 +548,7 @@ pub fn App() -> Element {
                         {render::clock(&status, s.elapsed_seconds, t)}
                         span { class: "progress", "{answered} / {total} {t.answered}" }
                     }
-                    {render::segments(&s, gauge.map(|g| g.time_fraction), t, EventHandler::new(move |i: usize| go_to(session, i)))}
+                    {render::segments(&s, gauge.map(|g| g.time_fraction), t, EventHandler::new(move |i: usize| { key_hint.set(None); go_to(session, i); }))}
                     if let Some(gauge) = gauge { {render::pace_view(&gauge, t)} }
                     // Always in the page, so screen readers announce what appears inside it.
                     div { class: "live", role: "status",
@@ -527,6 +562,9 @@ pub fn App() -> Element {
                                 "{message} "
                                 IconButton { class: "link", icon: Icon::Close, label: t.close, onclick: move |_| notice.set(None) }
                             }
+                        }
+                        if let Some(message) = key_hint() {
+                            p { class: "notice key-hint", "{message}" }
                         }
                     }
                     if stage() == Stage::Confirm {
@@ -542,8 +580,11 @@ pub fn App() -> Element {
                                             Some(s) => {
                                                 let copy = s.submit();
                                                 save(s);
-                                                platform::forget_in_progress();
-                                                unfinished.set(None);
+                                                let key = platform::save_key(&s.paper_id, &s.student_name);
+                                                spawn(async move {
+                                                    platform::forget_in_progress(&key).await;
+                                                    unfinished.set(unfinished_copies().await);
+                                                });
                                                 copy
                                             }
                                             None => return,
@@ -567,7 +608,7 @@ pub fn App() -> Element {
                     {render::exam_nav(current, total, flagged, t, render::ExamNav {
                         previous: EventHandler::new(move |()| go(Session::previous)),
                         next_flagged: EventHandler::new(move |()| go(|s| { s.next_flagged(); })),
-                        finish: EventHandler::new(move |()| open_confirm(stage)),
+                        finish: EventHandler::new(move |()| { key_hint.set(None); open_confirm(stage); }),
                         next: EventHandler::new(move |()| go(Session::next)),
                     })}
                 }
@@ -631,7 +672,16 @@ pub fn App() -> Element {
                                 "{t.share_copy}"
                             }
                         }
-                        if copy_saved() { p { class: "notice", role: "status", "{saved_line}" } }
+                        if copy_saved() {
+                            p { class: "notice", role: "status",
+                                "{saved_line}"
+                                // A phone without the share sheet downloads in silence: say where.
+                                // The desktop program asked where to save, so it needs no word.
+                                if !can_share() && !cfg!(feature = "desktop") {
+                                    " {t.saved_in_downloads}"
+                                }
+                            }
+                        }
                     }
                     if ready && !erased() {
                         if practice {
@@ -659,7 +709,12 @@ pub fn App() -> Element {
                             button { class: "link",
                                 onclick: move |_| {
                                     if let Some(s) = session.read().as_ref() {
-                                        platform::storage_remove(&platform::save_key(&s.paper_id, &s.student_name));
+                                        let key = platform::save_key(&s.paper_id, &s.student_name);
+                                        let paper = platform::hex(&s.paper_id);
+                                        spawn(async move {
+                                            erase_copy(&key, &paper).await;
+                                            unfinished.set(unfinished_copies().await);
+                                        });
                                     }
                                     erased.set(true);
                                 },
@@ -780,19 +835,63 @@ fn paper_title(opened: Signal<Option<Rc<Opened>>>) -> String {
         .unwrap_or_default()
 }
 
-/// The title of the copy noted unfinished on this device, while it is still there and not
-/// handed in.
-async fn unfinished_copy() -> Option<String> {
-    let (key, title) = platform::in_progress().await?;
-    let unfinished = platform::storage_get(&key)
+/// The papers with a copy noted unfinished on this device, while that copy is still there and
+/// not handed in; the notes of the others are dropped.
+async fn unfinished_copies() -> Vec<(String, render::UnfinishedPaper)> {
+    let noted = platform::in_progress().await;
+    let mut still = Vec::new();
+    for entry in &noted {
+        let open = platform::storage_get(&entry.key)
+            .await
+            .and_then(|text| b64::decode(&text))
+            .and_then(|bytes| decode_session(&bytes).ok())
+            .is_some_and(|s| !s.submitted);
+        if open {
+            still.push(entry.clone());
+        }
+    }
+    if still != noted {
+        platform::note_in_progress(&still);
+    }
+    let kept = platform::kept_papers().await;
+    crate::unfinished::papers(&still)
+        .into_iter()
+        .map(|(paper, title)| {
+            let kept = kept.contains(&paper);
+            (paper, render::UnfinishedPaper { title, kept })
+        })
+        .collect()
+}
+
+/// The session saved under `key` for this paper, if it fits the paper.
+async fn load_session(key: &str, paper_id: &[u8; 16], items: usize) -> Option<Session> {
+    platform::storage_get(key)
         .await
         .and_then(|text| b64::decode(&text))
         .and_then(|bytes| decode_session(&bytes).ok())
-        .is_some_and(|s| !s.submitted);
-    if !unfinished {
-        platform::forget_in_progress();
+        .filter(|s| s.paper_id == *paper_id && s.items.len() == items)
+}
+
+/// Once `session`, found under the legacy key `legacy`, reads back from its new key, the legacy
+/// copy and its note go: two copies of one student would keep the resume notice up for ever.
+async fn move_legacy_copy(session: &Session, legacy: &str) {
+    let key = platform::save_key(&session.paper_id, &session.student_name);
+    let written = platform::storage_get(&key).await;
+    if written.as_deref() == Some(b64::encode(&encode_session(session)).as_str()) {
+        platform::storage_remove(legacy);
+        platform::forget_in_progress(legacy).await;
     }
-    unfinished.then_some(title)
+}
+
+/// "Erase my answers": the copy, its note, and the kept paper unless another copy of it is
+/// still unfinished here.
+async fn erase_copy(key: &str, paper: &str) {
+    platform::storage_remove(key);
+    platform::forget_in_progress(key).await;
+    let others = platform::in_progress().await;
+    if !others.iter().any(|e| e.paper() == paper) {
+        platform::drop_paper(paper).await;
+    }
 }
 
 /// True when one of the sessions saved for `paper_id` (as stored, base 64) is not handed in.
@@ -841,12 +940,12 @@ fn close_confirm(mut stage: Signal<Stage>) {
     );
 }
 
-/// After moving to another question, the focus goes to its title when it was lost with the
-/// previous question's options, so keyboard and screen reader users start from the top.
+/// After moving to another question, whatever moved it (the next button, a key, an option, the
+/// overview), the focus goes to its title: a screen reader says "Question n of N", and the keys
+/// keep working from there.
 fn focus_question() {
     let _ = document::eval(
-        "setTimeout(() => { const a = document.activeElement; \
-         if (!a || a === document.body) { const h = document.getElementById('q-title'); if (h) h.focus({ preventScroll: true }); } }, 0);",
+        "setTimeout(() => { const h = document.getElementById('q-title'); if (h) h.focus({ preventScroll: true }); }, 0);",
     );
 }
 

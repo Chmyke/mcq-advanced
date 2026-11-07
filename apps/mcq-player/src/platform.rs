@@ -15,12 +15,25 @@ pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// A storage key per paper and student, from hex only.
+/// A storage key per paper and student, from hex only; the name counts whatever its case,
+/// accents and spaces (`mcq_engine::name_key`).
 pub fn save_key(paper_id: &[u8; 16], student_name: &str) -> String {
     format!(
         "mcq-session-{}-{}",
         hex(paper_id),
-        hex(student_name.to_uppercase().as_bytes())
+        hex(mcq_engine::name_key(student_name).as_bytes())
+    )
+}
+
+/// The key copies were saved under before accents were ignored: the name in capitals. Read only,
+/// to find such a copy again.
+pub fn legacy_save_key(paper_id: &[u8; 16], student_name: &str) -> String {
+    format!(
+        "mcq-session-{}-{}",
+        hex(paper_id),
+        hex(mcq_engine::normalize_name(student_name)
+            .to_uppercase()
+            .as_bytes())
     )
 }
 
@@ -104,44 +117,12 @@ fn stored_dark(value: Option<&str>) -> bool {
 /// else outside letters, digits, `.` and `-` turned into `_`.
 pub fn file_name(name: &str) -> String {
     name.chars()
-        .map(|c| match ascii_letter(c) {
+        .map(|c| match mcq_engine::plain_letter(c) {
             Some(plain) => plain,
             None if c.is_ascii_alphanumeric() || c == '.' || c == '-' => c,
             None => '_',
         })
         .collect()
-}
-
-/// The plain letter under a Latin accented one, as names are written in class.
-fn ascii_letter(c: char) -> Option<char> {
-    const TABLE: [(&str, char); 14] = [
-        ("àáâãäåāă", 'a'),
-        ("ÀÁÂÃÄÅĀĂ", 'A'),
-        ("çćč", 'c'),
-        ("ÇĆČ", 'C'),
-        ("èéêëēěę", 'e'),
-        ("ÈÉÊËĒĚĘ", 'E'),
-        ("ìíîïī", 'i'),
-        ("ÌÍÎÏĪ", 'I'),
-        ("ñń", 'n'),
-        ("ÑŃ", 'N'),
-        ("òóôõöøō", 'o'),
-        ("ÒÓÔÕÖØŌ", 'O'),
-        ("ùúûüūů", 'u'),
-        ("ÙÚÛÜŪŮ", 'U'),
-    ];
-    match c {
-        'ÿ' | 'ý' => Some('y'),
-        'Ÿ' | 'Ý' => Some('Y'),
-        'š' => Some('s'),
-        'Š' => Some('S'),
-        'ž' => Some('z'),
-        'Ž' => Some('Z'),
-        _ => TABLE
-            .iter()
-            .find(|(accented, _)| accented.contains(c))
-            .map(|(_, plain)| *plain),
-    }
 }
 
 /// Offers a file to save: the browser downloads it, the desktop program asks where to put it.
@@ -270,29 +251,112 @@ try { await navigator.clipboard.writeText(url); return 'copied'; } catch (e) { r
     }
 }
 
-/// Where the unfinished copy of this device is noted, for the welcome screen.
+/// Where the unfinished copies of this device are noted, for the welcome screen
+/// (`crate::unfinished` says how).
 const IN_PROGRESS_KEY: &str = "mcq-in-progress";
 
-/// Notes that the copy saved under `key` is unfinished, with its paper's title.
-pub fn remember_in_progress(key: &str, title: &str) {
-    if script_safe(key) {
-        storage_set(
-            IN_PROGRESS_KEY,
-            &format!("{key}.{}", crate::b64::encode(title.as_bytes())),
-        );
+/// The unfinished copies noted on this device, as noted.
+pub async fn in_progress() -> Vec<crate::unfinished::Entry> {
+    crate::unfinished::parse(&storage_get(IN_PROGRESS_KEY).await.unwrap_or_default())
+}
+
+/// Notes the unfinished copies of this device; none removes the note.
+pub fn note_in_progress(entries: &[crate::unfinished::Entry]) {
+    if entries.is_empty() {
+        storage_remove(IN_PROGRESS_KEY);
+    } else {
+        storage_set(IN_PROGRESS_KEY, &crate::unfinished::format(entries));
     }
 }
 
-pub fn forget_in_progress() {
-    storage_remove(IN_PROGRESS_KEY);
+/// Notes that the copy saved under `key` is unfinished, with its paper's title, next to the
+/// other unfinished copies of this device.
+pub async fn remember_in_progress(key: &str, title: &str) {
+    note_in_progress(&crate::unfinished::with(in_progress().await, key, title));
 }
 
-/// The storage key and the paper title of the unfinished copy noted on this device.
-pub async fn in_progress() -> Option<(String, String)> {
-    let value = storage_get(IN_PROGRESS_KEY).await?;
-    let (key, title) = value.split_once('.')?;
-    let title = String::from_utf8(crate::b64::decode(title)?).ok()?;
-    Some((key.to_string(), title))
+/// Forgets the copy saved under `key`: handed in or erased.
+pub async fn forget_in_progress(key: &str) {
+    note_in_progress(&crate::unfinished::without(in_progress().await, key));
+}
+
+/// Opens the player's database, where the opened papers are kept: a paper with its media can
+/// outgrow `localStorage`. The same database serves the desktop program's webview.
+const OPEN_DB: &str = r#"
+const db = await new Promise((ok, ko) => {
+  const r = indexedDB.open('mcq-player', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('papers');
+  r.onsuccess = () => ok(r.result);
+  r.onerror = () => ko(r.error);
+});
+"#;
+
+/// Keeps the opened paper (its `.mcqpack` bytes) under its id, replacing an older copy of it, so
+/// an unfinished copy resumes from the welcome screen without the file.
+pub async fn keep_paper(paper_id: &[u8; 16], bytes: &[u8]) -> bool {
+    let script = format!(
+        "try {{ {OPEN_DB}
+const [key, data] = await dioxus.recv();
+await new Promise((ok, ko) => {{
+  const t = db.transaction('papers', 'readwrite');
+  t.objectStore('papers').put(data, key);
+  t.oncomplete = ok; t.onerror = () => ko(t.error);
+}});
+return true; }} catch (e) {{ return false; }}"
+    );
+    let eval = document::eval(&script);
+    if eval
+        .send((hex(paper_id), crate::b64::encode(bytes)))
+        .is_err()
+    {
+        return false;
+    }
+    eval.join::<bool>().await.unwrap_or(false)
+}
+
+/// The paper kept under `paper` (its id in hex), if any.
+pub async fn kept_paper(paper: &str) -> Option<Vec<u8>> {
+    let script = format!(
+        "try {{ {OPEN_DB}
+const key = await dioxus.recv();
+return await new Promise((ok) => {{
+  const r = db.transaction('papers').objectStore('papers').get(key);
+  r.onsuccess = () => ok(r.result || ''); r.onerror = () => ok('');
+}}); }} catch (e) {{ return ''; }}"
+    );
+    let eval = document::eval(&script);
+    eval.send(paper.to_string()).ok()?;
+    let value: String = eval.join().await.ok()?;
+    crate::b64::decode(&value).filter(|bytes| !bytes.is_empty())
+}
+
+/// The ids (hex) of the papers kept on this device.
+pub async fn kept_papers() -> Vec<String> {
+    let script = format!(
+        "try {{ {OPEN_DB}
+return await new Promise((ok) => {{
+  const r = db.transaction('papers').objectStore('papers').getAllKeys();
+  r.onsuccess = () => ok((r.result || []).map(String)); r.onerror = () => ok([]);
+}}); }} catch (e) {{ return []; }}"
+    );
+    document::eval(&script).join().await.unwrap_or_default()
+}
+
+/// Removes the paper kept under `paper` (its id in hex).
+pub async fn drop_paper(paper: &str) {
+    let script = format!(
+        "try {{ {OPEN_DB}
+const key = await dioxus.recv();
+await new Promise((ok) => {{
+  const t = db.transaction('papers', 'readwrite');
+  t.objectStore('papers').delete(key);
+  t.oncomplete = ok; t.onerror = ok;
+}}); return true; }} catch (e) {{ return false; }}"
+    );
+    let eval = document::eval(&script);
+    if eval.send(paper.to_string()).is_ok() {
+        let _ = eval.join::<bool>().await;
+    }
 }
 
 /// The saved sessions of one paper on this device, whatever the name they were taken under, as

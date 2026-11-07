@@ -36,11 +36,18 @@ pub enum PublishError {
 impl std::fmt::Display for PublishError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PublishError::HasErrors(issues) => write!(
-                f,
-                "the paper has {} error(s): fix them before publishing",
-                issues.len()
-            ),
+            PublishError::HasErrors(issues) => {
+                let count = issues.len();
+                let (noun, them) = if count == 1 {
+                    ("error", "it")
+                } else {
+                    ("errors", "them")
+                };
+                write!(
+                    f,
+                    "the paper has {count} {noun}: fix {them} before publishing"
+                )
+            }
             PublishError::Media { path, reason } => write!(f, "cannot read {path}: {reason}"),
             PublishError::Crypto(e) => e.fmt(f),
         }

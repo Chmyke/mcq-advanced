@@ -2,7 +2,7 @@
 //! the validator's messages come from the core crates in both languages, shown in the interface
 //! language with a link to the rules guide.
 
-use mcq_model::{Issue, Location, Severity};
+use mcq_model::{Issue, Location, Paper, Severity};
 pub use mcq_player::texts::Lang;
 
 #[derive(PartialEq)]
@@ -127,6 +127,7 @@ pub struct Texts {
     pub level: &'static str,
     /// What the levels mean (Bloom's), in one sentence: the tip of the level menu.
     pub level_hint: &'static str,
+    pub level_short: &'static str,
     pub levels: [&'static str; 6],
     pub seconds: &'static str,
     pub seconds_auto: &'static str,
@@ -255,6 +256,10 @@ pub struct Texts {
     pub identity_keep: &'static str,
     /// `{n}`: warnings left when publishing is allowed.
     pub publish_warnings: &'static str,
+    pub publish_advice: &'static str,
+    pub severity_advice: &'static str,
+    /// The repeated advice summed up for the paper, in the order of `state::REPEATED_ADVICE`.
+    pub advice_summaries: [&'static str; 4],
     pub distribute_title: &'static str,
     /// `{file}` is the package's name.
     pub distribute_steps: [&'static str; 4],
@@ -406,13 +411,32 @@ impl Texts {
         })
     }
 
+    /// The sentence that sums up a repeated advice for the whole paper.
+    pub fn advice_summary(&self, code: &str) -> &'static str {
+        crate::state::REPEATED_ADVICE
+            .iter()
+            .position(|c| *c == code)
+            .map_or("", |k| self.advice_summaries[k])
+    }
+
     /// Where an issue was found, in the interface language, as the prefix of its message.
-    pub fn place(&self, location: &Location) -> String {
+    /// A theme is named by its title, as the teacher wrote it, not by its id in the file.
+    pub fn place(&self, location: &Location, paper: &Paper) -> String {
         let place = match location {
             Location::Paper => self.at_paper.to_string(),
             Location::Line(n) => format!("{} {n}", self.at_line),
             Location::Question(id) => format!("{} {id}", self.at_question),
-            Location::Theme(id) => format!("{} {id}", self.at_theme),
+            Location::Theme(id) => {
+                let title = paper
+                    .themes
+                    .iter()
+                    .find(|theme| &theme.id == id && !theme.title.trim().is_empty())
+                    .map_or(id.as_str(), |theme| theme.title.as_str());
+                match self.lang {
+                    Lang::Fr => format!("{} « {title} »", self.at_theme),
+                    Lang::En => format!("{} “{title}”", self.at_theme),
+                }
+            }
         };
         // French puts a space before the colon.
         let colon = if self.lang == Lang::Fr { " :" } else { ":" };
@@ -496,7 +520,7 @@ pub static EN: Texts = Texts {
     },
     close: "Close",
     tip_new: "Start a new, empty paper",
-    tip_import: "Import a paper (.qcmz, .qcm.md, Moodle XML, GIFT, CSV)",
+    tip_import: "Import a paper (.qcmz, .qcm.md, Moodle XML, GIFT, Aiken, CSV)",
     export: "Export",
     tip_export: "Export your paper to a file",
     tip_theme_light: "Switch to the light theme",
@@ -542,12 +566,13 @@ pub static EN: Texts = Texts {
     empty_paper: "No question yet: add one from the list.",
 
     question: "Question",
-    id: "Id",
-    id_empty: "An id cannot be empty.",
-    id_bad: "No space and no | in an id.",
-    id_taken: "Another question already has this id.",
+    id: "Question reference",
+    id_empty: "A reference cannot be empty.",
+    id_bad: "No space and no | in a reference.",
+    id_taken: "Another question already has this reference.",
     theme: "Theme",
     level: "Level",
+    level_short: "What the question asks of the student, from remembering a fact to judging; it also sets the estimated time.",
     level_hint: "Bloom's levels: what the question asks of the student, from 1 (remember a fact) to 5 (evaluate, judge); it also sets the estimated time.",
     levels: [
         "Not set",
@@ -578,8 +603,8 @@ pub static EN: Texts = Texts {
     drop_hint: "Drop or paste an image, a sound or a video anywhere.",
     text_block: "Text",
     code_block: "Code",
-    language: "Language",
-    highlighted_lines: "Highlighted lines",
+    language: "Language (optional, colours computer code)",
+    highlighted_lines: "Lines to highlight (optional)",
     alt_text: "Text alternative",
     alt_hint: "What a student who cannot see or hear it should know.",
     block_up: "Move this block up",
@@ -627,7 +652,7 @@ pub static EN: Texts = Texts {
     notes: "Author notes (never shown to students)",
     settings_time: "Time",
     duration: "Duration in minutes (0: no limit)",
-    estimated: "Estimated answering time:",
+    estimated: "Estimated answering time: at least",
     estimated_hint: "From each question's level, plus a fifth for margin; the length of a statement, a calculation or code is not counted. A question that takes longer gets its own time in its More settings.",
     duration_soft: "The time never closes a copy: going over is only noted on it, the mark does not change.",
     lang_unset: "Not set",
@@ -642,7 +667,7 @@ pub static EN: Texts = Texts {
     shuffle_options: "Shuffle the answers",
     show_answer_count: "Tell how many answers to tick",
     allow_extra_time: "Let students declare extra time (a third, a half, double, untimed); their copy shows it",
-    advanced: "More settings: id and time",
+    advanced: "More settings: reference and time",
     themes: "Themes",
     theme_title: "Name of the theme",
     course_ref: "Where to revise",
@@ -675,6 +700,14 @@ pub static EN: Texts = Texts {
     create_other_warning: "Careful: the copies of the papers published with your current identity open with it alone. Create another one only if you have lost it for good.",
     identity_keep: "Keep my identity in this browser (still locked by its passphrase)",
     publish_warnings: "The validator still has {n} {n:warning|warnings}: you can publish, but read them in Write first.",
+    publish_advice: "{n} {n:question|questions} could get a fuller correction (explanations, rule to remember, where to revise): optional, it helps students learn from their mistakes.",
+    severity_advice: "Advice",
+    advice_summaries: [
+        "{n} {n:question explains|questions explain} none of the answers.",
+        "{n} {n:question has|questions have} answers without an explanation.",
+        "{n} {n:question has|questions have} no rule to remember.",
+        "{n} {n:question says|questions say} nowhere where to revise.",
+    ],
     distribute_title: "How students take it",
     distribute_steps: [
         "Send {file} to your students (school platform, email, USB key) or put it online.",
@@ -738,8 +771,8 @@ pub static FR: Texts = Texts {
     tip_help: "Aide : prise en main, guide d'écriture, prompt pour l'IA",
     help_tutorial: "Prise en main (site)",
     help_guide: "Écrire un bon QCM (site)",
-    import_choice: "Votre sujet compte {mine} {mine:question|questions} ; le fichier en apporte {theirs}. Les ajouter après les vôtres, ou remplacer votre sujet ?",
-    import_choice_pasted: "Votre sujet compte {mine} {mine:question|questions} ; le texte collé en apporte {theirs}. Les ajouter après les vôtres, ou remplacer votre sujet ?",
+    import_choice: "Votre sujet compte {mine} {mine:question|question|questions} ; le fichier en apporte {theirs}. Les ajouter après les vôtres, ou remplacer votre sujet ?",
+    import_choice_pasted: "Votre sujet compte {mine} {mine:question|question|questions} ; le texte collé en apporte {theirs}. Les ajouter après les vôtres, ou remplacer votre sujet ?",
     import_add: "Ajouter à mon sujet",
     import_replace: "Remplacer mon sujet",
     cancel: "Annuler",
@@ -783,7 +816,7 @@ pub static FR: Texts = Texts {
     },
     close: "Fermer",
     tip_new: "Commencer un nouveau QCM vide",
-    tip_import: "Importer un QCM (.qcmz, .qcm.md, Moodle XML, GIFT, CSV)",
+    tip_import: "Importer un QCM (.qcmz, .qcm.md, Moodle XML, GIFT, Aiken, CSV)",
     export: "Exporter",
     tip_export: "Exporter votre QCM dans un fichier",
     tip_theme_light: "Passer en thème clair",
@@ -829,12 +862,13 @@ pub static FR: Texts = Texts {
     empty_paper: "Aucune question : ajoutez-en une depuis la liste.",
 
     question: "Question",
-    id: "Identifiant",
-    id_empty: "Un identifiant ne peut pas être vide.",
-    id_bad: "Ni espace ni | dans un identifiant.",
-    id_taken: "Une autre question porte déjà cet identifiant.",
+    id: "Référence de la question",
+    id_empty: "Une référence ne peut pas être vide.",
+    id_bad: "Ni espace ni | dans une référence.",
+    id_taken: "Une autre question porte déjà cette référence.",
     theme: "Thème",
     level: "Niveau",
+    level_short: "Ce que la question demande au candidat, de se souvenir d'un fait à juger ; il fixe aussi le temps estimé.",
     level_hint: "Niveaux de Bloom : ce que la question demande au candidat, de 1 (se souvenir d'un fait) à 5 (évaluer, juger) ; ils fixent aussi le temps estimé.",
     levels: [
         "Non précisé",
@@ -865,8 +899,8 @@ pub static FR: Texts = Texts {
     drop_hint: "Glissez ou collez une image, un son ou une vidéo n'importe où.",
     text_block: "Texte",
     code_block: "Code",
-    language: "Langage",
-    highlighted_lines: "Lignes surlignées",
+    language: "Langage (facultatif, pour colorer du code informatique)",
+    highlighted_lines: "Lignes à surligner (facultatif)",
     alt_text: "Texte alternatif",
     alt_hint: "Ce que doit savoir un candidat qui ne peut ni le voir ni l'entendre.",
     block_up: "Monter ce bloc",
@@ -914,7 +948,7 @@ pub static FR: Texts = Texts {
     notes: "Notes d'auteur (jamais montrées aux candidats)",
     settings_time: "Temps",
     duration: "Durée en minutes (0 : sans limite)",
-    estimated: "Temps de réponse estimé :",
+    estimated: "Temps de réponse estimé : au moins",
     estimated_hint: "D'après le niveau de chaque question, plus un cinquième de marge ; la longueur d'un énoncé, un calcul ou du code ne sont pas comptés. Une question plus longue reçoit son propre temps dans ses réglages avancés.",
     duration_soft: "Le temps ne ferme jamais une copie : un dépassement est seulement noté dessus, la note ne change pas.",
     lang_unset: "Non précisée",
@@ -929,7 +963,7 @@ pub static FR: Texts = Texts {
     shuffle_options: "Mélanger les réponses",
     show_answer_count: "Annoncer le nombre de réponses à cocher",
     allow_extra_time: "Laisser les candidats déclarer un temps majoré (tiers-temps, moitié, double, sans limite) ; leur copie l'indique",
-    advanced: "Plus de réglages : identifiant et temps",
+    advanced: "Plus de réglages : référence et temps",
     themes: "Thèmes",
     theme_title: "Nom du thème",
     course_ref: "Où réviser",
@@ -962,6 +996,14 @@ pub static FR: Texts = Texts {
     create_other_warning: "Attention : les copies des sujets publiés avec votre identité actuelle ne s'ouvriront qu'avec elle. N'en créez une autre que si vous l'avez perdue pour de bon.",
     identity_keep: "Garder mon identité dans ce navigateur (toujours verrouillée par sa phrase de passe)",
     publish_warnings: "Le validateur signale encore {n} {n:avertissement|avertissements} : vous pouvez publier, mais relisez-les d'abord dans Écrire.",
+    publish_advice: "{n} {n:question gagnerait|questions gagneraient} à une correction plus complète (explications, règle à retenir, où réviser) : facultatif, cela aide les candidats à apprendre de leurs erreurs.",
+    severity_advice: "Conseil",
+    advice_summaries: [
+        "{n} {n:question n'explique|questions n'expliquent} aucune réponse.",
+        "{n} {n:question a|questions ont} des réponses sans explication.",
+        "{n} {n:question n'a|questions n'ont} pas de règle à retenir.",
+        "{n} {n:question n'indique|questions n'indiquent} pas où réviser.",
+    ],
     distribute_title: "Comment les candidats le passent",
     distribute_steps: [
         "Envoyez {file} à vos candidats (ENT, messagerie, clé USB) ou mettez-le en ligne.",
@@ -1008,6 +1050,7 @@ pub static FR: Texts = Texts {
 
 /// Puts values in a template: `{name}` becomes the value given for `name`.
 /// `{name:one|many}` becomes `one` when `name` is 1, `many` otherwise.
+/// `{name:zero|one|many}` also names the form for 0, which French puts in the singular.
 pub fn fill(template: &str, values: &[(&str, String)]) -> String {
     let mut out = template.to_string();
     for (name, value) in values {
@@ -1018,9 +1061,15 @@ pub fn fill(template: &str, values: &[(&str, String)]) -> String {
                 break;
             };
             let forms = out[start + open.len()..start + len].to_string();
-            let (one, many) = forms.split_once('|').unwrap_or((&forms, &forms));
-            let singular = value.trim().parse::<u64>().is_ok_and(|n| n == 1);
-            let chosen = if singular { one } else { many }.to_string();
+            let parts: Vec<&str> = forms.split('|').collect();
+            let count = value.trim().parse::<u64>().ok();
+            let chosen = match (parts.as_slice(), count) {
+                ([zero, _, _], Some(0)) => zero,
+                ([_, one, _] | [one, _], Some(1)) => one,
+                ([.., many], _) => many,
+                ([], _) => "",
+            }
+            .to_string();
             out.replace_range(start..=start + len, &chosen);
         }
     }
@@ -1090,6 +1139,7 @@ pub struct CorrectTexts {
     pub left_window: &'static str,
     pub overtime: &'static str,
     pub fast: &'static str,
+    pub hurried: &'static str,
     pub extra_time: &'static str,
     pub untimed: &'static str,
     pub marks_title: &'static str,
@@ -1166,16 +1216,16 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
         "A wrong option is one of the answers offered that are not right (also called a distractor).",
     ],
     small_cohort: "Fewer than 30 copies: the figures below are trends to confirm, not verdicts.",
-    items_not_computed: "Fewer than 8 copies: D and reliability are not computed.",
-    reteach_title: "1 · To teach again",
+    items_not_computed: "Fewer than 8 copies: how well each question separates stronger from weaker students (D) and the reliability of the marks are not computed.",
+    reteach_title: "To teach again",
     reteach: "{theme}: {rate} % success, {share} % of the class not there yet",
     reteach_doubtful: "Check first: {n} {n:question of this theme has|questions of this theme have} a doubtful key or were reported by students ({ids}); the notion may be fine.",
     reteach_none: "No theme is under the threshold for this class.",
     thin_theme: "{theme} has only {n} {n:question|questions}: its rate is not usable.",
-    traps_title: "2 · Shared confusions",
+    traps_title: "Shared confusions",
     trap: "{rate} % chose «{option}» ({question})",
     traps_none: "No wrong option drew a quarter of the answers.",
-    review_title: "3 · Questions to review",
+    review_title: "Questions to review",
     key_doubt_rival: "{question} · key or wording to check: the strongest students prefer «{rival}»",
     key_doubt: "{question} · the strongest students miss it more than the others (D = {d}): probably ambiguous",
     reported: "{question} · reported as unclear or wrong by {n} {n:student|students}: reread the statement and the key",
@@ -1193,7 +1243,7 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
     decided_neutral: "{question} neutralized: out of the marks, every copy is marked on {n} questions",
     decided_rekey: "{question}: key corrected, right answer «{options}»",
     undo: "Undo",
-    anomalies_title: "4 · Copies to look at closely",
+    anomalies_title: "Copies to look at closely",
     anomalies_hint: "An anomaly is a reason to ask a question, never a verdict.",
     other_paper: "{name}: a copy of another paper, left out",
     same_name: "{name}: {n} copies under this name",
@@ -1202,9 +1252,10 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
     left_window: "{name}: left the exam window {n} {n:time|times} ({minutes} away)",
     overtime: "{name}: {minutes} over the time limit (the mark ignores it)",
     fast: "{name}: a very good copy handed in after {minutes}",
+    hurried: "{name}: copy handed in after {minutes}, for about {planned} planned",
     extra_time: "{name}: extra time declared ({extension}), to check against your list of arrangements",
     untimed: "{name}: extra time without limit declared, to check against your list of arrangements",
-    marks_title: "5 · Marks",
+    marks_title: "Marks",
     columns: [
         "Name",
         "Mark /20",
@@ -1267,7 +1318,7 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     drop_hint: "Toutes les copies d'un coup : sélectionnez-les ensemble dans leur dossier (Ctrl+A), ou glissez le lot entier n'importe où sur la page, le paquet avec.",
     waiting: "{n} {n:fichier|fichiers} en attente de votre identité.",
     package_ready: "Sujet : {title}",
-    copies_in: "{n} {n:copie ouverte|copies ouvertes}.",
+    copies_in: "{n} {n:copie ouverte|copie ouverte|copies ouvertes}.",
     refused: "Non pris",
     refused_unknown: "ni un paquet ni une copie",
     refused_not_yours: "fait pour l'identité d'un autre professeur",
@@ -1289,16 +1340,16 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
         "Une mauvaise réponse est une des options proposées qui ne sont pas justes (on dit aussi « distracteur »).",
     ],
     small_cohort: "Moins de 30 copies : les chiffres ci-dessous sont des tendances à confirmer, pas des verdicts.",
-    items_not_computed: "Moins de 8 copies : D et fiabilité ne sont pas calculés.",
-    reteach_title: "1 · À réenseigner",
+    items_not_computed: "Moins de 8 copies : la capacité de chaque question à distinguer les candidats forts des plus faibles (D) et la fiabilité de la note ne sont pas calculées.",
+    reteach_title: "À réenseigner",
     reteach: "{theme} : {rate} % de réussite, {share} % de la classe non acquis",
     reteach_doubtful: "À vérifier d'abord : {n} {n:question de ce thème a un corrigé douteux ou a été signalée|questions de ce thème ont un corrigé douteux ou ont été signalées} par des candidats ({ids}) ; la notion est peut-être acquise.",
     reteach_none: "Aucun thème n'est sous le seuil pour cette classe.",
     thin_theme: "{theme} n'a que {n} {n:question|questions} : son taux n'est pas exploitable.",
-    traps_title: "2 · Idées fausses partagées",
+    traps_title: "Idées fausses partagées",
     trap: "{rate} % ont choisi «{option}» ({question})",
     traps_none: "Aucune mauvaise réponse n'a attiré le quart des réponses.",
-    review_title: "3 · Questions à revoir",
+    review_title: "Questions à revoir",
     key_doubt_rival: "{question} · corrigé ou énoncé à vérifier : les meilleurs préfèrent «{rival}»",
     key_doubt: "{question} · les meilleurs la ratent plus que les autres (D = {d}) : probablement ambiguë",
     reported: "{question} · signalée floue ou erronée par {n} {n:candidat|candidats} : relire l'énoncé et le corrigé",
@@ -1316,7 +1367,7 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     decided_neutral: "{question} neutralisée : hors barème, chaque copie est notée sur {n} questions",
     decided_rekey: "{question} : corrigé rectifié, bonne réponse «{options}»",
     undo: "Annuler",
-    anomalies_title: "4 · Copies à regarder de près",
+    anomalies_title: "Copies à regarder de près",
     anomalies_hint: "Une anomalie est une raison de poser une question, jamais un verdict.",
     other_paper: "{name} : copie d'un autre sujet, écartée",
     same_name: "{name} : {n} copies sous ce nom",
@@ -1325,9 +1376,10 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     left_window: "{name} : {n} {n:sortie|sorties} de la fenêtre d'épreuve ({minutes} dehors)",
     overtime: "{name} : temps dépassé de {minutes} (la note n'en tient pas compte)",
     fast: "{name} : très bonne copie rendue en {minutes}",
+    hurried: "{name} : copie rendue en {minutes}, pour environ {planned} prévues",
     extra_time: "{name} : temps majoré déclaré ({extension}), à vérifier avec votre liste d'aménagements",
     untimed: "{name} : temps majoré sans limite déclaré, à vérifier avec votre liste d'aménagements",
-    marks_title: "5 · Notes",
+    marks_title: "Notes",
     columns: [
         "Nom",
         "Note /20",
@@ -1341,7 +1393,7 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     open_timeline: "Chronologie",
     timeline_title: "Chronologie de la copie",
     timeline_hint: "Des faits pour en parler avec le candidat, jamais un verdict.",
-    timeline_summary: "{changes} {changes:changement|changements} de réponse : {rw} de juste à faux, {wr} de faux à juste, {ww} de faux à faux. {away} {away:sortie|sorties} de la fenêtre d'épreuve, {minutes} dehors.",
+    timeline_summary: "{changes} {changes:changement|changement|changements} de réponse : {rw} de juste à faux, {wr} de faux à juste, {ww} de faux à faux. {away} {away:sortie|sortie|sorties} de la fenêtre d'épreuve, {minutes} dehors.",
     timeline_empty: "Rien n'a été enregistré pour cette copie.",
     tl_answer: "{question} : «{options}»",
     tl_right: "juste",
@@ -1518,6 +1570,12 @@ mod tests {
                 &[("a", "1".into()), ("b", "0".into())]
             ),
             "1 x, 0 y"
+        );
+        let zero = "{n} {n:copie|copie|copies}";
+        let say = |n: &str| fill(zero, &[("n", n.to_string())]);
+        assert_eq!(
+            [say("0"), say("1"), say("2")],
+            ["0 copie", "1 copie", "2 copies"]
         );
     }
 

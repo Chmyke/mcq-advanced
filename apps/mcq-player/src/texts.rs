@@ -178,8 +178,18 @@ pub struct Texts {
     pub resume_here_code: &'static str,
     /// The first stop of the keyboard during the exam.
     pub skip_to_question: &'static str,
-    /// On the welcome screen when a copy was left unfinished on this device; `{title}`.
+    /// On the welcome screen while a copy of a paper is unfinished on this device; `{title}`.
     pub in_progress: &'static str,
+    /// The welcome screen's way back to an unfinished copy's paper, kept on this device; `{title}`.
+    pub resume_paper: &'static str,
+    /// Under the saved copy where the system cannot share files: where the download went.
+    pub saved_in_downloads: &'static str,
+    /// A letter or digit with no answer behind it: `{first}` alone, or `{range}` of answers.
+    pub only_answer: &'static str,
+    pub only_answers: &'static str,
+    /// The answers of a question: two (`{first}`, `{last}`), or more.
+    pub answers_two: &'static str,
+    pub answers_range: &'static str,
     /// What the pace line compares, on hover.
     pub pace_hint: &'static str,
     /// The phone's share sheet with the copy file attached.
@@ -359,10 +369,16 @@ pub static EN: Texts = Texts {
     flagged_which: "Flagged for review:",
     some_multiple: "This paper has questions with several right answers.",
     all_single: "Every question has a single right answer.",
-    resume_here: "A copy is in progress on this device: type your name again to resume it.",
-    resume_here_code: "A copy is in progress on this device: type your name and the code again to resume it.",
+    resume_here: "A copy of this paper is in progress on this device. To resume it, type your name as you did the first time.",
+    resume_here_code: "A copy of this paper is in progress on this device. To resume it, type your name as you did the first time, then the code.",
     skip_to_question: "Go to the question",
-    in_progress: "A copy of \"{title}\" is unfinished on this device. Open the same file again, with the same name, to resume it.",
+    in_progress: "A copy of \"{title}\" is in progress on this device. To resume it, open this paper again and type your name as you did the first time.",
+    resume_paper: "Resume \"{title}\"",
+    saved_in_downloads: "You will find it in this device's Downloads folder; attach it to the message or the assignment your teacher asked for.",
+    only_answer: "This question only has answer {first}.",
+    only_answers: "This question only has answers {range}.",
+    answers_two: "{first} and {last}",
+    answers_range: "{first} to {last}",
     pace_hint: "The time planned for the questions you answered, against the time you took.",
     share_copy: "Share my copy",
     incomplete: "Incomplete",
@@ -535,10 +551,16 @@ pub static FR: Texts = Texts {
     flagged_which: "À revoir :",
     some_multiple: "Ce sujet contient des questions à plusieurs bonnes réponses.",
     all_single: "Toutes les questions ont une seule bonne réponse.",
-    resume_here: "Une copie est en cours sur cet appareil : retapez votre nom pour la reprendre.",
-    resume_here_code: "Une copie est en cours sur cet appareil : retapez votre nom et le code pour la reprendre.",
+    resume_here: "Une copie de ce sujet est en cours sur cet appareil. Pour la reprendre, retapez votre nom comme la première fois.",
+    resume_here_code: "Une copie de ce sujet est en cours sur cet appareil. Pour la reprendre, retapez votre nom comme la première fois, puis le code.",
     skip_to_question: "Aller à la question",
-    in_progress: "Une copie de « {title} » est en cours sur cet appareil. Rouvrez le même fichier, avec le même nom, pour la reprendre.",
+    in_progress: "Une copie de « {title} » est en cours sur cet appareil. Pour la reprendre, rouvrez ce sujet et retapez votre nom comme la première fois.",
+    resume_paper: "Reprendre « {title} »",
+    saved_in_downloads: "Vous le trouverez dans le dossier Téléchargements de cet appareil ; joignez-le au message ou au devoir demandé par votre enseignant.",
+    only_answer: "Cette question n'a que la réponse {first}.",
+    only_answers: "Cette question n'a que les réponses {range}.",
+    answers_two: "{first} et {last}",
+    answers_range: "{first} à {last}",
     pace_hint: "Le temps prévu pour les questions déjà répondues, comparé au temps que vous y avez passé.",
     share_copy: "Partager ma copie",
     incomplete: "Incomplet",

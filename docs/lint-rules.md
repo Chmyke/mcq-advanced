@@ -63,7 +63,7 @@ and from classroom use of the earlier tool.
 | `PARTIAL_EXPLANATION` | warning | Some options are not explained. |
 | `NO_RULE` | warning | No `RULE:` to remember. |
 | `NO_COURSE_REF` | warning | Nowhere to revise: no `COURSE:` on the theme, no `REVIEW:` on the question. |
-| `LENGTH_BIAS` | warning | The correct answer is at least 1.6 times longer than the longest distractor. |
+| `LENGTH_BIAS` | warning | Single-answer questions only: the correct answer is at least 1.6 times longer than the longest distractor, and at least 8 visible characters longer (so "12 mol" against "1 mol" stays silent). |
 | `DUPLICATE_QUESTION` | warning | Statement and code share at least 72 % of their words with another question, in this paper or a paper of the same folder. |
 
 ## The paper as a whole
@@ -78,8 +78,8 @@ and from classroom use of the earlier tool.
 | `NOT_ENOUGH_APPLY` | warning | Fewer than half the questions at levels 3 to 5. |
 | `EMPTY_THEME` | warning | A theme without questions. |
 | `THIN_THEME` | warning | A theme with 1 or 2 questions: its success rate means little. |
-| `LENGTH_RANK_BIAS` | warning | From 10 questions: the correct answer is the longest option in more than 35 % of them. |
-| `ANSWER_POSITION_BIAS` | warning | From 10 questions: more than 60 % of the correct answers sit at the same position. |
+| `LENGTH_RANK_BIAS` | warning | From 10 single-answer questions: the correct answer is strictly longer than every other option in more than 35 % of them. Ties do not count, multiple-answer questions are left out, and the chance figure shown is computed from the questions that have one longest option. |
+| `ANSWER_POSITION_BIAS` | warning | From 10 questions: more than 60 % of the correct answers sit at the same position as written. Shuffled options hide it from students, but not on a printed or unshuffled paper; the message says which case applies. |
 
 ## In the Studio
 

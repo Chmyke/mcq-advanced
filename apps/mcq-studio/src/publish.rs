@@ -13,7 +13,7 @@ use mcq_publish::{Mode, Published, RoomSheet};
 use crate::correction::KeptPaper;
 use crate::identity::IdentityCard;
 use crate::platform;
-use crate::state::Studio;
+use crate::state::{self, Studio};
 use crate::texts::Texts;
 
 /// A publication of this session: what to show and what to download again.
@@ -74,12 +74,20 @@ pub fn PublishSpace(
     let mut error = use_signal(|| None::<String>);
 
     let blocking = mcq_publish::blocking_issues(&studio.read().project.paper).len();
-    let warnings = studio
-        .read()
-        .issues()
-        .iter()
-        .filter(|i| i.severity == mcq_model::Severity::Warning)
-        .count();
+    // Advice to enrich the correction is counted apart: dozens of "no rule to remember" would
+    // drown what a candidate trips over.
+    let (warnings, advised) = {
+        let s = studio.read();
+        let issues = s.issues();
+        let warnings = issues
+            .iter()
+            .filter(|i| i.severity == mcq_model::Severity::Warning && !state::is_advice(i))
+            .count();
+        (
+            warnings,
+            state::questions_with_advice(&s.project.paper, &issues),
+        )
+    };
 
     let publish = move |_| async move {
         let Some(teacher) = identity.read().clone() else {
@@ -167,6 +175,9 @@ pub fn PublishSpace(
                 }
                 if blocking == 0 && warnings > 0 {
                     p { class: "muted", {crate::texts::fill(t.publish_warnings, &[("n", warnings.to_string())])} }
+                }
+                if blocking == 0 && advised > 0 {
+                    p { class: "muted", {crate::texts::fill(t.publish_advice, &[("n", advised.to_string())])} }
                 }
                 // A decisive action: the word stays, the icon only echoes the Publish space.
                 button {

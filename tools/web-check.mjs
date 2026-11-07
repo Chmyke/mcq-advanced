@@ -150,6 +150,13 @@ async function player(page, base, send, dialogs) {
   await key('Enter', 'Enter', 13);
   expect(await page.run(NUMBER) === '2',
     'player: Enter on an answer box does not move to the next question');
+  // Every new question takes the focus to its title, so a screen reader says where it is.
+  await sleep(300);
+  expect(await page.run(FOCUSED) === 'q-title', 'player: the next question does not take the focus');
+  // A letter with no answer behind it says so, from the title, in the status.
+  await key('z', 'KeyZ', 90);
+  const hint = await page.run("(document.querySelector('.live .key-hint') || {}).textContent || ''");
+  expect(hint.includes("n'a que les réponses A"), `player: a key with no answer says: ${hint}`);
 
   // Question 5 asks for two answers: one ticked makes it answered like any other, never a hint at
   // how many are right. The hand-in question lists the unanswered ones, each a way back to it.
@@ -179,15 +186,23 @@ async function player(page, base, send, dialogs) {
   await page.waitFor("document.querySelector('.welcome')", 'the welcome screen');
   expect(dialogs() > asked, 'player: leaving during the exam asks nothing');
   await page.waitFor("document.querySelector('.welcome .notice')", 'the unfinished copy notice');
-  expect(await page.run("document.querySelector('.welcome .notice').textContent.includes('unfinished')"),
+  expect(await page.run("document.querySelector('.welcome .notice').textContent.includes('in progress')"),
     'player: the welcome screen does not mention the unfinished copy');
 
-  // The same paper again: the identification screen offers to resume, without naming anyone.
-  await send('Page.navigate', { url: `${base}/player/?lang=en&paper=check.mcqpack` });
+  // The paper was kept on this device: one button takes it back to the identification screen,
+  // which offers to resume without naming anyone.
+  await page.waitFor("document.querySelector('.welcome .resume-paper')", 'the resume button');
+  await page.click("document.querySelector('.welcome .resume-paper')", 'resume the kept paper');
   await page.waitFor("document.querySelector('.identify .resume')", 'the copy in progress notice');
   const resume = await page.run("document.querySelector('.identify .resume').textContent");
-  expect(resume.includes('type your name again') && !resume.includes('Web Check'),
+  expect(resume.includes('as you did the first time') && !resume.includes('Web Check'),
     `player: the copy in progress notice reads: ${resume}`);
+  // The name typed again without its capitals, with an accent: the same copy comes back.
+  await page.type("document.getElementById('name')", 'wéb check', 'the name field');
+  await page.click("document.querySelector('form.identify button[type=submit]')", 'open the paper');
+  await page.waitFor("document.querySelector('.intro')", 'the intro screen');
+  expect(await page.run("document.querySelector('.intro').textContent.includes('restaurées')"),
+    'player: the copy typed again with other accents and capitals did not resume');
 }
 
 const server = await serve(site);

@@ -237,3 +237,29 @@ fn formulas_are_converted_once_and_explanations_wait_for_the_end_code() {
         (r"x = \pm 2", true)
     );
 }
+
+#[test]
+fn the_error_count_reads_in_the_singular_only_for_one() {
+    let issue = || {
+        mcq_model::Issue::new(
+            mcq_model::Severity::Error,
+            "NO_TITLE",
+            mcq_model::Location::Paper,
+            "No title.",
+            "Pas de titre.",
+        )
+    };
+    let message = |n: usize| PublishError::HasErrors((0..n).map(|_| issue()).collect()).to_string();
+    assert_eq!(
+        message(0),
+        "the paper has 0 errors: fix them before publishing"
+    );
+    assert_eq!(
+        message(1),
+        "the paper has 1 error: fix it before publishing"
+    );
+    assert_eq!(
+        message(2),
+        "the paper has 2 errors: fix them before publishing"
+    );
+}

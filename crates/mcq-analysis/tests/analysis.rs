@@ -221,6 +221,98 @@ fn odd_copies_are_reported_never_judged() {
         a.iter()
             .any(|x| matches!(x, Anomaly::SameName { count: 2, .. }))
     );
+    // Quick and wrong: hurried, not fast; the fast copy is not also hurried.
+    let estimated = p.estimated_seconds_with_margin();
+    let hurried: Vec<&Anomaly> = a
+        .iter()
+        .filter(|x| matches!(x, Anomaly::Hurried { .. }))
+        .collect();
+    assert_eq!(
+        hurried,
+        [&Anomaly::Hurried {
+            name: "Blank".into(),
+            elapsed_seconds: 20,
+            estimated_seconds: estimated,
+        }]
+    );
+}
+
+#[test]
+fn a_copy_handed_in_far_too_soon_is_hurried_whatever_its_success() {
+    // 13 questions of 20 s: 312 s with the margin; a quarter is 78 s.
+    let p = paper(13, 1);
+    let estimated = p.estimated_seconds_with_margin();
+    assert_eq!(estimated, 312);
+    let mut rushed = scored(&p, "Rushed", 4);
+    rushed.submission.elapsed_seconds = 21;
+    let mut edge = scored(&p, "Edge", 5);
+    edge.submission.elapsed_seconds = 78;
+    let report = analyse(&p, ID, &[rushed, edge]);
+    assert_eq!(
+        report.anomalies,
+        [Anomaly::Hurried {
+            name: "Rushed".into(),
+            elapsed_seconds: 21,
+            estimated_seconds: 312,
+        }]
+    );
+    let notes = csv::notes(&p, &report, &csv::FR);
+    assert!(notes.contains("rendu à la hâte"), "{notes}");
+}
+
+#[test]
+fn window_exits_are_reported_by_count_or_by_time_away() {
+    use mcq_model::{LogEntry, LogKind};
+    let p = paper(4, 1);
+    // A 16 min copy: 96 s away is a tenth of it.
+    let away = |name: &str, times: u32, seconds_away: u32| {
+        let mut c = scored(&p, name, 4);
+        c.submission.elapsed_seconds = 960;
+        c.submission.focus_losses = times;
+        c.submission.seconds_away = seconds_away;
+        c
+    };
+    let mut from_log = scored(&p, "Log", 4);
+    from_log.submission.elapsed_seconds = 960;
+    from_log.submission.log = vec![
+        LogEntry::new(100, LogKind::FocusLost, "", ""),
+        LogEntry::new(300, LogKind::FocusBack, "", ""),
+    ];
+    let copies = [
+        away("Four", 4, 616),
+        away("Three", 3, 5),
+        away("Two", 2, 20),
+        away("Tenth", 1, 96),
+        away("Under", 1, 95),
+        away("Never", 0, 500),
+        from_log,
+    ];
+    let report = analyse(&p, ID, &copies);
+    let left: Vec<(&str, u32, u32)> = report
+        .anomalies
+        .iter()
+        .filter_map(|a| match a {
+            Anomaly::LeftWindow {
+                name,
+                times,
+                seconds_away,
+            } => Some((name.as_str(), *times, *seconds_away)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        left,
+        [
+            ("Four", 4, 616),
+            ("Log", 1, 200),
+            ("Tenth", 1, 96),
+            ("Three", 3, 5),
+        ],
+        "in name order"
+    );
+    let notes = csv::notes(&p, &report, &csv::FR);
+    assert!(notes.contains("sortie de fenêtre (1)"), "{notes}");
+    assert!(notes.contains("sorties de fenêtre (4)"), "{notes}");
 }
 
 #[test]
@@ -328,6 +420,13 @@ fn a_synthetic_class_reveals_exactly_what_was_planted() {
         .filter(|a| matches!(a, Anomaly::Identical { .. }))
         .count();
     assert_eq!(identical, 1, "{:#?}", report.anomalies);
+    // Each copy anomaly is a planted one: no other window, no hurried or fast copy.
+    assert_eq!(
+        report.anomalies.len(),
+        3,
+        "copied pair, window, overtime: {:#?}",
+        report.anomalies
+    );
     let reteach: Vec<&Finding> = report
         .findings
         .iter()
@@ -555,6 +654,54 @@ fn a_timeline_replays_answers_changes_and_absences() {
             "600:submit",
         ]
     );
+}
+
+#[test]
+fn an_answer_changed_within_the_same_second_is_still_a_change() {
+    use mcq_analysis::timeline::timeline;
+    use mcq_model::{LogEntry, LogKind};
+    let p = paper(1, 1);
+    let mut c = copy(&p, "Alex", &[Some(0)], 600);
+    let e = |k, o: &str| LogEntry::new(30, k, "q0", o);
+    // Two clicks in one second: C (wrong), then the right one, which unticks C.
+    c.submission.log = vec![
+        e(LogKind::Tick, "q0-o3"),
+        e(LogKind::Untick, "q0-o3"),
+        e(LogKind::Tick, "q0-o1"),
+    ];
+    let t = timeline(&p, &c.submission);
+    assert_eq!(
+        (t.right_to_wrong, t.wrong_to_right, t.wrong_to_wrong),
+        (0, 1, 0)
+    );
+    assert_eq!(t.moments.len(), 2, "{:?}", t.moments);
+}
+
+#[test]
+fn one_click_replacing_an_answer_is_one_change() {
+    use mcq_analysis::timeline::{Event, timeline};
+    use mcq_engine::Session;
+    let p = paper(1, 1);
+    // A second apart, then within the same second: the player's own log, untouched.
+    for later in [30, 0] {
+        let mut session = Session::new(&p, ID, "Alex");
+        assert!(session.toggle(&p, "q0-o3"));
+        session.elapsed_seconds = later;
+        // One click on the right option: the engine unticks C, then ticks it.
+        assert!(session.toggle(&p, "q0-o1"));
+        let t = timeline(&p, &session.submit());
+        assert_eq!(
+            (t.right_to_wrong, t.wrong_to_right, t.wrong_to_wrong),
+            (0, 1, 0),
+            "{later}"
+        );
+        let answers = t
+            .moments
+            .iter()
+            .filter(|m| matches!(m.event, Event::Answer { .. }))
+            .count();
+        assert_eq!(answers, 2, "{later}: {:?}", t.moments);
+    }
 }
 
 #[test]

@@ -33,8 +33,10 @@ pub fn check(args: &[String]) -> ExitCode {
             println!("{}", format_issue(path, issue));
         }
         println!(
-            "{}: {errors} error(s), {warnings} warning(s)",
-            path.display()
+            "{}: {errors} {}, {warnings} {}",
+            path.display(),
+            plural(errors, "error", "errors"),
+            plural(warnings, "warning", "warnings")
         );
         if errors > 0 {
             failed += 1;
@@ -42,12 +44,17 @@ pub fn check(args: &[String]) -> ExitCode {
     }
     if failed > 0 {
         println!(
-            "FAIL: {failed} of {} paper(s) cannot be published",
-            files.len()
+            "FAIL: {failed} of {} {} cannot be published",
+            files.len(),
+            plural(files.len(), "paper", "papers")
         );
         ExitCode::from(1)
     } else {
-        println!("OK: {} paper(s) checked", files.len());
+        println!(
+            "OK: {} {} checked",
+            files.len(),
+            plural(files.len(), "paper", "papers")
+        );
         ExitCode::SUCCESS
     }
 }
@@ -159,4 +166,21 @@ pub(crate) fn format_issue(path: &Path, issue: &Issue) -> String {
         issue.location,
         issue.message
     )
+}
+
+/// English singular or plural: only 1 takes the singular.
+fn plural(count: usize, one: &'static str, many: &'static str) -> &'static str {
+    if count == 1 { one } else { many }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plural;
+
+    #[test]
+    fn only_one_is_singular() {
+        assert_eq!(plural(0, "error", "errors"), "errors");
+        assert_eq!(plural(1, "error", "errors"), "error");
+        assert_eq!(plural(2, "error", "errors"), "errors");
+    }
 }

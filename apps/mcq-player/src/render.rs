@@ -139,21 +139,19 @@ pub fn code_block(code: &CodeBlock, tokens: Option<&CodeTokens>) -> Element {
             .map(|l| vec![("tok-plain".to_string(), l.to_string())])
             .collect(),
     };
-    let language = if code.language.is_empty() {
-        "code".to_string()
-    } else {
-        code.language.clone()
-    };
+    // WHY: without a language the block is plain text (a DNA strand, a table of values): a "code"
+    // caption and line numbers would only clutter it.
+    let numbered = !code.language.is_empty();
     rsx! {
         figure { class: "code",
-            figcaption { class: "code-lang", "{language}" }
+            if numbered { figcaption { class: "code-lang", "{code.language}" } }
             pre {
                 code {
                     for (n, line) in lines.into_iter().enumerate() {
                         span {
                             key: "{n}",
                             class: if code.highlighted_lines.contains(&(n as u32 + 1)) { "line hl" } else { "line" },
-                            span { class: "ln", "aria-hidden": "true", "{n + 1}" }
+                            if numbered { span { class: "ln", "aria-hidden": "true", "{n + 1}" } }
                             for (k, (class, text)) in line.into_iter().enumerate() {
                                 span { key: "{k}", class: "{class}", "{text}" }
                             }
@@ -481,6 +479,81 @@ pub fn resume_notice(opening: OpeningKind, t: &'static Texts) -> Element {
     rsx! { p { class: "notice resume", role: "status", "{text}" } }
 }
 
+/// A paper with an unfinished copy on this device, for the welcome screen.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnfinishedPaper {
+    pub title: String,
+    /// The paper itself is kept on this device: it reopens without its file.
+    pub kept: bool,
+}
+
+/// On the welcome screen, one notice per paper with an unfinished copy, until it is handed in,
+/// and the way back to the papers kept here; `on_resume` receives the paper's position. No name
+/// is shown: whoever resumes types it again.
+pub fn unfinished_papers(
+    papers: &[UnfinishedPaper],
+    t: &'static Texts,
+    on_resume: EventHandler<usize>,
+) -> Element {
+    if papers.is_empty() {
+        return rsx! {};
+    }
+    let lines: Vec<(usize, String, Option<String>)> = papers
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let title = [("title", p.title.clone())];
+            (
+                i,
+                crate::texts::fill(t.in_progress, &title),
+                p.kept.then(|| crate::texts::fill(t.resume_paper, &title)),
+            )
+        })
+        .collect();
+    rsx! {
+        div { class: "resume-papers", role: "status",
+            for (i, notice, button) in lines {
+                p { key: "n{i}", class: "notice in-progress", "{notice}" }
+                if let Some(label) = button {
+                    button { key: "b{i}", class: "resume-paper", onclick: move |_| on_resume.call(i), "{label}" }
+                }
+            }
+        }
+    }
+}
+
+/// What the status says when a key ticks nothing: the question has fewer answers. Letters name
+/// them as printed when `key` is a letter, by number when it is a digit; `None` for a question
+/// without answers.
+pub fn missing_answer(key: &str, count: usize, t: &Texts) -> Option<String> {
+    let digits = key.bytes().all(|b| b.is_ascii_digit());
+    let name = |k: usize| {
+        if digits {
+            (k + 1).to_string()
+        } else {
+            option_key(k)
+        }
+    };
+    let (first, last) = (name(0), name(count.checked_sub(1)?));
+    Some(match count {
+        1 => crate::texts::fill(t.only_answer, &[("first", first)]),
+        2 => crate::texts::fill(
+            t.only_answers,
+            &[(
+                "range",
+                crate::texts::fill(t.answers_two, &[("first", first), ("last", last)]),
+            )],
+        ),
+        _ => crate::texts::fill(
+            t.only_answers,
+            &[(
+                "range",
+                crate::texts::fill(t.answers_range, &[("first", first), ("last", last)]),
+            )],
+        ),
+    })
+}
+
 /// The pace, calmly: a gauge for the question on screen (its figures on hover and for screen
 /// readers) and one line, the lead or lag. No red, no green: time informs, it never judges.
 pub fn pace_view(gauge: &PaceGauge, t: &'static Texts) -> Element {
@@ -695,7 +768,7 @@ pub fn intro(
             }
             p { class: "muted", "{t.time_never_blocks}" }
             p { class: "muted", "{t.focus_notice}" }
-            p { class: "muted", "{t.keyboard_hint}" }
+            p { class: "muted keyboard-hint", "{t.keyboard_hint}" }
             button { class: "primary", autofocus: true, onclick: move |_| on_start.call(()),
                 if resumed { "{t.resume}" } else { "{t.start}" }
             }

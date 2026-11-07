@@ -97,6 +97,10 @@ pub fn App() -> Element {
             if revision == last_saved {
                 continue;
             }
+            // A refused paste is a hint for the moment: once the teacher writes again, it goes.
+            if notice.peek().as_deref() == Some(t.paste_refused) {
+                notice.set(None);
+            }
             let bytes = qcmz::export(&studio.read().project);
             if let Ok(bytes) = bytes
                 && platform::save_draft(b64::encode(&bytes)).await

@@ -275,6 +275,124 @@ fn length_bias_per_question() {
 }
 
 #[test]
+fn length_bias_needs_a_real_gap() {
+    // A longer name still gives the answer away, and the advice no longer blames a justification.
+    let mut paper = clean(3);
+    let texts = ["Le dioxyde de carbone", "Le méthane", "L'azote", "L'argon"];
+    for (o, t) in paper.questions[0].options.iter_mut().zip(texts) {
+        o.text = t.into();
+    }
+    let issues = lint(&paper);
+    let bias = issues
+        .iter()
+        .find(|i| i.code == "LENGTH_BIAS")
+        .expect("reported");
+    assert!(bias.fr.contains("2,1 fois") && bias.fr.contains("Rallongez les autres réponses"));
+    assert!(bias.message.contains("2.1 times") && bias.message.contains("Lengthen"));
+
+    // Short answers: neither the ratio nor the gap is enough.
+    let texts = ["12 mol", "1 mol", "2 mol", "6 mol"];
+    for (o, t) in paper.questions[0].options.iter_mut().zip(texts) {
+        o.text = t.into();
+    }
+    assert!(codes(&paper).is_empty());
+    // Ratio reached (9 against 5), but only 4 more characters.
+    let texts = ["Yellowish", "Blue", "Green", "Black"];
+    for (o, t) in paper.questions[0].options.iter_mut().zip(texts) {
+        o.text = t.into();
+    }
+    assert!(codes(&paper).is_empty());
+}
+
+#[test]
+fn length_bias_skips_multiple_answer_questions() {
+    let mut paper = clean(3);
+    paper.questions[0].options[0].text = "Yellow, because ripening reveals pigments".into();
+    paper.questions[0].options[1].is_correct = true;
+    assert_eq!(codes(&paper), ["MULTIPLE_CORRECT_OPTIONS"]);
+}
+
+#[test]
+fn length_rank_ignores_ties() {
+    // Every option has the same length: no correct answer is the longest.
+    let mut paper = clean(10);
+    for q in &mut paper.questions {
+        for (k, o) in q.options.iter_mut().enumerate() {
+            o.text = format!("Hue {k}");
+        }
+    }
+    assert!(!codes(&paper).contains(&"LENGTH_RANK_BIAS"));
+}
+
+#[test]
+fn length_rank_skips_multiple_answer_questions() {
+    let mut paper = clean(10);
+    for (i, q) in paper.questions.iter_mut().enumerate() {
+        for (k, o) in q.options.iter_mut().enumerate() {
+            o.is_correct = k == i % 4 || k == (i + 1) % 4;
+            o.text = if k == i % 4 {
+                "Bright yellow".into()
+            } else {
+                format!("Hue {k}")
+            };
+        }
+    }
+    let found = codes(&paper);
+    assert!(
+        !found.contains(&"LENGTH_RANK_BIAS") && !found.contains(&"LENGTH_BIAS"),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn counts_read_in_the_singular_or_the_plural() {
+    let thin = |n: usize| {
+        let paper = clean(n);
+        let issue = lint(&paper)
+            .into_iter()
+            .find(|i| i.code == "THIN_THEME")
+            .expect("reported");
+        (issue.message, issue.fr)
+    };
+    let (en, fr) = thin(1);
+    assert!(en.starts_with("1 question only") && fr.starts_with("1 question seulement"));
+    let (en, fr) = thin(2);
+    assert!(en.starts_with("2 questions only") && fr.starts_with("2 questions seulement"));
+
+    let mut paper = clean(3);
+    paper.questions[0].options[1].explanation.clear();
+    let partial = |paper: &Paper| {
+        lint(paper)
+            .into_iter()
+            .find(|i| i.code == "PARTIAL_EXPLANATION")
+            .expect("reported")
+    };
+    let issue = partial(&paper);
+    assert!(
+        issue
+            .message
+            .starts_with("1 option has no explanation: a student who ticks it")
+    );
+    assert!(
+        issue
+            .fr
+            .starts_with("1 réponse sans explication : le candidat qui la coche")
+    );
+    paper.questions[0].options[2].explanation.clear();
+    let issue = partial(&paper);
+    assert!(
+        issue
+            .message
+            .starts_with("2 options have no explanation: a student who ticks them")
+    );
+    assert!(
+        issue
+            .fr
+            .starts_with("2 réponses sans explication : le candidat qui les coche")
+    );
+}
+
+#[test]
 fn paper_wide_length_and_position_patterns() {
     let mut paper = clean(10);
     for q in &mut paper.questions {
@@ -295,7 +413,24 @@ fn paper_wide_length_and_position_patterns() {
         .iter()
         .find(|i| i.code == "ANSWER_POSITION_BIAS")
         .expect("reported");
-    assert!(position.message.contains("100 %") && position.message.contains("position A"));
+    assert!(position.message.contains("100 %") && position.message.contains("option A"));
+    assert!(position.fr.contains("telles que vous les avez écrites"));
+    let rank = issues
+        .iter()
+        .find(|i| i.code == "LENGTH_RANK_BIAS")
+        .expect("reported");
+    assert!(rank.message.contains("100 %") && rank.message.contains("25 %"));
+    paper.shuffle_options = false;
+    let issues = lint(&paper);
+    let position = issues
+        .iter()
+        .find(|i| i.code == "ANSWER_POSITION_BIAS")
+        .expect("reported");
+    assert!(
+        position.fr.contains("ne sont pas mélangées"),
+        "{}",
+        position.fr
+    );
 
     paper.questions.truncate(9);
     let found = codes(&paper);

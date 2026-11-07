@@ -190,6 +190,12 @@ fn intro_explains_time_scoring_and_guessing() {
         "{html}"
     );
     assert!(html.contains("Commencer"), "{html}");
+    // The keys help, hidden by the stylesheet on touch screens.
+    assert!(
+        html.contains("class=\"muted keyboard-hint\">Clavier :"),
+        "{html}"
+    );
+    assert!(mcq_player::STYLE.contains("(pointer: coarse) { .keyboard-hint { display: none; } }"));
 }
 
 #[test]
@@ -985,12 +991,90 @@ fn the_identification_screen_offers_to_resume_without_naming_anyone() {
     let open = render(|| render::resume_notice(OpeningKind::Open, Lang::Fr.texts()));
     assert!(
         open.contains(
-            "Une copie est en cours sur cet appareil : retapez votre nom pour la reprendre."
+            "Une copie de ce sujet est en cours sur cet appareil. Pour la reprendre, retapez votre nom comme la première fois."
         ),
         "{open}"
     );
     let coded = render(|| render::resume_notice(OpeningKind::Code, Lang::Fr.texts()));
-    assert!(coded.contains("retapez votre nom et le code"), "{coded}");
+    assert!(
+        coded.contains("comme la première fois, puis le code."),
+        "{coded}"
+    );
+}
+
+#[test]
+fn the_welcome_screen_keeps_each_unfinished_paper_and_resumes_the_kept_ones() {
+    let papers = vec![
+        render::UnfinishedPaper {
+            title: "Cells".into(),
+            kept: true,
+        },
+        render::UnfinishedPaper {
+            title: "Genetics".into(),
+            kept: false,
+        },
+    ];
+    let html = render(move || {
+        render::unfinished_papers(&papers, Lang::Fr.texts(), EventHandler::new(|_: usize| {}))
+    });
+    assert!(
+        html.contains("Une copie de « Cells » est en cours sur cet appareil. Pour la reprendre, rouvrez ce sujet et retapez votre nom comme la première fois."),
+        "{html}"
+    );
+    assert!(html.contains("Une copie de « Genetics »"), "{html}");
+    assert_eq!(html.matches("class=\"resume-paper\"").count(), 1, "{html}");
+    assert!(html.contains(">Reprendre « Cells »</button>"), "{html}");
+    let none = render(|| {
+        render::unfinished_papers(&[], Lang::Fr.texts(), EventHandler::new(|_: usize| {}))
+    });
+    assert!(!none.contains("notice"), "{none}");
+}
+
+#[test]
+fn a_key_with_no_answer_behind_it_says_which_answers_there_are() {
+    let fr = Lang::Fr.texts();
+    let en = Lang::En.texts();
+    assert_eq!(
+        render::missing_answer("C", 2, fr).as_deref(),
+        Some("Cette question n'a que les réponses A et B.")
+    );
+    assert_eq!(
+        render::missing_answer("f", 4, fr).as_deref(),
+        Some("Cette question n'a que les réponses A à D.")
+    );
+    assert_eq!(
+        render::missing_answer("5", 4, fr).as_deref(),
+        Some("Cette question n'a que les réponses 1 à 4.")
+    );
+    assert_eq!(
+        render::missing_answer("3", 2, en).as_deref(),
+        Some("This question only has answers 1 and 2.")
+    );
+    assert_eq!(
+        render::missing_answer("B", 1, en).as_deref(),
+        Some("This question only has answer A.")
+    );
+    assert_eq!(render::missing_answer("B", 0, en), None);
+}
+
+#[test]
+fn plain_code_has_no_caption_nor_line_numbers() {
+    let plain = mcq_model::CodeBlock {
+        source: "5' ATG CCG TAA 3'".into(),
+        ..mcq_model::CodeBlock::default()
+    };
+    let html = render(move || render::code_block(&plain, None));
+    assert!(html.contains("ATG CCG TAA"), "{html}");
+    assert!(!html.contains("code-lang"), "{html}");
+    assert!(!html.contains("class=\"ln\""), "{html}");
+    let rust = mcq_model::CodeBlock {
+        source: "fn main() {}".into(),
+        language: "rust".into(),
+        ..mcq_model::CodeBlock::default()
+    };
+    let html = render(move || render::code_block(&rust, None));
+    assert!(html.contains("class=\"code-lang\""), "{html}");
+    assert!(html.contains("class=\"ln\""), "{html}");
 }
 
 #[test]

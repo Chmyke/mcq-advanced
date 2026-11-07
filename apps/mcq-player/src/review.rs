@@ -183,14 +183,32 @@ pub struct WeakTheme {
 /// At most this many themes in "to review".
 pub const WEAK_THEMES: usize = 5;
 
-/// Fragile and to-relearn themes with enough questions to say so, weakest first.
+/// The themes to review first, among those with enough questions to say so, weakest first: the
+/// to-relearn ones when there are any, otherwise only the weakest fragile one (ties included).
+/// WHY not every fragile theme: at 60 % everywhere, "review first" would name the whole paper.
 pub fn weak_themes(full: &Paper, result: &GradeResult) -> Vec<WeakTheme> {
-    let mut weak: Vec<WeakTheme> = result
+    let assessed: Vec<_> = result
         .themes
         .iter()
         .filter(|th| {
             th.total >= MIN_DIAGNOSTIC_QUESTIONS
                 && matches!(th.mastery(), Mastery::Fragile | Mastery::ToRelearn)
+        })
+        .collect();
+    let relearn = assessed.iter().any(|th| th.mastery() == Mastery::ToRelearn);
+    let lowest = assessed
+        .iter()
+        .map(|th| th.rate())
+        .min_by(f32::total_cmp)
+        .unwrap_or(0.0);
+    let mut weak: Vec<WeakTheme> = assessed
+        .into_iter()
+        .filter(|th| {
+            if relearn {
+                th.mastery() == Mastery::ToRelearn
+            } else {
+                th.rate() <= lowest
+            }
         })
         .map(|th| {
             let theme = full.theme(&th.theme_id);
@@ -730,7 +748,59 @@ mod tests {
         };
         let weak = weak_themes(&paper, &r);
         let titles: Vec<&str> = weak.iter().map(|w| w.title.as_str()).collect();
-        assert_eq!(titles, vec!["C", "A"]);
+        assert_eq!(
+            titles,
+            vec!["C"],
+            "a to-relearn theme hides the fragile ones"
+        );
         assert_eq!(weak[0].course_ref, "Ch. 3");
+
+        let r = GradeResult {
+            themes: vec![theme("a", 4, 1.0), theme("c", 3, 0.0), theme("b", 4, 1.0)],
+            ..GradeResult::default()
+        };
+        let titles: Vec<String> = weak_themes(&paper, &r)
+            .into_iter()
+            .map(|w| w.title)
+            .collect();
+        assert_eq!(titles, vec!["C", "A", "B"], "every to-relearn theme");
+    }
+
+    #[test]
+    fn without_a_theme_to_relearn_only_the_weakest_fragile_ones_come_first() {
+        let mut paper = Paper::new();
+        for (id, course) in [("a", "Ch. 1"), ("b", "Ch. 2"), ("c", "Ch. 3")] {
+            paper.themes.push(mcq_model::Theme {
+                id: id.into(),
+                title: id.to_uppercase(),
+                course_ref: course.into(),
+                ..mcq_model::Theme::default()
+            });
+        }
+        let theme = |id: &str, total, credit| ThemeResult {
+            theme_id: id.into(),
+            total,
+            credit,
+            ..ThemeResult::default()
+        };
+        // 67 %, 60 %, 67 %: all fragile, only the weakest is named.
+        let r = GradeResult {
+            themes: vec![theme("a", 3, 2.0), theme("b", 5, 3.0), theme("c", 3, 2.0)],
+            ..GradeResult::default()
+        };
+        let weak = weak_themes(&paper, &r);
+        assert_eq!(weak.len(), 1);
+        assert_eq!(weak[0].title, "B");
+        assert_eq!(weak[0].course_ref, "Ch. 2");
+        // A tie keeps both.
+        let r = GradeResult {
+            themes: vec![theme("a", 3, 2.0), theme("b", 4, 3.0), theme("c", 3, 2.0)],
+            ..GradeResult::default()
+        };
+        let titles: Vec<String> = weak_themes(&paper, &r)
+            .into_iter()
+            .map(|w| w.title)
+            .collect();
+        assert_eq!(titles, vec!["A", "C"]);
     }
 }

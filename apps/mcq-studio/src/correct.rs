@@ -391,6 +391,18 @@ fn anomaly_line(anomaly: &Anomaly, c: &CorrectTexts) -> String {
                 ("minutes", minutes(*elapsed_seconds)),
             ],
         ),
+        Anomaly::Hurried {
+            name,
+            elapsed_seconds,
+            estimated_seconds,
+        } => fill(
+            c.hurried,
+            &[
+                ("name", name.clone()),
+                ("minutes", minutes(*elapsed_seconds)),
+                ("planned", minutes(*estimated_seconds)),
+            ],
+        ),
     }
 }
 
@@ -535,6 +547,25 @@ pub fn report_view(
             )
         })
         .collect();
+    // The sections are numbered in the order a teacher acts on them; the copies to look at
+    // closely only show when there are some, and the numbers follow what is shown.
+    let numbered: Vec<String> = {
+        let titles = [
+            (c.reteach_title, true),
+            (c.traps_title, true),
+            (c.review_title, true),
+            (c.anomalies_title, !anomalies.is_empty()),
+            (c.marks_title, true),
+        ];
+        let mut n = 0;
+        titles
+            .iter()
+            .map(|(title, shown)| {
+                n += usize::from(*shown);
+                format!("{n} · {title}")
+            })
+            .collect()
+    };
     rsx! {
         section { class: "card report-head",
             p { class: "big-line", "{summary}" }
@@ -549,7 +580,7 @@ pub fn report_view(
             }
         }
         section { class: "card finding-group",
-            h2 { "{c.reteach_title}" }
+            h2 { "{numbered[0]}" }
             if reteach.is_empty() { p { class: "ok-note", "{c.reteach_none}" } }
             ul {
                 for (k, (line, doubt)) in reteach.into_iter().enumerate() {
@@ -561,12 +592,12 @@ pub fn report_view(
             for (k, line) in thin.into_iter().enumerate() { p { key: "{k}", class: "muted", "{line}" } }
         }
         section { class: "card finding-group",
-            h2 { "{c.traps_title}" }
+            h2 { "{numbered[1]}" }
             if traps.is_empty() { p { class: "ok-note", "{c.traps_none}" } }
             ul { for (k, line) in traps.into_iter().enumerate() { li { key: "{k}", {sentence_view(line)} } } }
         }
         section { class: "card finding-group",
-            h2 { "{c.review_title}" }
+            h2 { "{numbered[2]}" }
             if !decisions.is_empty() {
                 div { class: "decisions",
                     h3 { "{c.decisions_title}" }
@@ -606,13 +637,13 @@ pub fn report_view(
         }
         if !anomalies.is_empty() {
             section { class: "card finding-group",
-                h2 { "{c.anomalies_title}" }
+                h2 { "{numbered[3]}" }
                 p { class: "muted", "{c.anomalies_hint}" }
                 ul { for (k, line) in anomalies.into_iter().enumerate() { li { key: "{k}", "{line}" } } }
             }
         }
         section { class: "card",
-            h2 { "{c.marks_title}" }
+            h2 { "{numbered[4]}" }
             div { class: "table-scroll",
                 table { class: "marks",
                     thead { tr { for (k, col) in c.columns.iter().enumerate() { th { key: "{k}", scope: "col", "{col}" } } td {} } }
@@ -975,6 +1006,9 @@ pub fn CorrectSpace(
     drop(state);
 
     let mut add = move |name: String, bytes: Vec<u8>| {
+        // New copies change the class: back to its analysis, not to one copy's page.
+        sheet_for.set(None);
+        timeline_for.set(None);
         let id = identity.read().clone();
         correction.write().add_file(&name, bytes, id.as_deref());
     };

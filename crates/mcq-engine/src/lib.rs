@@ -288,3 +288,64 @@ impl Session {
 pub fn normalize_name(name: &str) -> String {
     name.split_whitespace().collect::<Vec<_>>().join(" ")
 }
+
+/// What finds a student's copy again, whatever the case, the accents and the spaces typed:
+/// "ines  morel" and "Inès Morel" give the same key. The copy still shows the name as typed.
+/// WHY: a phone keyboard drops or adds accents and capitals; a missed key silently started a
+/// blank copy.
+pub fn name_key(name: &str) -> String {
+    let mut key = String::new();
+    for c in normalize_name(name).chars() {
+        match c {
+            'æ' | 'Æ' => key.push_str("AE"),
+            'œ' | 'Œ' => key.push_str("OE"),
+            // The typographic apostrophe of phone keyboards, as the straight one.
+            '\u{2019}' | '\u{2018}' | '`' | '\u{b4}' => key.push('\''),
+            _ => key.extend(plain_letter(c).unwrap_or(c).to_uppercase()),
+        }
+    }
+    key
+}
+
+/// The plain letter under a Latin accented one, as names are written in class: `é` gives `e`,
+/// `Ç` gives `C`. Other characters give nothing.
+pub fn plain_letter(c: char) -> Option<char> {
+    const TABLE: [(&str, char); 26] = [
+        ("àáâãäåāăą", 'a'),
+        ("ÀÁÂÃÄÅĀĂĄ", 'A'),
+        ("çćč", 'c'),
+        ("ÇĆČ", 'C'),
+        ("ďđ", 'd'),
+        ("ĎĐ", 'D'),
+        ("èéêëēěęė", 'e'),
+        ("ÈÉÊËĒĚĘĖ", 'E'),
+        ("ğ", 'g'),
+        ("Ğ", 'G'),
+        ("ìíîïīı", 'i'),
+        ("ÌÍÎÏĪİ", 'I'),
+        ("łľĺ", 'l'),
+        ("ŁĽĹ", 'L'),
+        ("ñńň", 'n'),
+        ("ÑŃŇ", 'N'),
+        ("òóôõöøōő", 'o'),
+        ("ÒÓÔÕÖØŌŐ", 'O'),
+        ("řŕ", 'r'),
+        ("ŘŔ", 'R'),
+        ("śšş", 's'),
+        ("ŚŠŞ", 'S'),
+        ("ùúûüūůű", 'u'),
+        ("ÙÚÛÜŪŮŰ", 'U'),
+        ("ýÿ", 'y'),
+        ("ÝŸ", 'Y'),
+    ];
+    match c {
+        'ť' => Some('t'),
+        'Ť' => Some('T'),
+        'ź' | 'ż' | 'ž' => Some('z'),
+        'Ź' | 'Ż' | 'Ž' => Some('Z'),
+        _ => TABLE
+            .iter()
+            .find(|(accented, _)| accented.contains(c))
+            .map(|(_, plain)| *plain),
+    }
+}

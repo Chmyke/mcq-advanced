@@ -20,9 +20,13 @@ pub const MAX_RECALL_SHARE: f32 = 0.15;
 pub const MIN_QUESTIONS_PER_THEME: usize = 3;
 /// Correct answer length over the longest distractor's from which the length gives it away.
 pub const LENGTH_BIAS_RATIO: f32 = 1.6;
+/// Visible characters the correct answer must add over the longest distractor before the ratio
+/// counts: "12 mol" against "1 mol" gives nothing away.
+pub const LENGTH_BIAS_MIN_EXTRA_CHARS: usize = 8;
 /// Paper-wide checks need this many questions to mean anything.
 pub const MIN_QUESTIONS_FOR_PAPER_CHECKS: usize = 10;
-/// Share of questions whose correct answer is the longest option, above which it is a pattern.
+/// Share of single-answer questions whose correct answer is strictly the longest option, above
+/// which it is a pattern.
 pub const MAX_LONGEST_SHARE: f32 = 0.35;
 /// Share of correct answers at one position, above which proofreading reads a column.
 pub const MAX_SAME_POSITION_SHARE: f32 = 0.6;
@@ -241,10 +245,16 @@ fn check_options(question: &Question, out: &mut Out) {
             "ANSWER_COUNT_MISMATCH",
             at(question),
             format!(
-                "`answers {declared}` is announced but {correct} option(s) are marked correct."
+                "`answers {declared}` is announced but {correct} {} marked correct.",
+                en(correct, "option is", "options are")
             ),
             format!(
-                "`answers {declared}` est annoncé mais {correct} réponse(s) sont marquées justes."
+                "`answers {declared}` est annoncé mais {correct} {}.",
+                fr(
+                    correct,
+                    "réponse est marquée juste",
+                    "réponses sont marquées justes"
+                )
             ),
         );
     }
@@ -396,8 +406,9 @@ fn check_formulas(texts: &[&str], place: Location, out: &mut Out) {
             "STRAY_DOLLAR",
             place,
             format!(
-                "{stray} `$` open(s) no formula and will show as is: write `\\$` for a dollar \
-                 sign, `$x$` for a formula."
+                "{stray} `$` {} no formula and will show as is: write `\\$` for a dollar \
+                 sign, `$x$` for a formula.",
+                en(stray, "opens", "open")
             ),
             format!(
                 "`$` sans formule ({stray}) : il s'affiche tel quel. Écrivez `\\$` pour un signe \
@@ -460,8 +471,14 @@ fn check_levels(paper: &Paper, out: &mut Out) {
         out.warn(
             "LEVEL_MISSING",
             Location::Paper,
-            format!("{unknown} question(s) have no level: add `level 1` to `level 5`."),
-            format!("{unknown} question(s) sans niveau : ajoutez de `level 1` à `level 5`."),
+            format!(
+                "{unknown} {} no level: add `level 1` to `level 5`.",
+                en(unknown, "question has", "questions have")
+            ),
+            format!(
+                "{unknown} {} sans niveau : ajoutez de `level 1` à `level 5`.",
+                fr(unknown, "question", "questions")
+            ),
         );
     }
     let recall = count(Level::Remember);
@@ -512,12 +529,14 @@ fn check_themes(paper: &Paper, out: &mut Out) {
                 "THIN_THEME",
                 location,
                 format!(
-                    "{count} question(s) only: below {MIN_QUESTIONS_PER_THEME}, the theme's \
-                     success rate means little."
+                    "{count} {} only: below {MIN_QUESTIONS_PER_THEME}, the theme's success rate \
+                     means little.",
+                    en(count, "question", "questions")
                 ),
                 format!(
-                    "{count} question(s) seulement : en dessous de {MIN_QUESTIONS_PER_THEME}, le taux de \
-                     réussite du thème ne veut pas dire grand-chose."
+                    "{count} {} seulement : en dessous de {MIN_QUESTIONS_PER_THEME}, le taux de \
+                     réussite du thème ne veut pas dire grand-chose.",
+                    fr(count, "question", "questions")
                 ),
             );
         }
@@ -542,10 +561,18 @@ fn check_feedback(paper: &Paper, question: &Question, out: &mut Out) {
             "PARTIAL_EXPLANATION",
             at(question),
             format!(
-                "{missing} option(s) have no explanation: a student who ticks them learns nothing."
+                "{missing} {}: a student who ticks {} learns nothing.",
+                en(
+                    missing,
+                    "option has no explanation",
+                    "options have no explanation"
+                ),
+                en(missing, "it", "them")
             ),
             format!(
-                "{missing} réponse(s) sans explication : le candidat qui les coche n'apprend rien."
+                "{missing} {} sans explication : le candidat qui {} coche n'apprend rien.",
+                fr(missing, "réponse", "réponses"),
+                fr(missing, "la", "les")
             ),
         );
     }
@@ -574,11 +601,17 @@ fn visible_len(text: &str) -> usize {
     text.trim().chars().count()
 }
 
-fn check_length_bias(question: &Question, out: &mut Out) {
-    if question.options.len() < 2 {
-        return;
+/// The correct answer of a single-answer question; `None` for multiple-answer ones, where
+/// "the correct answer" is not one option and length comparisons mean nothing.
+fn single_correct(question: &Question) -> Option<&mcq_model::AnswerOption> {
+    if question.options.len() < 2 || question.correct_count() != 1 {
+        return None;
     }
-    let Some(correct) = question.first_correct() else {
+    question.first_correct()
+}
+
+fn check_length_bias(question: &Question, out: &mut Out) {
+    let Some(correct) = single_correct(question) else {
         return;
     };
     let longest_distractor = question
@@ -591,18 +624,21 @@ fn check_length_bias(question: &Question, out: &mut Out) {
     if longest_distractor == 0 {
         return;
     }
-    let ratio = visible_len(&correct.text) as f32 / longest_distractor as f32;
-    if ratio >= LENGTH_BIAS_RATIO {
+    let len = visible_len(&correct.text);
+    let ratio = len as f32 / longest_distractor as f32;
+    if ratio >= LENGTH_BIAS_RATIO && len >= longest_distractor + LENGTH_BIAS_MIN_EXTRA_CHARS {
         out.warn(
             "LENGTH_BIAS",
             at(question),
             format!(
-                "The correct answer is {ratio:.1} times longer than the longest distractor: \
-                 length is the first clue students use. Move the justification to the explanation."
+                "The correct answer is {ratio:.1} times longer than the longest of the others: \
+                 students often spot the longest one. Lengthen the other answers or shorten the \
+                 correct one; a justification belongs in the explanation."
             ),
             format!(
-                "La bonne réponse est {} fois plus longue que le plus long distracteur : la longueur \
-                 est le premier indice des candidats. Déplacez la justification dans l'explication.",
+                "La bonne réponse est {} fois plus longue que la plus longue des autres : les \
+                 candidats repèrent souvent la plus longue. Rallongez les autres réponses ou \
+                 raccourcissez la bonne ; une justification a sa place dans l'explication.",
                 format!("{ratio:.1}").replace('.', ",")
             ),
         );
@@ -615,24 +651,29 @@ fn check_length_rank(paper: &Paper, out: &mut Out) {
     }
     let mut counted = 0_usize;
     let mut longest = 0_usize;
+    // Expected count if the correct answer sat on a random option: a question whose longest
+    // length is tied has no strictly longest option, so it adds nothing.
+    let mut by_chance = 0.0_f32;
     for question in &paper.questions {
-        if question.options.len() < 2 {
-            continue;
-        }
-        let Some(correct) = question.first_correct() else {
+        let Some(correct) = single_correct(question) else {
             continue;
         };
-        let len = correct.text.chars().count();
+        let len = visible_len(&correct.text);
         if len == 0 {
             continue;
         }
         counted += 1;
-        if question
+        let lengths: Vec<usize> = question
             .options
             .iter()
-            .all(|o| o.text.chars().count() <= len)
-        {
-            longest += 1;
+            .map(|o| visible_len(&o.text))
+            .collect();
+        let max = lengths.iter().copied().max().unwrap_or(0);
+        if lengths.iter().filter(|&&l| l == max).count() == 1 {
+            by_chance += 1.0 / lengths.len() as f32;
+            if len == max {
+                longest += 1;
+            }
         }
     }
     if counted < MIN_QUESTIONS_FOR_PAPER_CHECKS {
@@ -641,17 +682,20 @@ fn check_length_rank(paper: &Paper, out: &mut Out) {
     let share = longest as f32 / counted as f32;
     if share > MAX_LONGEST_SHARE {
         let percent = (share * 100.0 + 0.5) as u32;
-        let chance = 100 / paper.max_option_count();
+        let chance = (by_chance * 100.0 / counted as f32 + 0.5) as u32;
         out.warn(
             "LENGTH_RANK_BIAS",
             Location::Paper,
             format!(
-                "The correct answer is the longest option in {percent} % of the questions, \
-                 against about {chance} % by chance: move justifications to the explanations."
+                "The correct answer is strictly the longest option in {percent} % of the \
+                 single-answer questions, against about {chance} % by chance: students often \
+                 spot the longest one. Lengthen some wrong answers or shorten some correct ones."
             ),
             format!(
-                "La bonne réponse est la plus longue dans {percent} % des questions, contre environ \
-                 {chance} % par hasard : déplacez les justifications dans les explications."
+                "La bonne réponse est strictement la plus longue dans {percent} % des questions à \
+                 réponse unique, contre environ {chance} % par hasard : les candidats repèrent \
+                 souvent la plus longue. Rallongez des mauvaises réponses ou raccourcissez des \
+                 bonnes."
             ),
         );
     }
@@ -683,22 +727,38 @@ fn check_answer_position(paper: &Paper, out: &mut Out) {
         .fold((0, &0), |best, cur| if cur.1 > best.1 { cur } else { best });
     let share = top as f32 / counted as f32;
     if share > MAX_SAME_POSITION_SHARE {
-        out.warn(
-            "ANSWER_POSITION_BIAS",
-            Location::Paper,
-            format!(
-                "{} % of the correct answers sit at position {} in the source: harmless when \
-                 options are shuffled, but proofreading ends up reading a column.",
-                (share * 100.0) as u32,
-                letter(index)
-            ),
-            format!(
-                "{} % des bonnes réponses sont en position {} dans la source : sans effet quand les \
-                 réponses sont mélangées, mais la relecture finit par lire une colonne.",
-                (share * 100.0) as u32,
-                letter(index)
-            ),
-        );
+        let percent = (share * 100.0) as u32;
+        let place = letter(index);
+        let (english, french) = if paper.shuffle_options {
+            (
+                format!(
+                    "The correct answer is option {place} in {percent} % of the questions as you wrote \
+                     them. Options are shuffled for students, but varying where the correct \
+                     answer sits keeps it from being guessed on a printed or unshuffled paper."
+                ),
+                format!(
+                    "La bonne réponse est en {place} dans {percent} % des questions telles que \
+                     vous les avez écrites. Les réponses sont mélangées pour les candidats, mais \
+                     varier la place de la bonne réponse évite qu'elle se devine sur un sujet \
+                     imprimé ou non mélangé."
+                ),
+            )
+        } else {
+            (
+                format!(
+                    "The correct answer is option {place} in {percent} % of the questions, and options \
+                     are not shuffled: students can guess it from where it sits. Vary its place, \
+                     or turn on option shuffling in the settings."
+                ),
+                format!(
+                    "La bonne réponse est en {place} dans {percent} % des questions, et les \
+                     réponses ne sont pas mélangées : les candidats peuvent la deviner à sa place. \
+                     Variez la place de la bonne réponse, ou activez le mélange des réponses dans \
+                     les réglages."
+                ),
+            )
+        };
+        out.warn("ANSWER_POSITION_BIAS", Location::Paper, english, french);
     }
 }
 
@@ -708,4 +768,29 @@ fn letter(index: usize) -> char {
         .ok()
         .filter(|i| *i < 26)
         .map_or('?', |i| char::from(b'A' + i))
+}
+
+/// English singular or plural: only 1 takes the singular.
+fn en(count: usize, one: &'static str, many: &'static str) -> &'static str {
+    if count == 1 { one } else { many }
+}
+
+/// French singular or plural: 0 and 1 take the singular.
+fn fr(count: usize, one: &'static str, many: &'static str) -> &'static str {
+    if count <= 1 { one } else { many }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{en, fr};
+
+    #[test]
+    fn plurals_follow_each_language() {
+        assert_eq!(en(0, "question", "questions"), "questions");
+        assert_eq!(en(1, "question", "questions"), "question");
+        assert_eq!(en(2, "question", "questions"), "questions");
+        assert_eq!(fr(0, "question", "questions"), "question");
+        assert_eq!(fr(1, "question", "questions"), "question");
+        assert_eq!(fr(2, "question", "questions"), "questions");
+    }
 }

@@ -275,8 +275,16 @@ impl Builder {
                 SUMMARY,
                 Location::Paper,
                 Note::new(
-                    format!("{count} question(s) imported in {themes} theme(s)."),
-                    format!("{count} question(s) importée(s) dans {themes} thème(s)."),
+                    format!(
+                        "{count} {} imported in {themes} {}.",
+                        en(count, "question", "questions"),
+                        en(themes, "theme", "themes")
+                    ),
+                    format!(
+                        "{count} {} dans {themes} {}.",
+                        fr(count, "question importée", "questions importées"),
+                        fr(themes, "thème", "thèmes")
+                    ),
                 ),
             );
         }
@@ -339,5 +347,28 @@ fn unique(base: &str, taken: impl Fn(&str) -> bool) -> String {
             return id;
         }
         n += 1;
+    }
+}
+
+/// English singular or plural: only 1 takes the singular.
+fn en(count: usize, one: &'static str, many: &'static str) -> &'static str {
+    if count == 1 { one } else { many }
+}
+
+/// French singular or plural: 0 and 1 take the singular.
+fn fr(count: usize, one: &'static str, many: &'static str) -> &'static str {
+    if count <= 1 { one } else { many }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{en, fr};
+
+    #[test]
+    fn plurals_follow_each_language() {
+        let forms = |n| (en(n, "theme", "themes"), fr(n, "thème", "thèmes"));
+        assert_eq!(forms(0), ("themes", "thème"));
+        assert_eq!(forms(1), ("theme", "thème"));
+        assert_eq!(forms(2), ("themes", "thèmes"));
     }
 }

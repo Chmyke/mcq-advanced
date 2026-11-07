@@ -12,6 +12,7 @@ pub mod platform;
 pub mod render;
 pub mod review;
 pub mod texts;
+pub mod unfinished;
 
 pub use app::App;
 

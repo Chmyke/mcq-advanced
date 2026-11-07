@@ -3,7 +3,7 @@
 //! student, never a verdict.
 
 use mcq_grade::Status;
-use mcq_model::{LogKind, Paper, Submission};
+use mcq_model::{LogEntry, LogKind, Paper, Submission};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
@@ -72,6 +72,40 @@ fn graded(paper: &Paper, question_id: &str, selected: &[String]) -> Status {
     })
 }
 
+/// The end (exclusive) of the click whose journal entries start at `start`, a Tick or an Untick.
+///
+/// One click logs one entry, except on a single-answer question where ticking an option first
+/// unticks the one held: the player logs those Unticks then the Tick, in the same second. That
+/// pair is one step; anything else is a click of its own, even within the same second, so an
+/// answer changed at once still counts as a change. A clear followed by a new tick in the same
+/// second logs the same entries and reads as one step too: same outcome, without the blank.
+fn click_end(paper: &Paper, log: &[LogEntry], start: usize) -> usize {
+    let first = &log[start];
+    let multiple = paper
+        .question(&first.question_id)
+        .is_some_and(|q| q.is_multiple());
+    if first.kind == LogKind::Tick || multiple {
+        return start + 1;
+    }
+    let same_click =
+        |e: &LogEntry| e.seconds == first.seconds && e.question_id == first.question_id;
+    let mut end = start + 1;
+    while end < log.len() && log[end].kind == LogKind::Untick && same_click(&log[end]) {
+        end += 1;
+    }
+    match log.get(end) {
+        // The ticked option is never one the same click unticked.
+        Some(e)
+            if e.kind == LogKind::Tick
+                && same_click(e)
+                && !log[start..end].iter().any(|u| u.option_id == e.option_id) =>
+        {
+            end + 1
+        }
+        _ => end,
+    }
+}
+
 /// The timeline of a copy, against the answer key in force.
 pub fn timeline(paper: &Paper, copy: &Submission) -> Timeline {
     let mut out = Timeline {
@@ -94,8 +128,6 @@ pub fn timeline(paper: &Paper, copy: &Submission) -> Timeline {
         let entry = &log[i];
         match entry.kind {
             LogKind::Tick | LogKind::Untick => {
-                // One click may untick and tick in the same second: replay them together.
-                let mut j = i;
                 let slot = match held.iter().position(|(q, _)| *q == entry.question_id) {
                     Some(slot) => slot,
                     None => {
@@ -104,20 +136,16 @@ pub fn timeline(paper: &Paper, copy: &Submission) -> Timeline {
                     }
                 };
                 let before = held[slot].1.clone();
-                while j < log.len()
-                    && matches!(log[j].kind, LogKind::Tick | LogKind::Untick)
-                    && log[j].seconds == entry.seconds
-                    && log[j].question_id == entry.question_id
-                {
+                let j = click_end(paper, log, i);
+                for e in &log[i..j] {
                     let selected = &mut held[slot].1;
-                    if log[j].kind == LogKind::Tick {
-                        if !selected.contains(&log[j].option_id) {
-                            selected.push(log[j].option_id.clone());
+                    if e.kind == LogKind::Tick {
+                        if !selected.contains(&e.option_id) {
+                            selected.push(e.option_id.clone());
                         }
                     } else {
-                        selected.retain(|o| *o != log[j].option_id);
+                        selected.retain(|o| *o != e.option_id);
                     }
-                    j += 1;
                 }
                 let after = held[slot].1.clone();
                 i = j;

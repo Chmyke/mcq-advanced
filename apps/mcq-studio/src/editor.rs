@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 use mcq_edit::ops::{self, IdError, Kind};
-use mcq_model::{Block, Issue, Level, MediaKind, Question, Severity};
+use mcq_model::{Block, Issue, Level, MediaKind, Paper, Question, Severity};
 use mcq_player::icon::{Icon, IconButton, IconFile};
 use mcq_player::markdown;
 
@@ -99,7 +99,9 @@ fn severity_label(severity: Severity, t: &Texts) -> (&'static str, &'static str)
     }
 }
 
-pub fn issue_list(issues: &[&Issue], t: &'static Texts, with_location: bool) -> Element {
+/// The validator's findings; `places` names where each one is, for the findings about the
+/// whole paper.
+pub fn issue_list(issues: &[&Issue], t: &'static Texts, places: Option<&Paper>) -> Element {
     if issues.is_empty() {
         return rsx! { p { class: "ok-note", "{t.no_issue}" } };
     }
@@ -114,11 +116,7 @@ pub fn issue_list(issues: &[&Issue], t: &'static Texts, with_location: bool) -> 
         .iter()
         .map(|issue| {
             let (class, label) = severity_label(issue.severity, t);
-            let place = if with_location {
-                t.place(&issue.location)
-            } else {
-                String::new()
-            };
+            let place = places.map_or(String::new(), |paper| t.place(&issue.location, paper));
             let link = rule_link(issue.code, t.lang);
             (place, class, label, issue.code, t.form_issue(issue), link)
         })
@@ -245,6 +243,16 @@ fn question_list(
                     },
                     div { class: "theme-head",
                         h2 { "{title}" }
+                        // A theme emptied by moving its questions away goes where it is seen.
+                        if !theme_id.is_empty() && items.is_empty() {
+                            IconButton {
+                                icon: Icon::Trash, label: t.delete, tip: t.remove_theme,
+                                onclick: {
+                                    let theme_id = theme_id.clone();
+                                    move |_| studio.write().edit_paper(|p| { ops::remove_theme(p, &theme_id); })
+                                },
+                            }
+                        }
                         if !theme_id.is_empty() {
                             IconButton {
                                 icon: Icon::Plus, label: t.add_question, tip: t.tip_add_question,
@@ -392,6 +400,8 @@ fn question_editor(
                             option { key: "{n}", value: "{n}", selected: n as u32 == level, "{label}" }
                         }
                     }
+                    // Bloom's levels are not every teacher's words: what they mean, in a line.
+                    p { class: "muted small-text", "{t.level_short}" }
                 }
             }
             // Rarely changed, and technical: out of the way until asked for.
@@ -529,7 +539,7 @@ fn question_editor(
                     p { class: "muted", "{t.untouched_hint}" }
                 } else {
                     p { class: "sr-only", role: "status", "{t.issue_count(&mine)}" }
-                    {issue_list(&mine, t, false)}
+                    {issue_list(&mine, t, None)}
                 }
             }
             if let Some(results) = results {
