@@ -62,6 +62,7 @@ fn package(practice: bool) -> Vec<u8> {
         },
     ];
     let options = PublishOptions {
+        practice,
         opening: if practice {
             Opening::Open
         } else {
@@ -752,12 +753,10 @@ fn overview_shows_a_reported_glyph_apart_from_the_flag_colour() {
 
 #[test]
 fn practice_hands_in_straight_to_the_correction_and_an_exam_waits_for_its_code() {
-    use mcq_crypto::OpeningKind;
-    assert!(mcq_player::review::correction_on_hand_in(OpeningKind::Open));
     let practice = mcq_crypto::inspect(&package(true)).expect("practice");
     let exam = mcq_crypto::inspect(&package(false)).expect("exam");
-    assert!(mcq_player::review::correction_on_hand_in(practice.opening));
-    assert!(!mcq_player::review::correction_on_hand_in(exam.opening));
+    assert!(mcq_player::review::correction_on_hand_in(&practice));
+    assert!(!mcq_player::review::correction_on_hand_in(&exam));
 }
 
 #[test]
@@ -766,7 +765,7 @@ fn the_correction_opens_with_save_and_share_first() {
     let both = render(|| {
         result_actions(
             &ResultActions {
-                receipt: Some("AB12-CD34".into()),
+                has_copy: true,
                 can_share: true,
                 shared: Some(Lang::Fr.texts().share_copied),
             },
@@ -776,13 +775,12 @@ fn the_correction_opens_with_save_and_share_first() {
     });
     assert!(both.contains("Enregistrer mon résultat"), "{both}");
     assert!(both.contains("Partager ce QCM"), "{both}");
-    assert!(both.contains("AB12-CD34"), "{both}");
     assert!(both.contains("Lien copié"), "{both}");
     // A paper opened from a file has no address to pass on.
     let save_only = render(|| {
         result_actions(
             &ResultActions {
-                receipt: Some("AB12-CD34".into()),
+                has_copy: true,
                 ..ResultActions::default()
             },
             Lang::En.texts(),

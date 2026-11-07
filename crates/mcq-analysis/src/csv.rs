@@ -14,7 +14,7 @@ use crate::{Anomaly, Decision, Finding, Report, TOO_EASY, TOO_HARD};
 pub struct Labels {
     /// `,` in French, `.` in English.
     pub decimal: char,
-    pub notes_header: [&'static str; 10],
+    pub notes_header: [&'static str; 9],
     pub themes_header: [&'static str; 10],
     pub questions_header: [&'static str; 11],
     pub yes: &'static str,
@@ -57,7 +57,6 @@ pub const EN: Labels = Labels {
         "Minutes",
         "Overtime (min)",
         "Window exits",
-        "Receipt",
         "Anomalies",
     ],
     themes_header: [
@@ -119,7 +118,6 @@ pub const FR: Labels = Labels {
         "Minutes",
         "Dépassement (min)",
         "Sorties de fenêtre",
-        "Code de remise",
         "Anomalies",
     ],
     themes_header: [
@@ -255,7 +253,6 @@ pub fn notes(paper: &Paper, report: &Report, labels: &Labels) -> String {
             (s.elapsed_seconds / 60).to_string(),
             (s.grade.overtime_seconds / 60).to_string(),
             s.focus_losses.to_string(),
-            s.receipt.clone(),
             anomalies_of(report, &s.name, labels),
         ];
         for theme in &paper.themes {

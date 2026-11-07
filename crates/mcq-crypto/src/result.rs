@@ -3,7 +3,7 @@
 //! Layout: `"MCQR" | version u8 | paper id [16] | seal public [32] | HPKE enc [32] | bytes ciphertext`
 //! The ciphertext is HPKE (RFC 9180, base mode, X25519, HKDF-SHA256, ChaCha20-Poly1305) of the
 //! encoded submission, with every byte before it as associated data. Only the teacher's seal key
-//! opens it; the student keeps a receipt code derived from the whole file.
+//! opens it. A short id derived from the whole file tells copies apart on the teacher's side.
 
 use hpke::aead::ChaCha20Poly1305;
 use hpke::kdf::HkdfSha256;
@@ -25,8 +25,8 @@ const HPKE_INFO: &[u8] = b"mcq-advanced/result/v1";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SealedResult {
     pub bytes: Vec<u8>,
-    /// Shown to the student and found again by the teacher, such as `7KQ2M-XW9DA`.
-    pub receipt: String,
+    /// Tells copies apart on the teacher's side, such as `7KQ2M-XW9DA`.
+    pub copy_id: String,
 }
 
 /// Seals a copy for the teacher of the package it answers.
@@ -57,11 +57,11 @@ pub fn seal_result(
     // The encapsulated key is authenticated by HPKE itself, so it sits after the associated data.
     w.fixed(&encapped.to_bytes()).bytes(&ciphertext);
     let bytes = w.into_vec();
-    let receipt = receipt_code(&bytes);
-    Ok(SealedResult { bytes, receipt })
+    let id = copy_id(&bytes);
+    Ok(SealedResult { bytes, copy_id: id })
 }
 
-/// Opens a copy with the teacher identity; returns it with its receipt code.
+/// Opens a copy with the teacher identity; returns it with its id.
 pub fn open_result(bytes: &[u8], identity: &Identity) -> Result<(Submission, String), Error> {
     let mut r = ByteReader::new(bytes);
     if r.take(4).ok() != Some(MAGIC.as_slice()) {
@@ -95,11 +95,12 @@ pub fn open_result(bytes: &[u8], identity: &Identity) -> Result<(Submission, Str
     if submission.paper_id != paper_id {
         return Err(Error::Malformed("paper id differs inside and outside"));
     }
-    Ok((submission, receipt_code(bytes)))
+    Ok((submission, copy_id(bytes)))
 }
 
-/// 50 bits of SHA-256 of the sealed file, in two groups of five symbols.
-pub fn receipt_code(sealed: &[u8]) -> String {
+/// 50 bits of SHA-256 of the sealed file, in two groups of five symbols. The label keeps its
+/// first name, so ids stay those of copies sealed before the rename.
+pub fn copy_id(sealed: &[u8]) -> String {
     let hash = primitives::sha256(&[b"mcq-advanced/receipt/v1", sealed]);
     group(&encode(&hash, 10), 5)
 }

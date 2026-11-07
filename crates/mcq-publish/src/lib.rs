@@ -3,7 +3,8 @@
 //! OWNER:   stateless; the caller provides the identity, the media files and the randomness.
 //! INVARIANTS: a paper with errors is never published; code is coloured and formulas converted
 //!             once, here; formulas of the explanations travel inside the answer key; the room
-//!             sheet never shows the end code, which is revealed only after hand-in.
+//!             sheet never shows the end code, which is revealed only after hand-in; an exam
+//!             keeps its answers sealed even when it opens without a code.
 
 use mcq_crypto::rand_core::CryptoRng;
 use mcq_crypto::{Identity, KdfParams, Opening, PublishOptions};
@@ -13,8 +14,9 @@ use mcq_model::{Issue, Paper, Severity};
 /// How students will take the paper.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
-    /// Opened with a generated code; `end_code` adds a code that reveals the correction later.
-    Exam { end_code: bool },
+    /// Answers sealed. `opening_code`: students need a generated code to read the paper;
+    /// `end_code`: a code that reveals the correction once every copy is in.
+    Exam { opening_code: bool, end_code: bool },
     /// No code: answers readable by students, for training.
     Practice,
 }
@@ -50,12 +52,14 @@ impl std::fmt::Display for PublishError {
 pub struct Published {
     pub package: Vec<u8>,
     pub paper_id: [u8; 16],
-    /// Written on the board when the exam starts; `None` for practice.
+    /// Written on the board when the exam starts; `None` when the paper opens without one.
     pub opening_code: Option<String>,
     /// Revealed once every copy is in, so students can read the correction.
     pub end_code: Option<String>,
     /// What students compare before trusting the paper.
     pub fingerprint: String,
+    /// Answers readable by students right after hand-in.
+    pub practice: bool,
 }
 
 /// The errors that block publishing, as the linter finds them.
@@ -138,13 +142,21 @@ pub fn publish(
     let files = package_files(paper, read_media)?;
     let (opening, end_code) = match mode {
         Mode::Practice => (Opening::Open, None),
-        Mode::Exam { end_code } => (
-            Opening::Code(mcq_crypto::generate_code(rng)),
+        Mode::Exam {
+            opening_code,
+            end_code,
+        } => (
+            if opening_code {
+                Opening::Code(mcq_crypto::generate_code(rng))
+            } else {
+                Opening::Open
+            },
             end_code.then(|| mcq_crypto::generate_code(rng)),
         ),
     };
     let options = PublishOptions {
         opening: opening.clone(),
+        practice: mode == Mode::Practice,
         end_code: end_code.clone(),
         kdf,
     };
@@ -167,6 +179,7 @@ pub fn publish(
         },
         end_code,
         fingerprint: identity.public().fingerprint(),
+        practice: mode == Mode::Practice,
     })
 }
 
@@ -179,6 +192,8 @@ pub struct RoomSheet {
     pub duration_minutes: u32,
     pub opening_code: Option<String>,
     pub fingerprint: String,
+    /// Answers shown right after hand-in.
+    pub practice: bool,
     /// The correction opens later with a code the teacher reveals.
     pub correction_later: bool,
 }
@@ -191,6 +206,7 @@ impl RoomSheet {
             duration_minutes: paper.duration_minutes,
             opening_code: published.opening_code.clone(),
             fingerprint: published.fingerprint.clone(),
+            practice: published.practice,
             correction_later: published.end_code.is_some(),
         }
     }

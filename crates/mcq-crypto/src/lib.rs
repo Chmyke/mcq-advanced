@@ -21,7 +21,7 @@ pub use package::{
     inspect, open, open_answer_key, open_answer_key_files, publish, publish_with_key_files,
 };
 pub use primitives::KdfParams;
-pub use result::{SealedResult, open_result, receipt_code, seal_result};
+pub use result::{SealedResult, copy_id, open_result, seal_result};
 
 /// Chosen passphrases shorter than this are refused.
 pub const MIN_PASSPHRASE_CHARS: usize = 12;

@@ -55,17 +55,17 @@ pub const FAST_SHARE: f64 = 0.1;
 /// ...with at least this success rate is reported.
 pub const FAST_SUCCESS: f32 = 0.7;
 
-/// A copy opened by the teacher, with the receipt code the student was shown.
+/// A copy opened by the teacher, with the id that tells it apart from the others.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Copy {
     pub submission: Submission,
-    pub receipt: String,
+    pub copy_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StudentResult {
     pub name: String,
-    pub receipt: String,
+    pub copy_id: String,
     pub grade: GradeResult,
     /// Over 20.
     pub mark: f32,
@@ -198,7 +198,7 @@ pub enum Finding {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Anomaly {
     /// The copy answers another package: left out of the analysis.
-    OtherPaper { name: String, receipt: String },
+    OtherPaper { name: String, copy_id: String },
     /// Several copies under one name: all kept.
     SameName { name: String, count: u32 },
     /// The copy answers questions the answer key does not have.
@@ -291,7 +291,7 @@ pub fn analyse_with(
         } else {
             report.anomalies.push(Anomaly::OtherPaper {
                 name: copy.submission.student_name.clone(),
-                receipt: copy.receipt.clone(),
+                copy_id: copy.copy_id.clone(),
             });
         }
     }
@@ -300,7 +300,7 @@ pub fn analyse_with(
             .student_name
             .to_lowercase()
             .cmp(&b.submission.student_name.to_lowercase())
-            .then_with(|| a.receipt.cmp(&b.receipt))
+            .then_with(|| a.copy_id.cmp(&b.copy_id))
     });
 
     report.students = kept
@@ -316,7 +316,7 @@ pub fn analyse_with(
             let grade = mcq_grade::grade(paper, &answers, s.elapsed_seconds, s.extension);
             StudentResult {
                 name: s.student_name.clone(),
-                receipt: copy.receipt.clone(),
+                copy_id: copy.copy_id.clone(),
                 mark: grade.mark(20.0),
                 grade,
                 elapsed_seconds: s.elapsed_seconds,

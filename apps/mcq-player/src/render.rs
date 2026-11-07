@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use dioxus::prelude::*;
-use mcq_crypto::{OpeningKind, PackageHeader};
+use mcq_crypto::PackageHeader;
 use mcq_engine::{PaceGauge, Session, SessionItem, TimeStatus, format_duration};
 use mcq_grade::GuessAdvice;
 use mcq_model::{Block, CodeBlock, CodeTokens, MediaKind, Paper, Question, Scoring, TimeExtension};
@@ -562,7 +562,7 @@ pub fn intro(
         section { class: "intro card",
             h1 { "{paper.title}" }
             div { class: "prose", dangerous_inner_html: "{description}" }
-            if header.opening == OpeningKind::Open { p { class: "notice", "{t.practice_notice}" } }
+            if header.practice { p { class: "notice", "{t.practice_notice}" } }
             if resumed { p { class: "notice", "{t.resumed}" } }
             dl { class: "facts",
                 dt { "{t.questions}" } dd { "{n}" }

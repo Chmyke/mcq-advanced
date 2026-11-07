@@ -47,7 +47,10 @@ fn an_exam_opens_with_its_code_and_the_sheet_keeps_the_end_code_secret() {
         &teacher,
         &paper,
         media,
-        Mode::Exam { end_code: true },
+        Mode::Exam {
+            opening_code: true,
+            end_code: true,
+        },
         KdfParams::TESTING,
         &mut rng,
     )
@@ -80,6 +83,40 @@ fn an_exam_opens_with_its_code_and_the_sheet_keeps_the_end_code_secret() {
 }
 
 #[test]
+fn an_exam_without_opening_code_opens_freely_but_keeps_its_answers() {
+    let (paper, _) = mcq_format::read(SAMPLE);
+    let mut rng = CountingRng(9);
+    let teacher = Identity::generate(&mut rng);
+    let published = publish(
+        &teacher,
+        &paper,
+        media,
+        Mode::Exam {
+            opening_code: false,
+            end_code: false,
+        },
+        KdfParams::TESTING,
+        &mut rng,
+    )
+    .expect("publish");
+    assert_eq!(published.opening_code, None);
+    assert_eq!(published.end_code, None);
+    assert!(!published.practice);
+    let header = mcq_crypto::inspect(&published.package).expect("inspect");
+    assert_eq!(header.opening, OpeningKind::Open);
+    assert!(!header.practice);
+    assert!(mcq_crypto::open(&published.package, "").is_ok());
+    assert!(
+        mcq_crypto::open_answer_key(&published.package, KeyUnlock::Practice).is_err(),
+        "an exam never hands its answers to students"
+    );
+    let sheet = RoomSheet::new(&paper, &published);
+    assert_eq!(sheet.opening_code, None);
+    assert!(!sheet.practice);
+    assert!(!sheet.correction_later);
+}
+
+#[test]
 fn practice_needs_no_code() {
     let (paper, _) = mcq_format::read(SAMPLE);
     let mut rng = CountingRng(5);
@@ -95,8 +132,10 @@ fn practice_needs_no_code() {
     .expect("publish");
     assert_eq!(published.opening_code, None);
     assert_eq!(published.end_code, None);
+    assert!(published.practice);
     let header = mcq_crypto::inspect(&published.package).expect("inspect");
     assert_eq!(header.opening, OpeningKind::Open);
+    assert!(header.practice);
 }
 
 #[test]
@@ -152,7 +191,10 @@ fn formulas_are_converted_once_and_explanations_wait_for_the_end_code() {
         &teacher,
         &paper,
         media,
-        Mode::Exam { end_code: true },
+        Mode::Exam {
+            opening_code: true,
+            end_code: true,
+        },
         KdfParams::TESTING,
         &mut rng,
     )

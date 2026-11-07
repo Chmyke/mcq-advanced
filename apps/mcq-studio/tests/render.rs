@@ -43,15 +43,18 @@ fn Harness() -> Element {
     let notice = use_signal(|| None::<String>);
     let phone = use_signal(|| false);
     let dark = use_signal(|| true);
+    let identity = use_signal(|| None);
+    let done = use_signal(|| None);
     let space = studio.read().space;
     match space {
         Space::Write => editor::write_space(studio, &EN, recording, notice, phone, dark, None),
         Space::Settings => settings::settings_space(studio, &FR),
-        Space::Publish | Space::Correct => rsx! {},
+        Space::Publish => rsx! { publish::PublishSpace { studio, identity, done, t: &FR } },
+        Space::Correct => rsx! {},
     }
 }
 
-/// Renders the Write or Settings space of the sample after `setup`.
+/// Renders the Write, Settings or Publish space of the sample after `setup`.
 fn render(setup: impl Fn(&mut Studio) + 'static) -> String {
     SETUP.with(|s| *s.borrow_mut() = Some(Box::new(setup)));
     let mut dom = VirtualDom::new(Harness);
@@ -157,6 +160,50 @@ fn settings_show_the_header_values() {
 }
 
 #[test]
+fn both_codes_are_off_by_default_and_each_says_what_it_is_for() {
+    let html = render(|s| s.space = Space::Publish);
+    let attr = |text: &str| text.replace('\'', "&#39;");
+    for (label, help) in [
+        (FR.with_opening_code, FR.opening_code_help),
+        (FR.with_end_code, FR.end_code_help),
+    ] {
+        let at = html.find(&attr(label)).expect(label);
+        let input = &html[html[..at].rfind("<input").expect("checkbox")..at];
+        assert!(input.contains("type=\"checkbox\""), "{input}");
+        assert!(!input.contains("checked"), "{label} is ticked: {input}");
+        assert!(html.contains(&attr(help)), "{html}");
+    }
+}
+
+#[test]
+fn a_paper_without_opening_code_asks_only_for_the_name() {
+    let sheet = RoomSheet::new(
+        &sample().project.paper,
+        &Published {
+            package: Vec::new(),
+            paper_id: [0; 16],
+            opening_code: None,
+            end_code: None,
+            fingerprint: "FING-ERPR-INT0-0000".into(),
+            practice: false,
+        },
+    );
+    let mut dom =
+        VirtualDom::new_with_props(|sheet: RoomSheet| publish::room_sheet(&sheet, &FR), sheet);
+    dom.rebuild_in_place();
+    let html = dioxus_ssr::render(&dom);
+    assert!(html.contains(FR.sheet_name_only), "{html}");
+    assert!(
+        !html.contains(&FR.opening_code.replace('\'', "&#39;")),
+        "{html}"
+    );
+    assert!(
+        !html.contains(&FR.sheet_practice.replace('\'', "&#39;")),
+        "{html}"
+    );
+}
+
+#[test]
 fn the_room_sheet_shows_the_opening_code_and_never_the_end_code() {
     let sheet = RoomSheet::new(
         &sample().project.paper,
@@ -166,6 +213,7 @@ fn the_room_sheet_shows_the_opening_code_and_never_the_end_code() {
             opening_code: Some("AAAA-BBBB-CCCC".into()),
             end_code: Some("ZZZZ-YYYY-XXXX".into()),
             fingerprint: "FING-ERPR-INT0-0000".into(),
+            practice: false,
         },
     );
     let mut dom =

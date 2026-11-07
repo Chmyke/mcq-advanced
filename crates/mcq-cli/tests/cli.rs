@@ -202,6 +202,31 @@ fn identity_publish_inspect_and_answers() {
     let (code, _, _) = mcq(&["answers", pack, "--practice"], "");
     assert_eq!(code, 1);
 
+    let open_pack = dir.0.join("open.mcqpack");
+    let open_pack = open_pack.to_str().expect("utf8");
+    let (code, out, err) = mcq(
+        &[
+            "publish",
+            paper,
+            "--identity",
+            id,
+            "--out",
+            open_pack,
+            "--no-opening-code",
+        ],
+        passphrase,
+    );
+    assert_eq!(code, 0, "{out}{err}");
+    assert!(!out.contains("Opening code:"), "{out}");
+    let (code, out, _) = mcq(&["inspect", open_pack], "");
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(line_value(&out, "Opening:"), "none (exam)");
+    let (code, _, _) = mcq(&["answers", open_pack, "--practice"], "");
+    assert_eq!(
+        code, 1,
+        "an exam without opening code still hides its answers"
+    );
+
     let mut bytes = std::fs::read(pack).expect("read package");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 1;

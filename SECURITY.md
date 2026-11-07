@@ -19,13 +19,13 @@ photograph or a memory dump. The guarantees below hold within that limit.
 
 | Threat | What MCQ Advanced does |
 |---|---|
-| Reading the paper before the exam | The paper is encrypted; it opens with a code the teacher gives when the exam starts. |
+| Reading the paper before the exam | With an opening code, the paper is encrypted and opens with the code the teacher gives when the exam starts. The code is an option: without it, anyone with the file reads the questions, never the answers. |
 | Reading the answers during the exam | The answer key is encrypted apart, with a key students do not have. Correct flags, explanations and rules are absent from the student copy; only the number of options to tick is announced. |
 | Circulating a forged paper | Every package is signed by the teacher. The player shows the teacher's fingerprint, also printed on the room sheet: a forged package shows another one. |
 | Altering a package or a copy | Any changed byte makes the signature or the authenticated encryption fail; the file is refused. |
-| Reading or forging another student's copy | A copy is sealed for the teacher's key alone. The student's name is declared, as on paper; the receipt code shown at submission ties a copy to the student who received it. |
+| Reading or forging another student's copy | A copy is sealed for the teacher's key alone, so no one else reads it. The student's name is declared, as on paper: a copy handed in under another name is not detected by the file itself. |
 | Copying from a neighbour | Questions and options are shuffled per student unless the teacher turns it off: neighbours see them in different orders. |
-| Changing answers after seeing the correction | The copy is sealed before any correction is shown; the correction opens with an end code the teacher reveals once every copy is in. |
+| Changing answers after seeing the correction | The copy is sealed before any correction is shown; in an exam the correction opens only with an end code the teacher reveals once every copy is in, if the teacher chose one. |
 | Cheating on time | Elapsed time and focus losses are recorded in the copy, **not guaranteed**: without a server, a device's clock can be changed. |
 | Searching the web during the exam | Focus losses are **detected and reported, not prevented**. |
 
@@ -41,12 +41,13 @@ without raw HTML, links or remote images, so a paper cannot run code in the play
   copies and answer keys. The identity file is encrypted with the teacher's passphrase
   (Argon2id, at least 12 characters). **Keep a backup**: without the identity file and its
   passphrase, copies cannot be read.
-- **Opening code**, generated with each package: 12 symbols of Crockford base 32, such as
+- **Opening code**, optional, generated with the package: 12 symbols of Crockford base 32, such as
   `K7QM-2XWD-9FHA`, 60 random bits. Typing is forgiving: case, dashes and the letters O, I and L
   (read as 0, 1 and 1) do not matter. A teacher can choose a phrase instead (at least 12
   characters), at the cost of a guessable secret if the phrase is weak.
 - **End code**, optional, same form: opens the answer key once the teacher reveals it.
-- **Receipt code**, shown to the student when a copy is sealed: 50 bits of the copy's SHA-256.
+- **Copy id**, never shown to students: 50 bits of the sealed copy's SHA-256, so the teacher's
+  tools notice a copy dropped twice.
 
 ## Primitives
 

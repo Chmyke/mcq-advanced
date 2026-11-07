@@ -14,6 +14,8 @@
 //! bytes answer key     seal(answer key's key, archive of the full paper)
 //! signature [64]       Ed25519 over every byte before it
 //! ```
+//! Flags: 1 open (no opening secret), 2 passphrase, 4 end code, 8 exam (with 1 only: the paper
+//! opens without a secret but its answers stay sealed). Open without 8 is a practice package.
 //! `seal` is XChaCha20-Poly1305 with a random nonce in front; its associated data is
 //! SHA-256(header) followed by a label naming the field.
 
@@ -37,6 +39,8 @@ const SIGNATURE_LEN: usize = 64;
 const FLAG_OPEN: u8 = 1;
 const FLAG_PASSPHRASE: u8 = 2;
 const FLAG_END_CODE: u8 = 4;
+/// Only with `FLAG_OPEN`: an exam that opens without a secret, its answer key not in clear.
+const FLAG_OPEN_EXAM: u8 = 8;
 
 const HPKE_INFO: &[u8] = b"mcq-advanced/answer-key/v1";
 
@@ -50,7 +54,7 @@ pub enum Opening {
     Code(String),
     /// A phrase chosen by the teacher, at least `MIN_PASSPHRASE_CHARS` characters.
     Passphrase(String),
-    /// No secret: a practice paper, whose answers students can see right away.
+    /// No secret: anyone with the file reads the paper.
     Open,
 }
 
@@ -65,6 +69,8 @@ pub enum OpeningKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublishOptions {
     pub opening: Opening,
+    /// Answers readable by students right after hand-in. Needs `Opening::Open`.
+    pub practice: bool,
     /// A generated code the teacher reveals once every copy is in, so students can read the
     /// correction. Not allowed on practice packages, whose answers are already readable.
     pub end_code: Option<String>,
@@ -77,6 +83,8 @@ pub struct PackageHeader {
     pub paper_id: [u8; 16],
     pub teacher: PublicIdentity,
     pub opening: OpeningKind,
+    /// Answers in clear, shown on hand-in.
+    pub practice: bool,
     pub has_end_code: bool,
     pub kdf: KdfParams,
     content_salt: [u8; SALT_LEN],
@@ -130,14 +138,20 @@ pub fn publish_with_key_files(
             FLAG_PASSPHRASE,
             Some(checked_passphrase(phrase)?.to_string()),
         ),
-        Opening::Open => (FLAG_OPEN, None),
+        Opening::Open if options.practice => (FLAG_OPEN, None),
+        Opening::Open => (FLAG_OPEN | FLAG_OPEN_EXAM, None),
     };
-    let end_secret = match (&options.end_code, &options.opening) {
-        (None, _) => None,
-        (Some(_), Opening::Open) => {
+    if options.practice && opening_secret.is_some() {
+        return Err(Error::NotAllowed(
+            "a practice package with an opening secret",
+        ));
+    }
+    let end_secret = match &options.end_code {
+        None => None,
+        Some(_) if options.practice => {
             return Err(Error::NotAllowed("an end code on a practice package"));
         }
-        (Some(code), _) => Some(normalize_code(code).ok_or(Error::BadCode)?),
+        Some(code) => Some(normalize_code(code).ok_or(Error::BadCode)?),
     };
     let flags = flags
         | if end_secret.is_some() {
@@ -233,7 +247,7 @@ pub fn publish_with_key_files(
             w.bytes(&wrap)
         }
     };
-    if opening_secret.is_none() {
+    if options.practice {
         w.bytes(answer_key.as_ref());
     } else {
         w.bytes(&[]);
@@ -253,7 +267,7 @@ pub fn inspect(package: &[u8]) -> Result<PackageHeader, Error> {
     Ok(Parsed::read(package)?.header)
 }
 
-/// Opens the paper with the code or phrase given at the start (ignored for practice packages).
+/// Opens the paper with the code or phrase given at the start (ignored for open packages).
 pub fn open(package: &[u8], secret: &str) -> Result<StudentPackage, Error> {
     let parsed = Parsed::read(package)?;
     let header = parsed.header.clone();
@@ -331,7 +345,7 @@ pub fn open_answer_key_files(
             key_from(&raw)?
         }
         KeyUnlock::Practice => {
-            if parsed.header.opening != OpeningKind::Open {
+            if !parsed.header.practice {
                 return Err(Error::NotAllowed(
                     "the answers of an exam package are not in clear",
                 ));
@@ -425,7 +439,7 @@ impl<'a> Parsed<'a> {
         let end_salt = r.fixed()?;
         let hash = primitives::sha256(&[&signed[..HEADER_LEN]]);
 
-        if flags & !(FLAG_OPEN | FLAG_PASSPHRASE | FLAG_END_CODE) != 0 {
+        if flags & !(FLAG_OPEN | FLAG_PASSPHRASE | FLAG_END_CODE | FLAG_OPEN_EXAM) != 0 {
             return Err(Error::Malformed("unknown flags"));
         }
         let opening = match (flags & FLAG_OPEN != 0, flags & FLAG_PASSPHRASE != 0) {
@@ -434,8 +448,13 @@ impl<'a> Parsed<'a> {
             (true, false) => OpeningKind::Open,
             (true, true) => return Err(Error::Malformed("contradictory flags")),
         };
+        let open_exam = flags & FLAG_OPEN_EXAM != 0;
+        if open_exam && opening != OpeningKind::Open {
+            return Err(Error::Malformed("contradictory flags"));
+        }
+        let practice = opening == OpeningKind::Open && !open_exam;
         let has_end_code = flags & FLAG_END_CODE != 0;
-        if has_end_code && opening == OpeningKind::Open {
+        if has_end_code && practice {
             return Err(Error::Malformed("contradictory flags"));
         }
 
@@ -444,6 +463,7 @@ impl<'a> Parsed<'a> {
                 paper_id,
                 teacher,
                 opening,
+                practice,
                 has_end_code,
                 kdf,
                 content_salt,

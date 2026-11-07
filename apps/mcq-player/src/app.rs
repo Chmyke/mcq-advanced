@@ -390,7 +390,7 @@ pub fn App() -> Element {
                         strong { class: "mono", "{fingerprint}" }
                         p { class: "muted", "{t.fingerprint_hint}" }
                     }
-                    if opening == OpeningKind::Open { p { class: "notice", "{t.practice_notice}" } }
+                    if package.header.practice { p { class: "notice", "{t.practice_notice}" } }
                     label { r#for: "name", "{t.your_name}" }
                     input {
                         id: "name", r#type: "text", autocomplete: "name", autofocus: true,
@@ -570,7 +570,7 @@ pub fn App() -> Element {
                                             sealed.set(Some(result));
                                         }
                                         // Practice opens on the correction; an exam waits for its end code.
-                                        if !(crate::review::correction_on_hand_in(o.header.opening)
+                                        if !(crate::review::correction_on_hand_in(&o.header)
                                             && open_correction(KeyUnlock::Practice))
                                         {
                                             stage.set(Stage::Submitted);
@@ -607,9 +607,8 @@ pub fn App() -> Element {
             let Some(o) = opened.read().as_ref().map(Rc::clone) else {
                 return rsx! {};
             };
-            let practice = o.header.opening == OpeningKind::Open;
+            let practice = o.header.practice;
             let has_end_code = o.header.has_end_code;
-            let receipt = sealed.read().as_ref().map(|r| r.receipt.clone());
             let file_name = copy_file_name(session);
             let mut show = move |()| {
                 let typed = end_code();
@@ -627,12 +626,12 @@ pub fn App() -> Element {
             let saved_line =
                 crate::texts::fill(t.saved_to, &[("file", platform::file_name(&file_name))]);
             // An exam's copy reaches the teacher only as a file: saving it comes first.
-            let has_copy = receipt.is_some();
+            let has_copy = sealed.read().is_some();
             let ready = practice || !has_copy || copy_saved();
             rsx! {
                 section { class: "submitted card",
                     h1 { "{t.submitted_title}" }
-                    if let Some(receipt) = receipt.clone() {
+                    if has_copy {
                         if !copy_saved() { p { class: "notice warn", "{t.not_sent_yet}" } }
                         button { class: if copy_saved() { "" } else { "primary" },
                             onclick: move |_| {
@@ -663,9 +662,6 @@ pub fn App() -> Element {
                             }
                         }
                         if copy_saved() { p { class: "notice", role: "status", "{saved_line}" } }
-                        p { "{t.receipt}" }
-                        p { class: "big mono", "{receipt}" }
-                        p { class: "muted", "{t.receipt_hint}" }
                     }
                     if ready && !erased() {
                         if practice {
@@ -742,7 +738,7 @@ pub fn App() -> Element {
                 })
             };
             let actions = crate::review::ResultActions {
-                receipt: sealed.read().as_ref().map(|r| r.receipt.clone()),
+                has_copy: sealed.read().is_some(),
                 can_share: shareable(),
                 shared: shared(),
             };

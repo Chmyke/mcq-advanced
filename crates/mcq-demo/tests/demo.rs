@@ -233,11 +233,11 @@ fn opened(source: &mcq_demo::Source) -> (Paper, [u8; 16], Vec<Copy>, mcq_demo::C
         .copies
         .iter()
         .map(|(_, bytes)| {
-            let (submission, receipt) =
+            let (submission, copy_id) =
                 mcq_crypto::open_result(bytes, &identity).expect("the demo identity opens copies");
             Copy {
                 submission,
-                receipt,
+                copy_id,
             }
         })
         .collect();

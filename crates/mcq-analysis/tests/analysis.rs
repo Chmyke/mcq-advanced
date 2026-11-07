@@ -61,7 +61,7 @@ fn copy(paper: &Paper, name: &str, picks: &[Option<usize>], elapsed: u32) -> Cop
             elapsed_seconds: elapsed,
             ..Submission::default()
         },
-        receipt: format!("R-{name}"),
+        copy_id: format!("R-{name}"),
     }
 }
 
@@ -207,7 +207,7 @@ fn odd_copies_are_reported_never_judged() {
     let a = &report.anomalies;
     assert!(a.contains(&Anomaly::OtherPaper {
         name: "Other".into(),
-        receipt: "R-Other".into()
+        copy_id: "R-Other".into()
     }));
     assert!(a.contains(&Anomaly::Fast {
         name: "Quick".into(),
@@ -307,7 +307,7 @@ fn a_synthetic_class_reveals_exactly_what_was_planted() {
     let copies: Vec<Copy> = submissions
         .into_iter()
         .map(|submission| Copy {
-            receipt: submission.student_name.clone(),
+            copy_id: submission.student_name.clone(),
             submission,
         })
         .collect();
@@ -370,7 +370,7 @@ fn planted_flaws_are_found_whatever_the_seed() {
         let copies: Vec<Copy> = submissions
             .into_iter()
             .map(|submission| Copy {
-                receipt: submission.student_name.clone(),
+                copy_id: submission.student_name.clone(),
                 submission,
             })
             .collect();
@@ -422,7 +422,7 @@ fn a_corrected_key_marks_every_copy_again() {
     let copies: Vec<Copy> = submissions
         .into_iter()
         .map(|submission| Copy {
-            receipt: submission.student_name.clone(),
+            copy_id: submission.student_name.clone(),
             submission,
         })
         .collect();

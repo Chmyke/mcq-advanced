@@ -30,6 +30,7 @@ button.recording { background: var(--ko); color: var(--accent-text); border-colo
 .app.studio input.short { max-width: 10rem; }
 .app.studio label.check { display: flex; align-items: center; gap: .5rem; font-weight: 400; font-size: 1em; }
 .app.studio label.check.indent { margin-left: 1.6rem; }
+.app.studio p.indent { margin: 0 0 .6rem 3.2rem; font-size: .9em; }
 .app.studio fieldset { min-width: 0; }
 .app.studio fieldset legend { font-weight: 700; padding: 0 .3rem; }
 .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-variant-ligatures: none; }

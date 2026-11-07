@@ -6,8 +6,8 @@ use std::convert::Infallible;
 use mcq_crypto::rand_core::{TryCryptoRng, TryRng};
 use mcq_crypto::{
     Error, Identity, KdfParams, KeyUnlock, Opening, OpeningKind, PAPER_FILE, PublishOptions,
-    generate_code, inspect, normalize_code, open, open_answer_key, open_answer_key_files,
-    open_result, publish, publish_with_key_files, receipt_code, seal_result,
+    copy_id, generate_code, inspect, normalize_code, open, open_answer_key, open_answer_key_files,
+    open_result, publish, publish_with_key_files, seal_result,
 };
 use mcq_format::binary::Entry;
 use mcq_model::{Answer, Paper, Submission};
@@ -96,8 +96,10 @@ fn media() -> Vec<Entry> {
     ]
 }
 
+/// `Opening::Open` gives a practice package here; an open exam sets `practice` to false.
 fn options(opening: Opening, end_code: Option<&str>) -> PublishOptions {
     PublishOptions {
+        practice: opening == Opening::Open,
         opening,
         end_code: end_code.map(str::to_string),
         kdf: KdfParams::TESTING,
@@ -241,6 +243,59 @@ fn teacher_and_end_code_open_the_full_paper() {
 }
 
 #[test]
+fn an_exam_without_opening_code_keeps_its_answers_sealed() {
+    let mut rng = TestRng::new("open exam");
+    let teacher = Identity::generate(&mut rng);
+    let end_code = generate_code(&mut rng);
+    let package = publish(
+        &teacher,
+        &sample_paper(),
+        &[],
+        &PublishOptions {
+            opening: Opening::Open,
+            practice: false,
+            end_code: Some(end_code.clone()),
+            kdf: KdfParams::TESTING,
+        },
+        &mut rng,
+    )
+    .expect("publish");
+    let header = inspect(&package).expect("inspect");
+    assert_eq!(header.opening, OpeningKind::Open);
+    assert!(!header.practice);
+    assert!(header.has_end_code);
+    let student = open(&package, "").expect("open without a code");
+    assert!(
+        student
+            .paper
+            .questions
+            .iter()
+            .all(|q| q.correct_count() == 0)
+    );
+    assert!(matches!(
+        open_answer_key(&package, KeyUnlock::Practice),
+        Err(Error::NotAllowed(_))
+    ));
+    let expected = without_notes(sample_paper());
+    assert_eq!(
+        open_answer_key(&package, KeyUnlock::EndCode(&end_code)),
+        Ok(expected.clone())
+    );
+    assert_eq!(
+        open_answer_key(&package, KeyUnlock::Teacher(&teacher)),
+        Ok(expected)
+    );
+    let mut with_secret = options(Opening::Code(end_code), None);
+    with_secret.practice = true;
+    assert_eq!(
+        publish(&teacher, &sample_paper(), &[], &with_secret, &mut rng),
+        Err(Error::NotAllowed(
+            "a practice package with an opening secret"
+        ))
+    );
+}
+
+#[test]
 fn passphrase_and_practice_packages() {
     let mut rng = TestRng::new("modes");
     let teacher = Identity::generate(&mut rng);
@@ -378,12 +433,12 @@ fn copies_are_sealed_for_the_teacher_only() {
     let mut rng = TestRng::new("student device");
     let copy = submission(header.paper_id);
     let sealed = seal_result(&header, &copy, &mut rng).expect("seal");
-    assert_eq!(sealed.receipt.len(), 11);
-    assert_eq!(receipt_code(&sealed.bytes), sealed.receipt);
+    assert_eq!(sealed.copy_id.len(), 11);
+    assert_eq!(copy_id(&sealed.bytes), sealed.copy_id);
 
-    let (opened, receipt) = open_result(&sealed.bytes, &exam.teacher).expect("open");
+    let (opened, id) = open_result(&sealed.bytes, &exam.teacher).expect("open");
     assert_eq!(opened, copy);
-    assert_eq!(receipt, sealed.receipt);
+    assert_eq!(id, sealed.copy_id);
 
     let stranger = Identity::generate(&mut rng);
     assert_eq!(
@@ -446,10 +501,10 @@ fn test_vectors_are_stable() {
     let result = seal_result(&header, &submission(header.paper_id), &mut rng).expect("seal");
 
     let actual = format!(
-        "fingerprint {}\nopening code {code}\nend code {end_code}\nreceipt {}\n\
+        "fingerprint {}\nopening code {code}\nend code {end_code}\ncopy_id {}\n\
          identity sha256 {}\npackage sha256 {}\nresult sha256 {}\n",
         teacher.public().fingerprint(),
-        result.receipt,
+        result.copy_id,
         hex(&Sha256::digest(&identity_file)),
         hex(&Sha256::digest(&package)),
         hex(&Sha256::digest(&result.bytes)),

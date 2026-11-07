@@ -86,12 +86,15 @@ pub fn publish(args: &[String]) -> ExitCode {
     ) else {
         return usage();
     };
-    if !parsed.only_flags(&["--end-code", "--practice"]) {
+    if !parsed.only_flags(&["--end-code", "--no-opening-code", "--practice"]) {
         return usage();
     }
     let practice = parsed.flag("--practice");
     if practice && parsed.flag("--end-code") {
         return fail("a practice package has no end code: its answers are already readable");
+    }
+    if practice && parsed.flag("--no-opening-code") {
+        return fail("a practice package never has an opening code: --practice is enough");
     }
 
     let paper_path = Path::new(paper_path);
@@ -124,6 +127,7 @@ pub fn publish(args: &[String]) -> ExitCode {
         Mode::Practice
     } else {
         Mode::Exam {
+            opening_code: !parsed.flag("--no-opening-code"),
             end_code: parsed.flag("--end-code"),
         }
     };
@@ -145,7 +149,10 @@ pub fn publish(args: &[String]) -> ExitCode {
     println!("Teacher fingerprint: {}", published.fingerprint);
     match &published.opening_code {
         Some(code) => println!("Opening code: {code}"),
-        None => println!("Practice package: no opening code, answers readable by students."),
+        None if published.practice => {
+            println!("Practice package: no opening code, answers readable by students.")
+        }
+        None => println!("No opening code: students open the paper at once, answers hidden."),
     }
     if let Some(code) = &published.end_code {
         println!("End code: {code}");
@@ -171,7 +178,8 @@ pub fn inspect(args: &[String]) -> ExitCode {
             let opening = match header.opening {
                 OpeningKind::Code => "code",
                 OpeningKind::Passphrase => "passphrase",
-                OpeningKind::Open => "none (practice)",
+                OpeningKind::Open if header.practice => "none (practice)",
+                OpeningKind::Open => "none (exam)",
             };
             println!("Opening: {opening}");
             println!(

@@ -21,10 +21,11 @@ usage:
       Creates a teacher identity locked by a passphrase read from the first line of input.
   mcq identity show <teacher.mcqid>
       Prints the fingerprint students compare with the one on the room sheet.
-  mcq publish <paper.qcm.md> --identity <teacher.mcqid> --out <paper.mcqpack> [--end-code] [--practice]
+  mcq publish <paper.qcm.md> --identity <teacher.mcqid> --out <paper.mcqpack> [--end-code] [--no-opening-code] [--practice]
       Builds the signed, encrypted student package and prints its opening code.
-      --end-code  also print an end code that lets students read the correction later
-      --practice  no opening code: students see the answers right away
+      --end-code         also print an end code that lets students read the correction later
+      --no-opening-code  an exam that opens without a code; its answers stay hidden
+      --practice         no opening code: students see the answers right away
       The identity passphrase is read from the first line of input.
   mcq inspect <paper.mcqpack>
       Checks the signature and prints the teacher fingerprint and the opening mode.

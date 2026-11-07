@@ -322,7 +322,7 @@ pub struct Class {
     pub project: Project,
     /// The exam package, signed by the demo identity, with its file name.
     pub package: (String, Vec<u8>),
-    /// One sealed copy per student, named by its receipt.
+    /// One sealed copy per student, named by its id.
     pub copies: Vec<(String, Vec<u8>)>,
     /// What the copies were made to reveal.
     pub planted: Planted,
@@ -361,7 +361,10 @@ pub fn class(source: &Source) -> Result<Class, String> {
     let published = publish(
         &project,
         &identity(),
-        Mode::Exam { end_code: false },
+        Mode::Exam {
+            opening_code: true,
+            end_code: false,
+        },
         &label,
     )?;
     let header = mcq_crypto::inspect(&published.package).map_err(|e| e.to_string())?;
@@ -382,7 +385,7 @@ pub fn class(source: &Source) -> Result<Class, String> {
         .iter()
         .map(|s| {
             mcq_crypto::seal_result(&header, s, &mut rng)
-                .map(|sealed| (format!("{}.mcqres", sealed.receipt), sealed.bytes))
+                .map(|sealed| (format!("{}.mcqres", sealed.copy_id), sealed.bytes))
                 .map_err(|e| e.to_string())
         })
         .collect::<Result<_, _>>()?;

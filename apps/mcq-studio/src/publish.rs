@@ -28,7 +28,7 @@ pub fn room_sheet(sheet: &RoomSheet, t: &'static Texts) -> Element {
     } else {
         format!("{} {}", sheet.duration_minutes, t.minutes)
     };
-    let last = if sheet.opening_code.is_none() {
+    let last = if sheet.practice {
         t.sheet_practice
     } else if sheet.correction_later {
         t.sheet_correction_later
@@ -48,7 +48,9 @@ pub fn room_sheet(sheet: &RoomSheet, t: &'static Texts) -> Element {
             }
             ol {
                 for (k, step) in t.sheet_steps.iter().enumerate() {
-                    if sheet.opening_code.is_some() || k != 2 { li { key: "{k}", "{step}" } }
+                    li { key: "{k}",
+                        if k == 2 && sheet.opening_code.is_none() { "{t.sheet_name_only}" } else { "{step}" }
+                    }
                 }
             }
             if !last.is_empty() { p { "{last}" } }
@@ -64,7 +66,9 @@ pub fn PublishSpace(
     t: &'static Texts,
 ) -> Element {
     let mut practice = use_signal(|| false);
-    let mut end_code = use_signal(|| true);
+    // Both codes are opt-in: each adds a step for the teacher and the students.
+    let mut opening_code = use_signal(|| false);
+    let mut end_code = use_signal(|| false);
     let mut busy = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
 
@@ -86,6 +90,7 @@ pub fn PublishSpace(
             Mode::Practice
         } else {
             Mode::Exam {
+                opening_code: opening_code(),
                 end_code: end_code(),
             }
         };
@@ -134,9 +139,15 @@ pub fn PublishSpace(
                 }
                 if !practice() {
                     label { class: "check indent",
+                        input { r#type: "checkbox", checked: opening_code(), onchange: move |e| opening_code.set(e.checked()) }
+                        "{t.with_opening_code}"
+                    }
+                    p { class: "muted indent", "{t.opening_code_help}" }
+                    label { class: "check indent",
                         input { r#type: "checkbox", checked: end_code(), onchange: move |e| end_code.set(e.checked()) }
                         "{t.with_end_code}"
                     }
+                    p { class: "muted indent", "{t.end_code_help}" }
                 }
                 label { class: "check",
                     input { r#type: "radio", name: "mode", checked: practice(), onchange: move |_| practice.set(true) }
@@ -176,7 +187,9 @@ pub fn PublishSpace(
                     h2 { "{t.distribute_title}" }
                     ol {
                         for (k, step) in t.distribute_steps.iter().enumerate() {
-                            li { key: "{k}", {crate::texts::fill(step, &[("file", last.file_name.clone())])} }
+                            if k != 2 || last.published.opening_code.is_some() {
+                                li { key: "{k}", {crate::texts::fill(step, &[("file", last.file_name.clone())])} }
+                            }
                         }
                     }
                 }

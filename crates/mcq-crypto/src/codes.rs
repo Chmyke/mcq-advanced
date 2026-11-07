@@ -1,4 +1,4 @@
-//! Human codes: opening and end codes, receipts and fingerprints, in Crockford base 32.
+//! Human codes: opening and end codes, copy ids and fingerprints, in Crockford base 32.
 //!
 //! The alphabet has no I, L, O or U, so a code read aloud or copied from a board survives
 //! confusion: `O` is read as `0`, `I` and `L` as `1`, case and dashes do not matter.

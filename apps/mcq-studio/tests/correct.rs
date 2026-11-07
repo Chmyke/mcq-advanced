@@ -47,7 +47,10 @@ fn exam(teacher: &Identity, rng: &mut TestRng, names: &[&str]) -> (Vec<u8>, Vec<
         teacher,
         &paper,
         |path: &str| Ok(path.as_bytes().to_vec()),
-        Mode::Exam { end_code: false },
+        Mode::Exam {
+            opening_code: true,
+            end_code: false,
+        },
         KdfParams::TESTING,
         rng,
     )
@@ -117,8 +120,8 @@ fn copies_wait_for_the_identity_then_open_once() {
 
     let report = c.report().expect("report");
     assert_eq!(report.students.len(), 2);
-    let receipt = report.students[0].receipt.clone();
-    let sheet = c.sheet(&report, &receipt).expect("sheet");
+    let copy_id = report.students[0].copy_id.clone();
+    let sheet = c.sheet(&report, &copy_id).expect("sheet");
     assert_eq!(sheet.name, report.students[0].name);
     assert_eq!(
         sheet.mistakes.len(),
@@ -150,7 +153,7 @@ fn synthetic() -> (mcq_model::Paper, Vec<Copy>) {
     let copies = submissions
         .into_iter()
         .map(|submission| Copy {
-            receipt: format!("R-{}", submission.student_name),
+            copy_id: format!("R-{}", submission.student_name),
             submission,
         })
         .collect();
@@ -252,7 +255,7 @@ fn a_revision_sheet_shows_each_mistake_with_the_right_answer() {
             .expect("a student with mistakes");
         let copy = copies
             .iter()
-            .find(|c| c.receipt == student.receipt)
+            .find(|c| c.copy_id == student.copy_id)
             .expect("copy");
         let sheet = mcq_analysis::sheet::revision_sheet(&paper, &report, student, copy);
         sheet_view(&sheet, &FR, Lang::Fr)

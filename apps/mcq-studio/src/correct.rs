@@ -495,7 +495,7 @@ pub fn report_view(
         .iter()
         .map(|a| anomaly_line(a, c))
         .collect();
-    // Name, mark, correct, partly correct, wrong, blank, time, receipt.
+    // Name, mark, correct, partly correct, wrong, blank, time, copy id (the row's key).
     type MarkRow = (String, String, u32, u32, u32, u32, String, String);
     let rows: Vec<MarkRow> = report
         .students
@@ -509,7 +509,7 @@ pub fn report_view(
                 s.grade.wrong,
                 s.grade.unanswered,
                 minutes(s.elapsed_seconds),
-                s.receipt.clone(),
+                s.copy_id.clone(),
             )
         })
         .collect();
@@ -595,8 +595,8 @@ pub fn report_view(
                 table { class: "marks",
                     thead { tr { for (k, col) in c.columns.iter().enumerate() { th { key: "{k}", scope: "col", "{col}" } } td {} } }
                     tbody {
-                        for (name, mark, right, partial, wrong, blank, mins, receipt) in rows {
-                            tr { key: "{receipt}",
+                        for (name, mark, right, partial, wrong, blank, mins, copy_id) in rows {
+                            tr { key: "{copy_id}",
                                 th { scope: "row", "{name}" }
                                 td { class: "num", "{mark}" }
                                 td { class: "num", "{right}" }
@@ -604,10 +604,9 @@ pub fn report_view(
                                 td { class: "num", "{wrong}" }
                                 td { class: "num", "{blank}" }
                                 td { class: "num", "{mins}" }
-                                td { class: "mono", "{receipt}" }
                                 td { class: "row-actions",
-                                    IconButton { icon: Icon::Sheet, label: c.open_sheet, tip: c.tip_open_sheet, onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Sheet(receipt.clone())) } }
-                                    IconButton { icon: Icon::Clock, label: c.open_timeline, tip: c.tip_open_timeline, onclick: { let receipt = receipt.clone(); move |_| on_action.call(ReportAction::Timeline(receipt.clone())) } }
+                                    IconButton { icon: Icon::Sheet, label: c.open_sheet, tip: c.tip_open_sheet, onclick: { let copy_id = copy_id.clone(); move |_| on_action.call(ReportAction::Sheet(copy_id.clone())) } }
+                                    IconButton { icon: Icon::Clock, label: c.open_timeline, tip: c.tip_open_timeline, onclick: { let copy_id = copy_id.clone(); move |_| on_action.call(ReportAction::Timeline(copy_id.clone())) } }
                                 }
                             }
                         }
@@ -892,11 +891,11 @@ pub fn CorrectSpace(
         .as_ref()
         .map(|p| fill(c.package_ready, &[("title", p.title.clone())]));
     let sheet = match (&report, sheet_for()) {
-        (Some(report), Some(receipt)) => state.sheet(report, &receipt),
+        (Some(report), Some(copy_id)) => state.sheet(report, &copy_id),
         _ => None,
     };
     let timeline = match (&report, timeline_for()) {
-        (Some(report), Some(receipt)) => state.timeline(report, &receipt),
+        (Some(report), Some(copy_id)) => state.timeline(report, &copy_id),
         _ => None,
     };
     let published = done.read().clone();
@@ -973,8 +972,8 @@ pub fn CorrectSpace(
                     }
                 }
                 {report_view(&report, &paper, t, lang, EventHandler::new(move |action: ReportAction| match action {
-                    ReportAction::Sheet(receipt) => sheet_for.set(Some(receipt)),
-                    ReportAction::Timeline(receipt) => timeline_for.set(Some(receipt)),
+                    ReportAction::Sheet(copy_id) => sheet_for.set(Some(copy_id)),
+                    ReportAction::Timeline(copy_id) => timeline_for.set(Some(copy_id)),
                     ReportAction::Decide(adjustment) => correction.write().decide(adjustment),
                     ReportAction::Undo(question) => correction.write().undo(&question),
                 }))}

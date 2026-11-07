@@ -85,12 +85,12 @@ impl Correction {
             }
         } else if is_copy(&bytes) {
             match mcq_crypto::open_result(&bytes, identity) {
-                Ok((_, receipt)) if self.copies.iter().any(|c| c.receipt == receipt) => {
+                Ok((_, copy_id)) if self.copies.iter().any(|c| c.copy_id == copy_id) => {
                     self.refused.push((name.to_string(), Refusal::AlreadyIn));
                 }
-                Ok((submission, receipt)) => self.copies.push(Copy {
+                Ok((submission, copy_id)) => self.copies.push(Copy {
                     submission,
-                    receipt,
+                    copy_id,
                 }),
                 Err(e) => self.refused.push((name.to_string(), refusal(e))),
             }
@@ -123,18 +123,18 @@ impl Correction {
         self.adjustments.retain(|a| a.question != question);
     }
 
-    /// The revision sheet of the student whose copy has this receipt.
-    pub fn sheet(&self, report: &Report, receipt: &str) -> Option<RevisionSheet> {
+    /// The revision sheet of the student whose copy has this id.
+    pub fn sheet(&self, report: &Report, copy_id: &str) -> Option<RevisionSheet> {
         let package = self.package.as_ref()?;
-        let student = report.students.iter().find(|s| s.receipt == receipt)?;
-        let copy = self.copies.iter().find(|c| c.receipt == receipt)?;
+        let student = report.students.iter().find(|s| s.copy_id == copy_id)?;
+        let copy = self.copies.iter().find(|c| c.copy_id == copy_id)?;
         Some(revision_sheet(&package.key, report, student, copy))
     }
 
-    /// The timeline of the copy with this receipt, judged with the key in force.
-    pub fn timeline(&self, report: &Report, receipt: &str) -> Option<(String, Timeline)> {
+    /// The timeline of the copy with this copy_id, judged with the key in force.
+    pub fn timeline(&self, report: &Report, copy_id: &str) -> Option<(String, Timeline)> {
         let package = self.package.as_ref()?;
-        let copy = self.copies.iter().find(|c| c.receipt == receipt)?;
+        let copy = self.copies.iter().find(|c| c.copy_id == copy_id)?;
         let (key, _) = mcq_analysis::decision::apply(&package.key, &report.adjustments);
         Some((
             copy.submission.student_name.clone(),
