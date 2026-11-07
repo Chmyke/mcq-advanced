@@ -3,6 +3,26 @@
 What a teacher or a student notices in each desktop version. `tools/release-github.ps1` takes the
 section of a version as the notes of its GitHub release, and refuses a version without one.
 
+## 0.4.0
+
+- The Studio opens with four ways to start: write, import, copy the AI prompt, or the sample
+  class, which now sets your draft aside and gives it back when you leave.
+- Paste reads every bank the import reads: Moodle XML, GIFT, Aiken and CSV.
+- Plainer words in the Studio: no Markdown or LaTeX labels, no theme ids, a one-line explanation
+  of each figure in the class analysis. French texts say "candidats".
+- The identity can stay in the browser, locked by its passphrase; once kept, creating another one
+  is folded away, and Enter submits every passphrase.
+- Opening and end codes are optional and off by default; the receipt code is gone.
+- Correct reopens the last paper published from this browser, names questions by the paper's own
+  numbers, and marks partly right answers as such. The revision sheet falls back on the theme's
+  reference.
+- Students are told at the start whether some questions have several right answers, and are never
+  told a question is incomplete, which would hint at the count. Marks show to the tenth.
+- The player keeps time with the wall clock, asks before leaving the exam, offers to resume a copy
+  left on the device, and shares the copy from a phone.
+- The desktop programs ask where to save files.
+- Moodle export keeps formulas and coloured code.
+
 ## 0.3.0
 
 - Paste an AI's draft into the Studio in one click, or with Ctrl+V: the paper opens and whatever
