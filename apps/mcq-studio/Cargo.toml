@@ -9,7 +9,7 @@ rust-version.workspace = true
 [features]
 default = []
 web = ["dioxus/web", "getrandom/wasm_js", "dep:web-sys"]
-desktop = ["dioxus/desktop"]
+desktop = ["dioxus/desktop", "mcq-player/desktop"]
 
 [dependencies]
 mcq-model.workspace = true

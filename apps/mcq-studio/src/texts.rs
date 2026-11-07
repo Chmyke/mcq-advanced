@@ -636,7 +636,11 @@ pub static EN: Texts = Texts {
     create_and_download: "Create and download",
     identity_ready: "Identity ready. Fingerprint:",
     fingerprint_hint: "The fingerprint is a short code that names your identity: students see it when they open your paper and can check it against the room sheet, so a paper signed by someone else shows.",
-    identity_saved: "Your identity was saved as teacher.mcqid, usually in your Downloads folder. Put it somewhere safe (a USB key, your cloud storage): with its passphrase, it is the only key to your students' copies.",
+    identity_saved: if ON_DESKTOP {
+        "Your identity was saved as teacher.mcqid, in the folder you chose. Keep it somewhere safe (a USB key, your cloud storage): with its passphrase, it is the only key to your students' copies."
+    } else {
+        "Your identity was saved as teacher.mcqid, usually in your Downloads folder. Put it somewhere safe (a USB key, your cloud storage): with its passphrase, it is the only key to your students' copies."
+    },
     identity_download_again: "Download my identity again",
     identity_kept: "Your identity is kept in this browser: type its passphrase to unlock it.",
     identity_forget: "Forget the identity kept in this browser",
@@ -908,7 +912,11 @@ pub static FR: Texts = Texts {
     create_and_download: "Créer et télécharger",
     identity_ready: "Identité prête. Empreinte :",
     fingerprint_hint: "L'empreinte est un code court qui désigne votre identité : les élèves la voient en ouvrant votre sujet et la comparent à la fiche de salle, ce qui trahit un sujet signé par quelqu'un d'autre.",
-    identity_saved: "Votre identité est enregistrée sous teacher.mcqid, en général dans vos Téléchargements. Rangez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos élèves.",
+    identity_saved: if ON_DESKTOP {
+        "Votre identité est enregistrée sous teacher.mcqid, dans le dossier choisi. Gardez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos élèves."
+    } else {
+        "Votre identité est enregistrée sous teacher.mcqid, en général dans vos Téléchargements. Rangez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos élèves."
+    },
     identity_download_again: "Télécharger à nouveau mon identité",
     identity_kept: "Votre identité est gardée dans ce navigateur : tapez sa phrase de passe pour la déverrouiller.",
     identity_forget: "Oublier l'identité gardée dans ce navigateur",

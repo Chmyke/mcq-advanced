@@ -9,7 +9,7 @@ rust-version.workspace = true
 [features]
 default = []
 web = ["dioxus/web", "getrandom/wasm_js", "dep:web-sys"]
-desktop = ["dioxus/desktop"]
+desktop = ["dioxus/desktop", "dep:rfd"]
 
 [dependencies]
 mcq-model.workspace = true
@@ -24,6 +24,8 @@ pulldown-cmark = { version = "0.13", default-features = false, features = ["html
 # PITFALL: dioxus-web 0.7.10 calls `Window::location` without enabling web-sys's `Location`
 # feature; Cargo unifies features, so enabling it here lets dioxus-web compile.
 web-sys = { version = "0.3", optional = true, default-features = false, features = ["Location"] }
+# The desktop program's "Save as" dialog; the same version and features dioxus-desktop already uses.
+rfd = { version = "0.17.2", optional = true, default-features = false, features = ["xdg-portal"] }
 
 [build-dependencies]
 # The icon and name of the Windows program (build.rs); nothing of it ships in the program.

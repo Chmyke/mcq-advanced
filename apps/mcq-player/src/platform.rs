@@ -144,9 +144,43 @@ fn ascii_letter(c: char) -> Option<char> {
     }
 }
 
-/// Offers a file to save; in the desktop webview it lands in the Downloads folder.
+/// Offers a file to save: the browser downloads it, the desktop program asks where to put it.
 pub fn download(file_name: &str, base64: &str) {
     let name = self::file_name(file_name);
+    #[cfg(feature = "desktop")]
+    {
+        save_as(&name, base64);
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        browser_download(&name, base64);
+    }
+}
+
+/// Asks the system's "Save as" dialog where to write the file, starting from the folder used
+/// last; nothing is written when the dialog is cancelled. The webview's own download would land
+/// in the Downloads folder without a word.
+#[cfg(feature = "desktop")]
+fn save_as(name: &str, base64: &str) {
+    let Some(bytes) = crate::b64::decode(base64) else {
+        return;
+    };
+    let window = dioxus::desktop::window();
+    let Some(path) = rfd::FileDialog::new()
+        .set_parent(&*window.window)
+        .set_file_name(name)
+        .save_file()
+    else {
+        return;
+    };
+    if std::fs::write(&path, bytes).is_err() {
+        let _ = document::eval("window.alert('The file could not be written there.');");
+    }
+}
+
+/// Makes the browser download the file.
+#[cfg(not(feature = "desktop"))]
+fn browser_download(name: &str, base64: &str) {
     if !script_safe(base64) {
         return;
     }
