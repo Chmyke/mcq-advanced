@@ -493,6 +493,24 @@ fn every_format_is_detected() {
 }
 
 #[test]
+fn pasted_text_is_detected_by_its_content_alone() {
+    // What the clipboard holds after copying each kind of file whole: no name to go by.
+    assert_eq!(Source::detect_text(MOODLE), Some(Source::MoodleXml));
+    assert_eq!(Source::detect_text(CSV), Some(Source::Csv));
+    assert_eq!(Source::detect_text(AIKEN), Some(Source::Aiken));
+    assert_eq!(Source::detect_text(GIFT), Some(Source::Gift));
+    assert_eq!(Source::detect_text("just words, and more words"), None);
+    assert_eq!(Source::detect_text(""), None);
+    // A `.txt` holding Moodle XML is read as such, as when it is pasted.
+    assert_eq!(Source::detect("bank.txt", MOODLE), Some(Source::MoodleXml));
+    // A sentence with commas is not a CSV header.
+    assert!(!mcq_convert::csv::has_header(
+        "Question one, then two, then three"
+    ));
+    assert!(mcq_convert::csv::has_header("question;A;B;correct"));
+}
+
+#[test]
 fn handout_hides_every_answer() {
     let (paper, _) = mcq_format::read(SAMPLE);
     let text = handout::handout(&paper);

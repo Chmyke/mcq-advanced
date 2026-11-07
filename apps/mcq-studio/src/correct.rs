@@ -181,8 +181,8 @@ struct Lines {
     /// Each theme to reteach, with the doubtful keys to check first.
     reteach: Vec<(String, Option<String>)>,
     traps: Vec<Sentence>,
-    /// A doubtful key comes with its choices.
-    review: Vec<(Sentence, Option<Choices>)>,
+    /// A doubtful key comes with its choices; a line that gives D comes with what D means.
+    review: Vec<(Sentence, Option<Choices>, Option<&'static str>)>,
 }
 
 /// One sentence per finding of a kind, in the report's order.
@@ -262,12 +262,14 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                     )),
                 },
                 Some(key_choices(paper, &formulas, question, rival.as_deref())),
+                rival.is_none().then_some(c.glossary[0]),
             )),
             Finding::Reported { question, students } => review.push((
                 text(fill(
                     c.reported,
                     &[("question", qname(question)), ("n", students.to_string())],
                 )),
+                None,
                 None,
             )),
             Finding::TooHard {
@@ -277,6 +279,7 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
             } => review.push((
                 text(too_hard_line(c, qname(question), *facility, *blank)),
                 None,
+                None,
             )),
             Finding::DeadDistractors { question, count } => review.push((
                 text(fill(
@@ -284,10 +287,12 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                     &[("question", qname(question)), ("n", count.to_string())],
                 )),
                 None,
+                None,
             )),
             Finding::TooEasy { question, .. } => {
                 review.push((
                     text(fill(c.too_easy, &[("question", qname(question))])),
+                    None,
                     None,
                 ));
             }
@@ -300,6 +305,7 @@ fn finding_lines(report: &Report, paper: &Paper, c: &CorrectTexts, lang: Lang) -
                     &[("question", qname(question)), ("d", d(*discrimination))],
                 )),
                 None,
+                Some(c.glossary[0]),
             )),
         }
     }
@@ -532,7 +538,7 @@ pub fn report_view(
     rsx! {
         section { class: "card report-head",
             p { class: "big-line", "{summary}" }
-            if let Some(line) = reliability { p { "{line}" } }
+            if let Some(line) = reliability { p { title: "{c.glossary[1]}", "{line}" } }
             if report.small_cohort { p { class: "notice warn", "{c.small_cohort}" } }
             if !report.items_computed { p { class: "muted", "{c.items_not_computed}" } }
             if report.items_computed {
@@ -575,8 +581,8 @@ pub fn report_view(
             }
             if review.is_empty() { p { class: "ok-note", "{c.review_none}" } }
             ul {
-                for (k, (line, choices)) in review.into_iter().enumerate() {
-                    li { key: "{k}", {sentence_view(line)}
+                for (k, (line, choices, hint)) in review.into_iter().enumerate() {
+                    li { key: "{k}", title: hint, {sentence_view(line)}
                         if let Some(choices) = choices {
                             div { class: "key-choices",
                                 p { class: "muted", "{c.decide_hint}" }

@@ -381,9 +381,9 @@ fn question_editor(
                     }
                 }
                 div { class: "field",
-                    label { r#for: "q-level", "{t.level}" }
+                    label { r#for: "q-level", title: "{t.level_hint}", "{t.level}" }
                     select {
-                        id: "q-level",
+                        id: "q-level", title: "{t.level_hint}",
                         onchange: { let id = id.clone(); move |e: FormEvent| {
                             let level = e.value().parse().ok().and_then(Level::from_number).unwrap_or_default();
                             studio.write().edit_question(&id, |q| q.level = level);
@@ -468,7 +468,7 @@ fn question_editor(
 
             section { class: "answers", "aria-labelledby": "answers-title",
                 h2 { id: "answers-title", "{t.answers}" }
-                p { class: "muted hint", "{t.answers_hint}" }
+                p { class: "muted hint", if kind == Kind::Multiple { "{t.answers_hint}" } else { "{t.answers_hint_single}" } }
                 // WHY the key names the question and its kind: a reused box that changes from
                 // checkbox to radio, or joins another question's radio group, is unchecked by the
                 // browser behind the model's back, and the next click then removes a right answer.

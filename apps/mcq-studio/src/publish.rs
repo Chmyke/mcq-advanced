@@ -45,7 +45,7 @@ pub fn room_sheet(sheet: &RoomSheet, t: &'static Texts) -> Element {
                 if let Some(code) = &sheet.opening_code {
                     dt { "{t.opening_code}" } dd { class: "mono big", "{code}" }
                 }
-                dt { "{t.fingerprint}" } dd { class: "mono", "{sheet.fingerprint}" }
+                dt { title: "{t.fingerprint_hint}", "{t.fingerprint}" } dd { class: "mono", "{sheet.fingerprint}" }
             }
             ol {
                 for (k, step) in t.sheet_steps.iter().enumerate() {

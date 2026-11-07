@@ -189,6 +189,22 @@ fn is_option_header(name: &str) -> bool {
     })
 }
 
+/// True when the first line of `text` names the columns of a bank: a question column and at
+/// least two answer columns. Lets text pasted from a spreadsheet be told apart from prose.
+pub fn has_header(text: &str) -> bool {
+    let text = text.trim_start_matches('\u{feff}').trim_start();
+    let Some(line) = text.lines().next() else {
+        return false;
+    };
+    let header: Vec<String> = rows(line, guess_separator(line))
+        .into_iter()
+        .next()
+        .map(|(_, row)| row)
+        .unwrap_or_default();
+    let columns = Columns::find(&header);
+    columns.question.is_some() && columns.options.len() >= 2
+}
+
 pub fn import(source: &str, options: &ImportOptions) -> Imported {
     let mut b = Builder::new(options);
     let source = source.trim_start_matches('\u{feff}');

@@ -279,6 +279,29 @@ fn the_studio_starts_dark_with_one_button_to_light() {
     );
 }
 
+/// The Studio's bar (with both stylesheets) and its Write space, for `tools/layout-check.mjs`:
+/// the first question's statement is long enough to need an ellipsis in the list.
+#[test]
+fn the_studio_markup_is_handed_to_the_layout_check() {
+    let mut dom = VirtualDom::new(mcq_studio::App);
+    dom.rebuild_in_place();
+    let app = dioxus_ssr::render(&dom);
+    assert!(app.contains("class=\"studio-bar\""), "{app}");
+    let write = render(|s| {
+        s.edit_question("fruit-banana-colour", |q| {
+            q.body = vec![mcq_model::Block::Text(
+                "Which colour does a ripe banana show once it has been left for a whole week \
+                 in a warm kitchen, next to the apples?"
+                    .into(),
+            )];
+        });
+    });
+    assert!(write.contains("class=\"question-list\""), "{write}");
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::write(dir.join("studio-app.html"), app).expect("write the layout fixture");
+    std::fs::write(dir.join("studio-write.html"), write).expect("write the layout fixture");
+}
+
 #[test]
 fn the_preview_offers_the_light_theme_first() {
     let html = render(|s| s.select("code-sum-of-squares"));
@@ -330,6 +353,94 @@ fn the_other_tips_contain_their_labels() {
                 "\"{tip}\" lacks \"{label}\""
             );
         }
+    }
+}
+
+#[test]
+fn the_answers_hint_follows_the_kind_of_question() {
+    // The sample's banana question has one right answer; the loop question several.
+    let single = render(|s| s.select("fruit-banana-colour"));
+    assert!(single.contains(EN.answers_hint_single), "{single}");
+    assert!(!single.contains(EN.answers_hint), "{single}");
+    let multiple = render(|s| s.select("code-sum-of-squares"));
+    assert!(multiple.contains(EN.answers_hint), "{multiple}");
+    let true_false = render(|s| {
+        s.select("fruit-banana-colour");
+        s.set_kind("fruit-banana-colour", mcq_edit::ops::Kind::TrueFalse);
+    });
+    assert!(true_false.contains(EN.answers_hint_single), "{true_false}");
+    assert_eq!(FR.answers_hint_single, "Cochez la bonne réponse.");
+    assert_eq!(FR.answers_hint, "Cochez les bonnes réponses.");
+}
+
+#[test]
+fn the_editor_speaks_without_jargon() {
+    let html = render(|s| {
+        s.select("fruit-banana-colour");
+        s.add_text_block("fruit-banana-colour");
+    });
+    assert!(!html.contains("Markdown"), "{html}");
+    assert!(!html.contains("LaTeX"), "{html}");
+    for t in [&EN, &FR] {
+        assert!(!t.text_block.contains("Markdown"));
+        assert!(!t.formula_hint.contains("LaTeX"), "{}", t.formula_hint);
+        assert!(t.formula_hint.contains("$x^2$"), "the syntax stays shown");
+        // The formula button is named "Formula" aloud and in its tip.
+        assert!(
+            t.tip_add_formula
+                .to_lowercase()
+                .contains(&t.add_formula.to_lowercase())
+        );
+    }
+    // Bloom's levels are explained where they are picked.
+    assert!(
+        html.contains(&format!(
+            "title=\"{}\"",
+            EN.level_hint.replace('\'', "&#39;")
+        )),
+        "{html}"
+    );
+}
+
+#[test]
+fn settings_show_theme_names_not_ids_and_the_time_rule_at_once() {
+    let html = render(|s| {
+        s.space = Space::Settings;
+        s.edit_paper(|p| p.duration_minutes = 0);
+    });
+    // The sample's theme ids, never shown; their names are.
+    for id in ["colours", "loops"] {
+        assert!(!html.contains(&format!(">{id}<")), "{id}: {html}");
+    }
+    assert!(html.contains("Fruit colours"), "{html}");
+    // Shown before a duration is typed: typing one does not push the page down.
+    assert!(
+        html.contains(&FR.duration_soft.replace('\'', "&#39;")),
+        "{html}"
+    );
+}
+
+#[test]
+fn french_texts_say_candidat() {
+    // Every French text of the Studio, the tour included, speaks of candidates.
+    let source = include_str!("../src/texts.rs");
+    let french: String = source
+        .split("pub static FR: Texts")
+        .nth(1)
+        .expect("French texts")
+        .split("pub static CORRECT_EN")
+        .next()
+        .expect("before the Correct texts")
+        .to_string()
+        + source
+            .split("pub static DEMO_FR")
+            .nth(1)
+            .expect("French tour");
+    for word in ["élève", "étudiant", "Élève", "Étudiant"] {
+        assert!(
+            !french.contains(word),
+            "\"{word}\" is still in the French texts"
+        );
     }
 }
 

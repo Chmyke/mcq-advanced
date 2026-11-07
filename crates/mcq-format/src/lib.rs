@@ -135,7 +135,7 @@ impl Reader {
                     "UNKNOWN_LANGUAGE",
                     Location::Line(line),
                     format!("No interface texts in `{tag}`: students will not be offered it."),
-                    format!("Pas de textes d'interface en `{tag}` : cette langue ne sera pas proposée aux étudiants."),
+                    format!("Pas de textes d'interface en `{tag}` : cette langue ne sera pas proposée aux candidats."),
                 );
             }
             self.paper.languages.push(tag);

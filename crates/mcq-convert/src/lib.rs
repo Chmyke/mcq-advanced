@@ -48,8 +48,8 @@ impl Source {
             .find(|s| s.name().eq_ignore_ascii_case(name))
     }
 
-    /// Guesses the format from the file extension, then from the content for `.txt` files,
-    /// which hold GIFT or Aiken alike.
+    /// Guesses the format from the file extension, then from the content (`detect_text`) for
+    /// `.txt` files, which hold GIFT or Aiken alike, and for other names.
     pub fn detect(file_name: &str, text: &str) -> Option<Self> {
         let ext = file_name
             .rsplit_once('.')
@@ -59,20 +59,25 @@ impl Source {
             "gift" => Some(Source::Gift),
             "xml" => Some(Source::MoodleXml),
             "csv" | "tsv" => Some(Source::Csv),
-            "txt" => {
-                let aiken = text.lines().any(|l| l.trim_start().starts_with("ANSWER:"));
-                if aiken {
-                    Some(Source::Aiken)
-                } else if text.contains('{') {
-                    Some(Source::Gift)
-                } else {
-                    None
-                }
-            }
-            _ if text.trim_start().starts_with("<?xml") || text.contains("<quiz") => {
-                Some(Source::MoodleXml)
-            }
-            _ => None,
+            _ => Self::detect_text(text),
+        }
+    }
+
+    /// Guesses the format from the content alone, as for pasted text: Moodle XML by its markup,
+    /// CSV by a header naming a question and its answers, Aiken by its `ANSWER:` lines, GIFT by
+    /// its braces.
+    pub fn detect_text(text: &str) -> Option<Self> {
+        let start = text.trim_start_matches('\u{feff}').trim_start();
+        if start.starts_with("<?xml") || text.contains("<quiz") {
+            Some(Source::MoodleXml)
+        } else if csv::has_header(text) {
+            Some(Source::Csv)
+        } else if text.lines().any(|l| l.trim_start().starts_with("ANSWER:")) {
+            Some(Source::Aiken)
+        } else if text.contains('{') {
+            Some(Source::Gift)
+        } else {
+            None
         }
     }
 }

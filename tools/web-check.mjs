@@ -61,10 +61,21 @@ async function studio(page, base, send) {
   await page.waitFor("document.querySelector('dialog.choice-dialog[open]')", 'the add or replace question');
   expect(await page.run("document.querySelectorAll('dialog.choice-dialog button').length") === 3,
     'studio: the import question does not offer add, replace and cancel');
+  expect(await page.run("document.querySelector('dialog.choice-dialog p').textContent.includes('the pasted text brings 1')"),
+    'studio: the import question does not say the questions come from pasted text');
   await page.click("document.querySelector('dialog.choice-dialog button')", 'add to my paper');
   await page.waitFor("document.querySelectorAll('.q-item').length === 3", 'the pasted question added');
   expect(await page.run("document.querySelector('.status-line').textContent.includes('1 question added')"),
     'studio: the notice does not say the question was added');
+  // Moodle XML pasted is read as the import reads its file; its question goes to a theme named
+  // "Imported questions", not after the paper.
+  await page.run(`(() => { const d = new DataTransfer();
+    d.setData('text/plain', ${JSON.stringify(MOODLE_XML)});
+    document.body.dispatchEvent(new ClipboardEvent('paste', { clipboardData: d, bubbles: true })); })()`);
+  await page.click("document.querySelector('dialog.choice-dialog[open] button')", 'add the Moodle question');
+  await page.waitFor("document.querySelectorAll('.q-item').length === 4", 'the pasted Moodle XML question added');
+  expect(await page.run("[...document.querySelectorAll('.theme-head h2')].some((h) => h.textContent === 'Imported questions')"),
+    'studio: questions pasted without a category are not in "Imported questions"');
 
   // The help menu is always there, the AI prompt in it.
   await page.click("document.querySelector('[aria-label^=\"Help\"]')", 'the help menu');
@@ -72,7 +83,37 @@ async function studio(page, base, send) {
     'studio: the help menu does not offer the AI prompt');
   expect(await page.run("document.querySelectorAll('.menu-list a').length") === 2,
     'studio: the help menu does not link the tutorial and the guide');
+
+  // The sample class over a draft with work: asked first, the draft set aside for the visit and
+  // back in the editor on leaving it.
+  await sleep(2500); // the autosave keeps the draft
+  await send('Page.navigate', { url: `${base}/studio/?lang=en&demo=teacher` });
+  await page.waitFor("document.querySelector('dialog.choice-dialog[open]')", 'the sample class question');
+  expect(await page.run("document.querySelector('dialog.choice-dialog p').textContent.includes('set aside')"),
+    'studio: opening the sample class does not say the draft is set aside');
+  await page.click("document.querySelector('dialog.choice-dialog button')", 'open the sample class');
+  await page.waitFor("document.querySelector('details.tour')", 'the sample class tour');
+  await page.waitFor("!document.querySelector('.statement textarea') || document.querySelector('.statement textarea').value !== 'Which are prime?'", 'the demo paper');
+  expect(await page.run("document.querySelectorAll('.q-item').length") !== 4,
+    'studio: the editor keeps the draft while the sample class says its paper is in');
+  await page.click("document.querySelector('details.tour .leave-tour')", 'leave the sample class');
+  await page.waitFor("!document.querySelector('details.tour') && document.querySelectorAll('.q-item').length === 4", 'the draft back');
+  expect(await page.run("location.search.includes('demo')") === false,
+    'studio: leaving the sample class keeps its link, a reload would open it again');
 }
+
+// A one-question Moodle XML bank, as copied from its file.
+const MOODLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="multichoice">
+    <name><text>Capital</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Which city is the capital of Italy?</p>]]></text></questiontext>
+    <single>true</single>
+    <answer fraction="100"><text>Rome</text></answer>
+    <answer fraction="0"><text>Milan</text></answer>
+  </question>
+</quiz>
+`;
 
 // Remaining time on the clock, in seconds ("9 min 58 s" or "42 s").
 const REMAINING = `(() => { const t = document.querySelector('.clock-value').textContent;

@@ -7,6 +7,8 @@
 .studio-main { max-width: 90rem; margin: 0 auto; padding: .75rem 1rem 4rem; }
 .status-line { background: var(--bg); border-bottom: 1px solid var(--border); min-height: 1.6rem; display: flex; gap: 1rem; align-items: center; justify-content: center; font-size: .9em; padding: .2rem 1rem; }
 .status-line .saved { margin-left: auto; }
+/* The bar's menus sit at its right end: they open leftwards, inside the window. */
+.studio-top .menu-list { left: auto; right: 0; }
 
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; }
 .segmented button { border: none; border-radius: 0; padding: .35rem .8rem; }
@@ -51,7 +53,12 @@ button.recording { background: var(--ko); color: var(--accent-text); border-colo
 .q-item:hover { border-color: var(--border); }
 .q-item.current { background: var(--accent-soft); border-color: var(--accent); }
 .q-num { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.6em; }
-.q-text { flex: 1; font-size: .9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long statement ends in an ellipsis: without min-width it widened the list into a sideways scroll. */
+.question-list { overflow-x: hidden; }
+.q-text { flex: 1; min-width: 0; font-size: .9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The add-question tip opens to the left of its button, over the theme's name, never over the
+   first question under it. */
+.theme-head [data-icon] > .tip { top: 50%; left: auto; right: calc(100% + 6px); transform: translateY(-50%); }
 .dot { width: .7rem; height: .7rem; border-radius: 50%; flex: none; }
 /* Shape as well as colour: round is fine, a triangle warns, a square is an error. */
 .dot.ok { background: var(--ok); }
@@ -103,7 +110,7 @@ button.recording { background: var(--ko); color: var(--accent-text); border-colo
 
 /* Settings and Publish. */
 .settings, .publish { max-width: 52rem; margin: 0 auto; }
-.theme-row { display: grid; grid-template-columns: 8rem 1fr 1fr auto; gap: .6rem; align-items: end; padding: .4rem 0; border-bottom: 1px solid var(--border); }
+.theme-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: .6rem; align-items: end; padding: .4rem 0; border-bottom: 1px solid var(--border); }
 .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .result .big { font-size: 1.4em; }
@@ -153,6 +160,16 @@ details.advanced > summary { cursor: pointer; color: var(--muted); }
   .theme-row, .two-columns, .code-meta { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 40rem) {
+  /* A phone: a menu of the bar opens across the screen under the bar, never past its edge. */
+  .studio-top { position: relative; }
+  .studio-top .icon-menu { position: static; }
+  .studio-top .menu-list { top: 100%; left: .5rem; right: .5rem; min-width: 0; }
+  /* A notice takes the whole width; "saved" goes under it instead of squeezing it. */
+  .status-line { flex-wrap: wrap; gap: .2rem 1rem; }
+  .status-line > [role="status"]:not(:empty) { flex: 1 1 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+}
+
 /* Printing gives the sheet on screen alone (room or revision), black on white. */
 @media print {
   body * { visibility: hidden; }
@@ -180,6 +197,7 @@ details.advanced > summary { cursor: pointer; color: var(--muted); }
 /* The teacher demo tour, above the spaces. */
 .tour { box-sizing: border-box; width: calc(100% - 2rem); max-width: 88rem; margin: .25rem auto .5rem; }
 .tour summary { cursor: pointer; }
+.tour .leave-tour { margin: .4rem 0 .2rem; }
 .tour-steps { margin: .4rem 0; padding-left: 1.4rem; display: grid; gap: .3rem; }
 .tour-steps button.link { font-weight: 600; padding: 0; }
 .tour-steps button.link[aria-pressed="true"] { text-decoration: underline; }

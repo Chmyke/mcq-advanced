@@ -2,6 +2,7 @@
 // and fails when two pieces of a theme line overlap: the name, its bar, its success rate. On a phone
 // the rate must sit under the name. The markup is the real one, written by the player's render test
 // `the_correction_markup_is_handed_to_the_layout_check`; the stylesheet is the player's own.
+// Then the Studio's bar and question list, from its own render test (see `studio` below).
 // Run (after `cargo test`): node tools/layout-check.mjs [screenshot.png]
 // The optional screenshot shows the theme lines at phone width with the longest names tried.
 
@@ -34,6 +35,83 @@ const MEASURE = `(() => [...document.querySelectorAll('.theme-bars li')].map((li
   const box = (e) => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
   return { line: box(li), name: box(li.querySelector('.theme-name')), bar: box(li.querySelector('.bar')), rate: box(li.querySelector('.theme-rate')) };
 }))()`;
+
+// The Studio: its bar with the Help menu open and a notice shown, over its Write space, from the
+// markup and stylesheets of the Studio's render test `the_studio_markup_is_handed_to_the_layout_check`.
+// No sideways scroll at any width; on a phone the menu stays on screen and the notice spans the
+// width with "saved" under it; the question list ends long statements in an ellipsis without a
+// scroll bar, and the add-question tip covers no question.
+const STUDIO_APP = join(root, 'target', 'tmp', 'studio-app.html');
+const STUDIO_WRITE = join(root, 'target', 'tmp', 'studio-write.html');
+const STUDIO_WIDTHS = [375, 414, 768, 1280];
+// What the static markup lacks: the open menu, a notice and the "saved" mark, as the app shows them.
+const STUDIO_STATE = `(() => {
+  const app = document.querySelector('.app');
+  const main = document.createElement('div');
+  main.className = 'studio-main';
+  main.innerHTML = ${JSON.stringify(existsSync(STUDIO_WRITE) ? readFileSync(STUDIO_WRITE, 'utf8') : '')};
+  app.append(main);
+  const help = document.querySelector('.studio-top [aria-label^="Help"]').closest('.icon-menu');
+  help.insertAdjacentHTML('beforeend', '<div class="menu-list"><a href="#">Prise en main (site)</a><a href="#">Écrire un bon QCM (site)</a><button>Copier le prompt pour l&#39;IA</button></div>');
+  document.querySelector('.status-line [role=status]').innerHTML =
+    '<span>Le navigateur n&#39;a pas donné accès au presse-papiers : cliquez sur une zone vide de la page et appuyez sur Ctrl+V.</span><button class="link">x</button>';
+  document.querySelector('.status-line').insertAdjacentHTML('beforeend', '<span class="muted saved">Enregistré dans ce navigateur</span>');
+  return 0;
+})()`;
+const STUDIO_MEASURE = `(() => {
+  const box = (e) => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width }; };
+  const list = document.querySelector('.question-list');
+  // A tip shows on hover: the list must not scroll sideways then either.
+  let scroll = list.scrollWidth;
+  const tips = [...document.querySelectorAll('.theme-head [data-icon] > .tip')].map((tip) => {
+    tip.style.display = 'block';
+    const r = box(tip);
+    scroll = Math.max(scroll, list.scrollWidth);
+    tip.style.display = '';
+    return r;
+  });
+  const text = document.querySelector('.q-text');
+  return {
+    scroll: document.documentElement.scrollWidth,
+    menu: box(document.querySelector('.menu-list')),
+    line: box(document.querySelector('.status-line')),
+    notice: box(document.querySelector('.status-line [role=status]')),
+    saved: box(document.querySelector('.status-line .saved')),
+    list: { ...box(list), scroll, client: list.clientWidth },
+    clipped: text.scrollWidth > text.clientWidth,
+    items: [...document.querySelectorAll('.q-item')].map(box),
+    tips,
+  };
+})()`;
+
+async function studio(send, run, frameId) {
+  if (!existsSync(STUDIO_APP) || !existsSync(STUDIO_WRITE)) throw new Error('No Studio fixture: run cargo test first.');
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"></head><body>${readFileSync(STUDIO_APP, 'utf8')}</body></html>`;
+  // Mouse and touch screens: on a touch screen the bar's labels show under their icons.
+  for (const touch of [false, true]) {
+    await send('Emulation.setTouchEmulationEnabled', { enabled: touch, maxTouchPoints: touch ? 5 : 1 });
+    for (const width of STUDIO_WIDTHS) {
+      await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
+      await send('Page.setDocumentContent', { frameId, html });
+      await run(STUDIO_STATE);
+      const m = await run(STUDIO_MEASURE);
+      const where = `studio, ${width}px${touch ? ', touch' : ''}`;
+      if (m.scroll > width) failures.push(`${where}: the page scrolls sideways (${m.scroll}px) with the Help menu open`);
+      if (m.menu.left < -0.5 || m.menu.right > width + 0.5) failures.push(`${where}: the Help menu leaves the screen`);
+      if (width <= PHONE) {
+        if (m.notice.width < m.line.width * 0.8) failures.push(`${where}: the notice is squeezed (${Math.round(m.notice.width)}px)`);
+        if (m.saved.top < m.notice.bottom - 0.5) failures.push(`${where}: "saved" sits beside the notice instead of under it`);
+      }
+      if (m.list.scroll > m.list.client + 1) failures.push(`${where}: the question list scrolls sideways`);
+      // The list shows up to 70 characters of a statement: only a narrow list has to cut them.
+      if (m.list.width < 420 && !m.clipped) failures.push(`${where}: the long statement is not cut by an ellipsis`);
+      for (const tip of m.tips) {
+        if (m.items.some((item) => overlap(tip, item))) failures.push(`${where}: the add-question tip covers a question`);
+      }
+    }
+  }
+}
 
 const overlap = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
 
@@ -75,6 +153,7 @@ try {
       }
     }
   }
+  await studio(send, run, frameTree.frame.id);
 } finally {
   await close();
 }
@@ -82,4 +161,4 @@ if (failures.length > 0) {
   for (const f of failures) console.log(`layout: ${f}`);
   process.exit(1);
 }
-console.log(`layout: theme lines OK at ${WIDTHS.join(', ')} px`);
+console.log(`layout: theme lines OK at ${WIDTHS.join(', ')} px; Studio bar and question list OK at ${STUDIO_WIDTHS.join(', ')} px`);

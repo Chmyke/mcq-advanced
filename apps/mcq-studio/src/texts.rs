@@ -20,6 +20,11 @@ pub struct Texts {
     /// The browser kept the clipboard to itself.
     pub paste_refused: &'static str,
     pub paste_not_paper: &'static str,
+    /// Pasted text in a known format that cannot be read; the reason follows.
+    pub paste_failed: &'static str,
+    /// The title of a paper pasted without one, and of the theme of its questions without a
+    /// category.
+    pub pasted_title: &'static str,
     /// The help menu: the website's tutorial, its writing guide, and the AI prompt.
     pub help: &'static str,
     pub tip_help: &'static str,
@@ -27,6 +32,8 @@ pub struct Texts {
     pub help_guide: &'static str,
     /// Importing over a paper that has questions: `{mine}` and `{theirs}` count them.
     pub import_choice: &'static str,
+    /// The same question when the questions come from pasted text.
+    pub import_choice_pasted: &'static str,
     pub import_add: &'static str,
     pub import_replace: &'static str,
     pub cancel: &'static str,
@@ -118,6 +125,8 @@ pub struct Texts {
     pub id_taken: &'static str,
     pub theme: &'static str,
     pub level: &'static str,
+    /// What the levels mean (Bloom's), in one sentence: the tip of the level menu.
+    pub level_hint: &'static str,
     pub levels: [&'static str; 6],
     pub seconds: &'static str,
     pub seconds_auto: &'static str,
@@ -149,7 +158,10 @@ pub struct Texts {
     pub block_remove: &'static str,
 
     pub answers: &'static str,
+    /// Above the answers of a multiple-answer question.
     pub answers_hint: &'static str,
+    /// Above the answers of a single-answer or true-or-false question.
+    pub answers_hint_single: &'static str,
     pub answer_placeholder: &'static str,
     pub explanation_placeholder: &'static str,
     pub correct: &'static str,
@@ -236,6 +248,10 @@ pub struct Texts {
     pub identity_download_again: &'static str,
     pub identity_kept: &'static str,
     pub identity_forget: &'static str,
+    /// With an identity kept in the browser, creating another one is folded behind this link.
+    pub create_other_identity: &'static str,
+    /// Shown once unfolded: the copies of papers published so far open with the kept one only.
+    pub create_other_warning: &'static str,
     pub identity_keep: &'static str,
     /// `{n}`: warnings left when publishing is allowed.
     pub publish_warnings: &'static str,
@@ -428,12 +444,15 @@ pub static EN: Texts = Texts {
     paste: "Paste",
     tip_paste: "Paste a paper copied from an AI's answer or a text editor",
     paste_refused: "The browser did not give access to the clipboard: click an empty part of the page and press Ctrl+V.",
-    paste_not_paper: "The clipboard holds no paper the Studio can read. It reads the answer of an AI given the Studio's prompt (Help menu, Copy the AI prompt), copied whole, and the Aiken format: the question on one line, then A. B. C. one answer per line, then ANSWER: B.",
+    paste_not_paper: "The clipboard holds no paper the Studio can read. Pasted as text, it reads: the whole answer of an AI given the Studio's prompt (Help menu), a .qcm.md paper, and Moodle XML, GIFT, Aiken or CSV banks (CSV with its header row). For a file, use Import.",
+    paste_failed: "The pasted text could not be read",
+    pasted_title: "Imported questions",
     help: "Help",
     tip_help: "Help: getting started, writing guide, AI prompt",
     help_tutorial: "Getting started (website)",
     help_guide: "Writing a good quiz (website)",
     import_choice: "Your paper has {mine} {mine:question|questions}; the file brings {theirs}. Add them after yours, or replace your paper?",
+    import_choice_pasted: "Your paper has {mine} {mine:question|questions}; the pasted text brings {theirs}. Add them after yours, or replace your paper?",
     import_add: "Add to my paper",
     import_replace: "Replace my paper",
     cancel: "Cancel",
@@ -529,6 +548,7 @@ pub static EN: Texts = Texts {
     id_taken: "Another question already has this id.",
     theme: "Theme",
     level: "Level",
+    level_hint: "Bloom's levels: what the question asks of the student, from 1 (remember a fact) to 5 (evaluate, judge); it also sets the estimated time.",
     levels: [
         "Not set",
         "1 Remember",
@@ -551,12 +571,12 @@ pub static EN: Texts = Texts {
     add_text: "Text",
     add_code: "Code",
     add_formula: "Formula",
-    formula_hint: "Formulas in LaTeX: $x^2$ inside a sentence, $$x^2$$ on their own line, \\$ for a dollar sign.",
+    formula_hint: "Formulas: $x^2$ inside a sentence, $$x^2$$ on their own line, \\$ for a dollar sign.",
     add_media: "Media",
     record: "Record",
     stop_recording: "Stop recording",
     drop_hint: "Drop or paste an image, a sound or a video anywhere.",
-    text_block: "Text (Markdown)",
+    text_block: "Text",
     code_block: "Code",
     language: "Language",
     highlighted_lines: "Highlighted lines",
@@ -568,6 +588,7 @@ pub static EN: Texts = Texts {
 
     answers: "Answers",
     answers_hint: "Tick the correct answers.",
+    answers_hint_single: "Tick the correct answer.",
     answer_placeholder: "Answer",
     explanation_placeholder: "Why this answer is right or wrong",
     correct: "Correct answer",
@@ -650,6 +671,8 @@ pub static EN: Texts = Texts {
     identity_download_again: "Download my identity again",
     identity_kept: "Your identity is kept in this browser: type its passphrase to unlock it.",
     identity_forget: "Forget the identity kept in this browser",
+    create_other_identity: "Create another identity",
+    create_other_warning: "Careful: the copies of the papers published with your current identity open with it alone. Create another one only if you have lost it for good.",
     identity_keep: "Keep my identity in this browser (still locked by its passphrase)",
     publish_warnings: "The validator still has {n} {n:warning|warnings}: you can publish, but read them in Write first.",
     distribute_title: "How students take it",
@@ -708,12 +731,15 @@ pub static FR: Texts = Texts {
     paste: "Coller",
     tip_paste: "Coller un QCM copié depuis la réponse d'une IA ou un éditeur de texte",
     paste_refused: "Le navigateur n'a pas donné accès au presse-papiers : cliquez sur une zone vide de la page et appuyez sur Ctrl+V.",
-    paste_not_paper: "Le presse-papiers ne contient pas de QCM lisible. Le Studio lit la réponse d'une IA à qui l'on a donné son prompt (menu Aide, Copier le prompt pour l'IA), copiée en entier, et le format Aiken : la question sur une ligne, puis A. B. C. une réponse par ligne, puis ANSWER: B.",
+    paste_not_paper: "Le presse-papiers ne contient pas de QCM lisible. Collé en texte, le Studio lit : la réponse entière d'une IA à qui l'on a donné son prompt (menu Aide), un sujet .qcm.md, et les banques Moodle XML, GIFT, Aiken ou CSV (le CSV avec sa ligne d'en-tête). Pour un fichier, utilisez Importer.",
+    paste_failed: "Le texte collé n'a pas pu être lu",
+    pasted_title: "Questions importées",
     help: "Aide",
     tip_help: "Aide : prise en main, guide d'écriture, prompt pour l'IA",
     help_tutorial: "Prise en main (site)",
     help_guide: "Écrire un bon QCM (site)",
     import_choice: "Votre sujet compte {mine} {mine:question|questions} ; le fichier en apporte {theirs}. Les ajouter après les vôtres, ou remplacer votre sujet ?",
+    import_choice_pasted: "Votre sujet compte {mine} {mine:question|questions} ; le texte collé en apporte {theirs}. Les ajouter après les vôtres, ou remplacer votre sujet ?",
     import_add: "Ajouter à mon sujet",
     import_replace: "Remplacer mon sujet",
     cancel: "Annuler",
@@ -723,7 +749,7 @@ pub static FR: Texts = Texts {
     welcome_title: "Écrire un QCM",
     welcome_text: "Quatre façons de commencer. Quel que soit votre choix, tout reste dans ce navigateur : ni compte, ni serveur.",
     welcome_write: "Écrire une question",
-    welcome_write_hint: "Tapez-la ici : le validateur la commente au fil de l'écriture et l'aperçu étudiant suit en dessous.",
+    welcome_write_hint: "Tapez-la ici : le validateur la commente au fil de l'écriture et l'aperçu candidat suit en dessous.",
     welcome_import_hint: "Un sujet (.qcmz, .qcm.md) ou une banque Moodle XML, GIFT, Aiken ou CSV.",
     copy_prompt: "Copier le prompt pour l'IA",
     welcome_ai_hint: "Collez-le dans votre IA avec votre cours à la fin, copiez toute sa réponse, puis appuyez sur Coller.",
@@ -764,7 +790,7 @@ pub static FR: Texts = Texts {
     tip_theme_dark: "Passer en thème sombre",
     tip_space_write: "Écrire et modifier vos questions",
     tip_space_settings: "Réglages du QCM : titre, durée, barème, thèmes",
-    tip_space_publish: "Publier votre QCM pour vos élèves",
+    tip_space_publish: "Publier votre QCM pour vos candidats",
     tip_space_correct: "Corriger les copies de vos candidats",
     tip_add_question: "Ajouter une question à ce thème",
     tip_add_answer: "Ajouter une réponse",
@@ -809,6 +835,7 @@ pub static FR: Texts = Texts {
     id_taken: "Une autre question porte déjà cet identifiant.",
     theme: "Thème",
     level: "Niveau",
+    level_hint: "Niveaux de Bloom : ce que la question demande au candidat, de 1 (se souvenir d'un fait) à 5 (évaluer, juger) ; ils fixent aussi le temps estimé.",
     levels: [
         "Non précisé",
         "1 Se souvenir",
@@ -831,23 +858,24 @@ pub static FR: Texts = Texts {
     add_text: "Texte",
     add_code: "Code",
     add_formula: "Formule",
-    formula_hint: "Formules en LaTeX : $x^2$ dans une phrase, $$x^2$$ sur sa propre ligne, \\$ pour un signe dollar.",
+    formula_hint: "Formule : $x^2$ dans une phrase, $$x^2$$ sur sa propre ligne, \\$ pour un signe dollar.",
     add_media: "Média",
     record: "Enregistrer",
     stop_recording: "Arrêter l'enregistrement",
     drop_hint: "Glissez ou collez une image, un son ou une vidéo n'importe où.",
-    text_block: "Texte (Markdown)",
+    text_block: "Texte",
     code_block: "Code",
     language: "Langage",
     highlighted_lines: "Lignes surlignées",
     alt_text: "Texte alternatif",
-    alt_hint: "Ce que doit savoir un étudiant qui ne peut ni le voir ni l'entendre.",
+    alt_hint: "Ce que doit savoir un candidat qui ne peut ni le voir ni l'entendre.",
     block_up: "Monter ce bloc",
     block_down: "Descendre ce bloc",
     block_remove: "Retirer ce bloc",
 
     answers: "Réponses",
     answers_hint: "Cochez les bonnes réponses.",
+    answers_hint_single: "Cochez la bonne réponse.",
     answer_placeholder: "Réponse",
     explanation_placeholder: "Pourquoi cette réponse est juste ou fausse",
     correct: "Bonne réponse",
@@ -873,17 +901,17 @@ pub static FR: Texts = Texts {
     at_theme: "thème",
     rules_guide: "Guide des règles",
 
-    preview: "Aperçu étudiant",
+    preview: "Aperçu candidat",
     preview_computer: "Ordinateur",
     preview_phone: "Téléphone",
 
     settings_paper: "Sujet",
     title: "Titre du sujet",
-    description: "Introduction montrée aux étudiants",
+    description: "Introduction montrée aux candidats",
     paper_lang: "Langue du sujet",
-    paper_languages: "Langues d'interface proposées aux étudiants",
+    paper_languages: "Langues d'interface proposées aux candidats",
     paper_languages_hint: "Aucune cochée : pas de choix de langue, l'interface suit la langue du sujet.",
-    notes: "Notes d'auteur (jamais montrées aux étudiants)",
+    notes: "Notes d'auteur (jamais montrées aux candidats)",
     settings_time: "Temps",
     duration: "Durée en minutes (0 : sans limite)",
     estimated: "Temps de réponse estimé :",
@@ -900,7 +928,7 @@ pub static FR: Texts = Texts {
     shuffle_questions: "Mélanger les questions",
     shuffle_options: "Mélanger les réponses",
     show_answer_count: "Annoncer le nombre de réponses à cocher",
-    allow_extra_time: "Laisser les étudiants déclarer un temps majoré (tiers-temps, moitié, double, sans limite) ; leur copie l'indique",
+    allow_extra_time: "Laisser les candidats déclarer un temps majoré (tiers-temps, moitié, double, sans limite) ; leur copie l'indique",
     advanced: "Plus de réglages : identifiant et temps",
     themes: "Thèmes",
     theme_title: "Nom du thème",
@@ -921,34 +949,36 @@ pub static FR: Texts = Texts {
     confirm_passphrase: "La même phrase, encore",
     create_and_download: "Créer et télécharger",
     identity_ready: "Identité prête. Empreinte :",
-    fingerprint_hint: "L'empreinte est un code court qui désigne votre identité : les élèves la voient en ouvrant votre sujet et la comparent à la fiche de salle, ce qui trahit un sujet signé par quelqu'un d'autre.",
+    fingerprint_hint: "L'empreinte est un code court qui désigne votre identité : les candidats la voient en ouvrant votre sujet et la comparent à la fiche de salle, ce qui trahit un sujet signé par quelqu'un d'autre.",
     identity_saved: if ON_DESKTOP {
-        "Votre identité est enregistrée sous teacher.mcqid, dans le dossier choisi. Gardez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos élèves."
+        "Votre identité est enregistrée sous teacher.mcqid, dans le dossier choisi. Gardez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos candidats."
     } else {
-        "Votre identité est enregistrée sous teacher.mcqid, en général dans vos Téléchargements. Rangez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos élèves."
+        "Votre identité est enregistrée sous teacher.mcqid, en général dans vos Téléchargements. Rangez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos candidats."
     },
     identity_download_again: "Télécharger à nouveau mon identité",
     identity_kept: "Votre identité est gardée dans ce navigateur : tapez sa phrase de passe pour la déverrouiller.",
     identity_forget: "Oublier l'identité gardée dans ce navigateur",
+    create_other_identity: "Créer une autre identité",
+    create_other_warning: "Attention : les copies des sujets publiés avec votre identité actuelle ne s'ouvriront qu'avec elle. N'en créez une autre que si vous l'avez perdue pour de bon.",
     identity_keep: "Garder mon identité dans ce navigateur (toujours verrouillée par sa phrase de passe)",
     publish_warnings: "Le validateur signale encore {n} {n:avertissement|avertissements} : vous pouvez publier, mais relisez-les d'abord dans Écrire.",
-    distribute_title: "Comment les élèves le passent",
+    distribute_title: "Comment les candidats le passent",
     distribute_steps: [
-        "Envoyez {file} à vos élèves (ENT, messagerie, clé USB) ou mettez-le en ligne.",
+        "Envoyez {file} à vos candidats (ENT, messagerie, clé USB) ou mettez-le en ligne.",
         "Ils l'ouvrent dans le lecteur, dans n'importe quel navigateur, sans rien installer : https://mickaelmancini.com/mcq-advanced/player/ (ou dans l'application MCQ Advanced).",
         "Au début de l'épreuve, donnez le code d'ouverture : il est sur la fiche de salle ci-dessous.",
-        "À la fin, chaque élève enregistre sa copie (un fichier .mcqres) et vous l'envoie : ouvrez-les dans Corriger.",
+        "À la fin, chaque candidat enregistre sa copie (un fichier .mcqres) et vous l'envoie : ouvrez-les dans Corriger.",
     ],
     wrong_passphrase: "Phrase de passe incorrecte, ou ce n'est pas un fichier d'identité.",
     passphrases_differ: "Les deux phrases diffèrent.",
     passphrase_too_short: "12 caractères au moins.",
     mode: "Passation",
-    mode_exam: "Examen : corrigé caché, chaque élève rend une copie",
-    mode_practice: "Entraînement : sans code, la correction s'affiche dès que l'élève a fini",
+    mode_exam: "Examen : corrigé caché, chaque candidat rend une copie",
+    mode_practice: "Entraînement : sans code, la correction s'affiche dès que le candidat a fini",
     with_opening_code: "Code d'ouverture",
-    opening_code_help: "Le sujet reste illisible tant que vous n'avez pas donné ce code, au tableau au début de l'épreuve. Utile si le fichier arrive chez les élèves avant, ou si une autre classe passe le même sujet plus tard.",
+    opening_code_help: "Le sujet reste illisible tant que vous n'avez pas donné ce code, au tableau au début de l'épreuve. Utile si le fichier arrive chez les candidats avant, ou si une autre classe passe le même sujet plus tard.",
     with_end_code: "Code de fin",
-    end_code_help: "Quand toutes les copies sont rendues, vous révélez ce code et chaque élève lit sa correction détaillée. Sans lui, les élèves rendent leur copie et ne voient jamais la correction.",
+    end_code_help: "Quand toutes les copies sont rendues, vous révélez ce code et chaque candidat lit sa correction détaillée. Sans lui, les candidats rendent leur copie et ne voient jamais la correction.",
     publish: "Publier",
     working: "Chiffrement en cours...",
     published: "Paquet téléchargé :",
@@ -1363,6 +1393,16 @@ pub struct DemoTexts {
     /// Title and text of each step, in the order of `demo::STEP_SPACES`.
     pub steps: [(&'static str, &'static str); 8],
     pub identity_note: &'static str,
+    /// Asked before the demo paper takes the place of a draft that holds work.
+    pub confirm: &'static str,
+    /// The answer of `confirm` that opens the demo.
+    pub open: &'static str,
+    /// The tour's button that ends the visit and brings the draft back.
+    pub leave: &'static str,
+    /// Asked on leaving when the demo paper was changed during the visit.
+    pub leave_confirm: &'static str,
+    /// Said once the visit is over.
+    pub left: &'static str,
 }
 
 pub static DEMO_EN: DemoTexts = DemoTexts {
@@ -1406,6 +1446,11 @@ pub static DEMO_EN: DemoTexts = DemoTexts {
         ),
     ],
     identity_note: "The copies are opened with a public sample identity that serves them only. To publish a real paper, create your own identity.",
+    confirm: "Open the sample class? Your draft is set aside and comes back when you leave the tour.",
+    open: "Open the sample class",
+    leave: "Leave the sample class",
+    leave_confirm: "Leave the tour? Your changes to the sample paper are dropped and your draft comes back.",
+    left: "Tour over: your draft is back in the editor.",
 };
 
 pub static DEMO_FR: DemoTexts = DemoTexts {
@@ -1417,7 +1462,7 @@ pub static DEMO_FR: DemoTexts = DemoTexts {
     steps: [
         (
             "Rédiger.",
-            "Modifiez une question ; l'aperçu la montre comme l'élève la verra, sur téléphone ou en thème sombre, avec ses formules, son image et son code coloré.",
+            "Modifiez une question ; l'aperçu la montre comme le candidat la verra, sur téléphone ou en thème sombre, avec ses formules, son image et son code coloré.",
         ),
         (
             "Vérifier.",
@@ -1437,11 +1482,11 @@ pub static DEMO_FR: DemoTexts = DemoTexts {
         ),
         (
             "Trancher une clé douteuse.",
-            "Une case cochée par erreur fait douter de la clé : acceptez la réponse choisie par les meilleurs élèves, et toutes les notes sont recalculées.",
+            "Une case cochée par erreur fait douter de la clé : acceptez la réponse choisie par les meilleurs candidats, et toutes les notes sont recalculées.",
         ),
         (
             "Examiner une copie.",
-            "Copies identiques, sorties de fenêtre, dépassement de temps : ouvrez la chronologie d'un élève ou sa fiche de révision, exportez les notes en CSV.",
+            "Copies identiques, sorties de fenêtre, dépassement de temps : ouvrez la chronologie d'un candidat ou sa fiche de révision, exportez les notes en CSV.",
         ),
         (
             "Importer et exporter.",
@@ -1449,6 +1494,11 @@ pub static DEMO_FR: DemoTexts = DemoTexts {
         ),
     ],
     identity_note: "Les copies sont ouvertes avec une identité d'exemple publique, qui ne sert qu'à elles. Pour publier un vrai sujet, créez votre propre identité.",
+    confirm: "Ouvrir la classe d'exemple ? Votre brouillon est mis de côté et revient quand vous quittez la visite.",
+    open: "Ouvrir la classe d'exemple",
+    leave: "Quitter la classe d'exemple",
+    leave_confirm: "Quitter la visite ? Vos modifications du sujet d'exemple sont abandonnées et votre brouillon revient.",
+    left: "Visite terminée : votre brouillon est revenu dans l'éditeur.",
 };
 
 #[cfg(test)]

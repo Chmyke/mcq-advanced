@@ -72,11 +72,11 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
                 let (kind_en, kind_fr) = kind_words(kind);
                 (
                     format!(
-                        "`{name}` is {kind_en} (Moodle type {kind}): only single, multiple and \
-                         true or false questions come in."
+                        "`{name}` is {kind_en}: only single, multiple and true or false \
+                         questions come in."
                     ),
                     format!(
-                        "`{name}` est {kind_fr} (type Moodle {kind}) : seules les questions à \
+                        "`{name}` est {kind_fr} : seules les questions à \
                          choix unique, à choix multiples et vrai ou faux sont importées."
                     ),
                 )
@@ -824,7 +824,7 @@ fn report_settings(paper: &Paper, issues: &mut Vec<Issue>) {
             Location::Paper,
             "Moodle cannot tell students how many answers are correct before they answer: this \
              paper's count stays behind.",
-            "Moodle ne peut pas annoncer aux élèves le nombre de bonnes réponses avant qu'ils \
+            "Moodle ne peut pas annoncer aux candidats le nombre de bonnes réponses avant qu'ils \
              répondent : celui de ce sujet reste en arrière.",
         ));
     }

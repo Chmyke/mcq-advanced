@@ -119,7 +119,8 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                     oninput: move |e| studio.write().edit_paper(|p| p.duration_minutes = e.value().trim().parse().unwrap_or(0)) }
                 p { class: "muted", "{t.estimated} {estimated} {t.minutes}" }
                 p { class: "muted small-text", "{t.estimated_hint}" }
-                if paper.duration_minutes > 0 { p { class: "muted small-text", "{t.duration_soft}" } }
+                // Always there: shown only with a duration, it pushed the page down as one was typed.
+                p { class: "muted small-text", "{t.duration_soft}" }
             }
             fieldset { class: "card",
                 legend { "{t.settings_scoring}" }
@@ -160,8 +161,8 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
             fieldset { class: "card",
                 legend { "{t.themes}" }
                 for (k, (id, title, course, used)) in themes.into_iter().enumerate() {
+                    // The theme's id stays in the file: the teacher names themes, not ids.
                     div { key: "{id}", class: "theme-row",
-                        span { class: "mono muted", "{id}" }
                         label { "{t.theme_title}"
                             input { r#type: "text", value: "{title}",
                                 oninput: move |e| studio.write().edit_paper(|p| p.themes[k].title = e.value()) }

@@ -82,7 +82,9 @@ pub fn App() -> Element {
             Some(None) => notice.set(Some(t.link_failed.to_string())),
             None => {}
         }
-        if platform::teacher_demo_from_link().await {
+        // A visit left without its button (a reload, a closed tab) resumes: the draft set aside
+        // stays reachable through the tour's way out.
+        if platform::teacher_demo_from_link().await || platform::aside_draft().await.is_some() {
             demo::open(studio, correction, notice, tour, t, language).await;
         }
         loop {
@@ -240,7 +242,7 @@ pub fn App() -> Element {
                     if saved() { span { class: "muted saved", "{t.saved_locally}" } }
                 }
             }
-            if tour() { Tour { studio, t } }
+            if tour() { Tour { studio, correction, notice, tour, lang: lang(), t } }
             if ready() && welcome() && space == Space::Write && studio.read().is_blank() {
                 crate::welcome::Welcome { studio, correction, notice, tour, welcome, lang: lang(), t }
             }

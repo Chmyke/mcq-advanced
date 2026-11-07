@@ -231,7 +231,7 @@ fn check_options(question: &Question, out: &mut Out) {
             "MULTIPLE_CORRECT_OPTIONS",
             at(question),
             format!("{correct} correct options: the student is told to tick several boxes."),
-            format!("{correct} bonnes réponses : l'étudiant est invité à cocher plusieurs cases."),
+            format!("{correct} bonnes réponses : le candidat est invité à cocher plusieurs cases."),
         );
     }
 
@@ -361,7 +361,7 @@ fn check_media(question: &Question, out: &mut Out) {
                     media.path
                 ),
                 format!(
-                    "`{}` n'a pas de texte alternatif : décrivez-le dans `![...]` pour les étudiants qui \
+                    "`{}` n'a pas de texte alternatif : décrivez-le dans `![...]` pour les candidats qui \
                      ne peuvent ni le voir ni l'entendre.",
                     media.path
                 ),
@@ -535,7 +535,7 @@ fn check_feedback(paper: &Paper, question: &Question, out: &mut Out) {
             "NO_EXPLANATION",
             at(question),
             "No option is explained: the student sees right or wrong without knowing why.",
-            "Aucune réponse n'est expliquée : l'étudiant voit juste ou faux sans savoir pourquoi.",
+            "Aucune réponse n'est expliquée : le candidat voit juste ou faux sans savoir pourquoi.",
         );
     } else if missing > 0 {
         out.warn(
@@ -545,7 +545,7 @@ fn check_feedback(paper: &Paper, question: &Question, out: &mut Out) {
                 "{missing} option(s) have no explanation: a student who ticks them learns nothing."
             ),
             format!(
-                "{missing} réponse(s) sans explication : l'étudiant qui les coche n'apprend rien."
+                "{missing} réponse(s) sans explication : le candidat qui les coche n'apprend rien."
             ),
         );
     }
@@ -602,7 +602,7 @@ fn check_length_bias(question: &Question, out: &mut Out) {
             ),
             format!(
                 "La bonne réponse est {} fois plus longue que le plus long distracteur : la longueur \
-                 est le premier indice des étudiants. Déplacez la justification dans l'explication.",
+                 est le premier indice des candidats. Déplacez la justification dans l'explication.",
                 format!("{ratio:.1}").replace('.', ",")
             ),
         );

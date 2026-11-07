@@ -82,11 +82,19 @@ pub fn read_paper(
     lang: &str,
     french: bool,
 ) -> Result<(Project, Vec<mcq_model::Issue>), String> {
-    let (project, issues) = if bytes.starts_with(b"PK") {
+    let read = if bytes.starts_with(b"PK") {
         qcmz::import(&bytes).map_err(|e| e.to_string())?
     } else {
         read_text(name, bytes, lang)?
     };
+    refuse_errors(read, french)
+}
+
+/// The paper read, or its first error with its line, in the interface language.
+fn refuse_errors(
+    (project, issues): (Project, Vec<mcq_model::Issue>),
+    french: bool,
+) -> Result<(Project, Vec<mcq_model::Issue>), String> {
     match issues.iter().find(|i| i.severity == Severity::Error) {
         Some(error) => {
             let message = error.message_in(french).trim_end_matches('.');
@@ -107,18 +115,51 @@ fn read_text(
 ) -> Result<(Project, Vec<mcq_model::Issue>), String> {
     let text = String::from_utf8(bytes).map_err(|_| "not UTF-8 text".to_string())?;
     if name.to_ascii_lowercase().ends_with(".md") {
-        let mut project = Project::default();
-        let issues = project.set_source(&text);
-        return Ok((project, issues));
+        return Ok(read_source(&text));
     }
     let source = Source::detect(name, &text).ok_or_else(|| "unknown format".to_string())?;
     let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+    Ok(read_bank(source, &text, &readable_title(stem), lang))
+}
+
+fn read_source(text: &str) -> (Project, Vec<mcq_model::Issue>) {
+    let mut project = Project::default();
+    let issues = project.set_source(text);
+    (project, issues)
+}
+
+/// A bank in `source`'s format; `title` names the paper, and the theme of the questions that
+/// come without a category.
+fn read_bank(
+    source: Source,
+    text: &str,
+    title: &str,
+    lang: &str,
+) -> (Project, Vec<mcq_model::Issue>) {
     let options = ImportOptions {
-        title: readable_title(stem),
+        title: title.to_string(),
         lang: lang.to_string(),
     };
-    let imported = mcq_convert::import(source, &text, &options);
-    Ok((imported.project, imported.issues))
+    let imported = mcq_convert::import(source, text, &options);
+    (imported.project, imported.issues)
+}
+
+/// Reads pasted text as the import reads a file, its format told by its content alone: the
+/// paper inside an AI's answer, or a Moodle XML, CSV, Aiken or GIFT bank. `None` when the text
+/// holds none of them; otherwise as `read_paper`. `title` names what came without a title or
+/// a category.
+pub fn read_pasted(
+    text: &str,
+    title: &str,
+    lang: &str,
+    french: bool,
+) -> Option<Result<(Project, Vec<mcq_model::Issue>), String>> {
+    let read = if let Some(paper) = mcq_format::paper_in_pasted(text) {
+        read_source(paper)
+    } else {
+        read_bank(Source::detect_text(text)?, text, title, lang)
+    };
+    Some(refuse_errors(read, french))
 }
 
 /// Import warnings shown in the notice; the others are counted.
@@ -147,10 +188,23 @@ enum Opening {
     Append,
 }
 
-/// Opens a paper: in place of a blank draft, or, when the draft holds questions, added after
-/// them or in their place as the teacher picks.
+/// The question asked before questions join a paper that has some: `mine` already there,
+/// `theirs` brought by a file or, when `pasted`, by pasted text.
+pub fn import_question(t: &Texts, pasted: bool, mine: usize, theirs: usize) -> String {
+    crate::texts::fill(
+        if pasted {
+            t.import_choice_pasted
+        } else {
+            t.import_choice
+        },
+        &[("mine", mine.to_string()), ("theirs", theirs.to_string())],
+    )
+}
+
+/// Opens a paper file: in place of a blank draft, or, when the draft holds questions, added
+/// after them or in their place as the teacher picks.
 pub async fn open_paper(
-    mut studio: Signal<Studio>,
+    studio: Signal<Studio>,
     mut notice: Signal<Option<String>>,
     t: &'static Texts,
     name: &str,
@@ -159,13 +213,21 @@ pub async fn open_paper(
     let lang = studio.read().project.paper.lang.clone();
     // A bank names its themes after its categories or the file: worth saying where they went.
     let bank = !bytes.starts_with(b"PK") && !name.to_ascii_lowercase().ends_with(".md");
-    let (project, issues) = match read_paper(name, bytes, &lang, t.lang == Lang::Fr) {
-        Ok(read) => read,
-        Err(e) => {
-            notice.set(Some(format!("{}: {e}.", t.not_a_paper)));
-            return;
-        }
-    };
+    match read_paper(name, bytes, &lang, t.lang == Lang::Fr) {
+        Ok(read) => open_read(studio, notice, t, read, bank, false).await,
+        Err(e) => notice.set(Some(format!("{}: {e}.", t.not_a_paper))),
+    }
+}
+
+/// Opens what was read from a file or from pasted text (`pasted`).
+async fn open_read(
+    mut studio: Signal<Studio>,
+    mut notice: Signal<Option<String>>,
+    t: &'static Texts,
+    (project, issues): (Project, Vec<mcq_model::Issue>),
+    bank: bool,
+    pasted: bool,
+) {
     // Nothing to lose over a blank draft or a demo paper as it was opened.
     let (replaceable, mine) = {
         let s = studio.read();
@@ -177,13 +239,7 @@ pub async fn open_paper(
     let opening = if replaceable {
         Opening::Replace
     } else {
-        let question = crate::texts::fill(
-            t.import_choice,
-            &[
-                ("mine", mine.to_string()),
-                ("theirs", project.paper.questions.len().to_string()),
-            ],
-        );
+        let question = import_question(t, pasted, mine, project.paper.questions.len());
         match platform::choose(&question, &[t.import_add, t.import_replace, t.cancel]).await {
             Some(0) => Opening::Append,
             Some(1) => Opening::Replace,
@@ -243,23 +299,13 @@ pub async fn open_pasted(
     t: &'static Texts,
     text: &str,
 ) {
-    if let Some(paper) = mcq_format::paper_in_pasted(text) {
-        return open_paper(
-            studio,
-            notice,
-            t,
-            "pasted.qcm.md",
-            paper.as_bytes().to_vec(),
-        )
-        .await;
-    }
-    // What AIs and teachers write unprompted: Aiken (`ANSWER: B`), GIFT or Moodle XML, read
-    // as the import reads those files.
-    let name = format!("{}.txt", t.new_paper_title);
-    if mcq_convert::Source::detect(&name, text).is_some() {
-        open_paper(studio, notice, t, &name, text.as_bytes().to_vec()).await;
-    } else {
-        notice.set(Some(t.paste_not_paper.to_string()));
+    let lang = studio.read().project.paper.lang.clone();
+    // A bank names its themes after its categories: worth saying where they went.
+    let bank = mcq_format::paper_in_pasted(text).is_none();
+    match read_pasted(text, t.pasted_title, &lang, t.lang == Lang::Fr) {
+        Some(Ok(read)) => open_read(studio, notice, t, read, bank, true).await,
+        Some(Err(e)) => notice.set(Some(format!("{}: {e}.", t.paste_failed))),
+        None => notice.set(Some(t.paste_not_paper.to_string())),
     }
 }
 

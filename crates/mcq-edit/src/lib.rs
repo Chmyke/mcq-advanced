@@ -94,7 +94,7 @@ impl Project {
                         size_label(data.len())
                     ),
                     format!(
-                        "`{path}` pèse {} : chaque étudiant le télécharge. Compressez-le ou \
+                        "`{path}` pèse {} : chaque candidat le télécharge. Compressez-le ou \
                          raccourcissez-le.",
                         size_label_fr(data.len())
                     ),

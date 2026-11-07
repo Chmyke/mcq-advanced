@@ -85,6 +85,8 @@ const DRAFT_KEY: &str = "current";
 const IDENTITY_KEY: &str = "identity";
 /// Where the last published package is kept, with its file name and title.
 const PUBLISHED_KEY: &str = "published";
+/// Where the teacher's draft waits while the sample class's paper is in the editor.
+const ASIDE_KEY: &str = "aside";
 
 /// Keeps `value` (base 64) under `key` in the browser's database: no size limit to speak of,
 /// unlike `localStorage`. An empty value removes the key.
@@ -158,6 +160,25 @@ pub async fn keep_published(text: String) -> bool {
 /// The paper kept by `keep_published`, if any.
 pub async fn kept_published() -> Option<String> {
     store_get(PUBLISHED_KEY).await
+}
+
+/// Sets the draft (a `.qcmz` in base 64) aside during the sample class; an empty value clears
+/// it.
+pub async fn set_aside_draft(base64: String) -> bool {
+    store_put(ASIDE_KEY, base64).await
+}
+
+/// The draft set aside by `set_aside_draft`, if any: a sample class visit is under way.
+pub async fn aside_draft() -> Option<String> {
+    store_get(ASIDE_KEY).await
+}
+
+/// Removes `?demo=teacher` from the address, so that a reload after the visit keeps the draft.
+pub fn forget_demo_link() {
+    let _ = document::eval(
+        "const q = new URLSearchParams(location.search); q.delete('demo'); const s = q.toString();
+history.replaceState(null, '', location.pathname + (s ? '?' + s : '') + location.hash);",
+    );
 }
 
 /// The paper named by the page's `?open=` link, as `(file name, bytes)`: `Some(None)` when the

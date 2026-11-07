@@ -77,8 +77,10 @@ impl Draft {
             });
             if !standard {
                 lost.push(Note::new(
-                    "its own answer weights become standard partial credit",
-                    "ses propres pondérations deviennent un crédit partiel standard",
+                    "the points it gave each answer are replaced by an equal share for each right \
+                     answer",
+                    "les points qu'elle donnait à chaque réponse sont remplacés par une part égale \
+                     pour chaque bonne réponse",
                 ));
             }
         }

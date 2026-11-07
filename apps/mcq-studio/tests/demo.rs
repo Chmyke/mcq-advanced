@@ -4,9 +4,14 @@
 use dioxus::prelude::*;
 use mcq_analysis::Finding;
 use mcq_edit::Project;
-use mcq_studio::demo::{STEP_SPACES, Tour, is_untouched_demo, teacher};
+use mcq_studio::correction::Correction;
+use mcq_studio::demo::{
+    Entry, STEP_SPACES, Tour, entry, is_untouched_demo, leaving_drops_changes, teacher,
+};
 use mcq_studio::state::Studio;
 use mcq_studio::texts::{Lang, texts};
+
+const SAMPLE: &str = include_str!("../../../crates/mcq-format/tests/fixtures/sample.qcm.md");
 
 #[test]
 fn every_copy_opens_and_the_doubtful_key_shows() {
@@ -53,12 +58,15 @@ fn only_an_untouched_demo_is_replaced_without_asking() {
 }
 
 #[test]
-fn the_tour_leads_to_each_space() {
+fn the_tour_leads_to_each_space_and_out() {
     for lang in [Lang::En, Lang::Fr] {
         #[component]
         fn Harness(lang: Lang) -> Element {
             let studio = use_signal(|| Studio::new(Project::default()));
-            rsx! { Tour { studio, t: texts(lang) } }
+            let correction = use_signal(Correction::default);
+            let notice = use_signal(|| None::<String>);
+            let tour = use_signal(|| true);
+            rsx! { Tour { studio, correction, notice, tour, lang, t: texts(lang) } }
         }
         let mut dom = VirtualDom::new_with_props(Harness, HarnessProps { lang });
         dom.rebuild_in_place();
@@ -67,7 +75,37 @@ fn the_tour_leads_to_each_space() {
         for (title, _) in t.steps {
             assert!(html.contains(title), "{lang:?}: {title}");
         }
+        // One button per step with a space, and the way out of the visit.
+        assert!(html.contains(&t.leave.replace('\'', "&#39;")), "{html}");
         let buttons = html.matches("<button").count();
-        assert_eq!(buttons, STEP_SPACES.iter().flatten().count(), "{html}");
+        assert_eq!(buttons, STEP_SPACES.iter().flatten().count() + 1, "{html}");
     }
+}
+
+#[test]
+fn a_draft_with_work_is_asked_for_then_set_aside() {
+    let (demo, _) = teacher(Lang::Fr).expect("demo");
+    let blank = Studio::new(Project::starter("Nouveau sujet", "fr"));
+    assert!(blank.is_blank());
+    assert_eq!(entry(&blank, false), Entry::Replace);
+    assert_eq!(entry(&Studio::new(demo.clone()), false), Entry::Replace);
+
+    let mut mine = Project::default();
+    mine.set_source(SAMPLE);
+    let mine = Studio::new(mine);
+    assert_eq!(
+        entry(&mine, false),
+        Entry::Ask,
+        "a draft with work is never replaced silently"
+    );
+    // Reloaded during the visit: the paper in the editor is the demo's, changed or not, and the
+    // draft is already aside.
+    let mut changed = demo.clone();
+    changed.paper.title.push('!');
+    assert_eq!(entry(&Studio::new(changed.clone()), true), Entry::Resume);
+
+    // Leaving asks only when the demo paper was changed.
+    assert!(!leaving_drops_changes(&Studio::new(demo)));
+    assert!(leaving_drops_changes(&Studio::new(changed)));
+    assert!(!leaving_drops_changes(&blank));
 }
