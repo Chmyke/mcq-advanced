@@ -243,17 +243,25 @@ impl Session {
     /// Multiple-answer questions ticked short of the count announced to the student; 0 when the
     /// paper does not announce counts, since the student could not know.
     pub fn incomplete_count(&self, paper: &Paper) -> usize {
+        self.incomplete_positions(paper).len()
+    }
+
+    /// Where the questions with too few options ticked stand, from 0; none when the paper does
+    /// not tell how many to tick.
+    pub fn incomplete_positions(&self, paper: &Paper) -> Vec<usize> {
         if !paper.show_answer_count {
-            return 0;
+            return Vec::new();
         }
         self.items
             .iter()
-            .filter(|i| {
+            .enumerate()
+            .filter(|(_, i)| {
                 paper
                     .question(&i.question_id)
                     .is_some_and(|q| q.is_incomplete(i.selected.len()))
             })
-            .count()
+            .map(|(n, _)| n)
+            .collect()
     }
 
     pub fn flagged_count(&self) -> usize {

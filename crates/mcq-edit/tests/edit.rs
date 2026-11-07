@@ -376,3 +376,49 @@ fn missing_and_heavy_media_are_reported() {
     let codes: Vec<&str> = project.issues().iter().map(|i| i.code).collect();
     assert!(codes.contains(&"MEDIA_WITHOUT_ALT"), "{codes:?}");
 }
+
+#[test]
+fn an_import_added_to_a_paper_keeps_both_and_renames_what_clashes() {
+    let mut mine = Project::starter("Mine", "fr");
+    let first = mine.paper.questions[0].id.clone();
+    ops::add_question(&mut mine.paper, "theme-1");
+    mine.paper.questions[0].options[0].text = "kept".to_string();
+    mine.add_media("photo.png", vec![1]).expect("image");
+
+    let mut bank = Project::starter("Bank", "fr");
+    bank.paper.themes[0].title = " thème 1 ".to_string();
+    ops::add_theme(&mut bank.paper, "Other");
+    let other_theme = bank.paper.themes[1].id.clone();
+    ops::add_question(&mut bank.paper, &other_theme);
+    let photo = bank.add_media("photo.png", vec![2]).expect("image");
+    bank.paper.questions[0].body.push(Block::Media(Media {
+        kind: MediaKind::Image,
+        path: photo.clone(),
+        alt: "x".to_string(),
+    }));
+    let before = mine.paper.questions.len();
+
+    assert_eq!(mine.append(bank).len(), 2);
+
+    let paper = &mine.paper;
+    assert_eq!(paper.questions.len(), before + 2);
+    assert_eq!(paper.questions[0].id, first);
+    assert_eq!(paper.questions[0].options[0].text, "kept");
+    // Same theme title: joined; the other theme comes after.
+    assert_eq!(paper.themes.len(), 2);
+    assert_eq!(paper.themes[1].title, "Other");
+    let ids: Vec<&str> = paper.questions.iter().map(|q| q.id.as_str()).collect();
+    let unique: std::collections::BTreeSet<&str> = ids.iter().copied().collect();
+    assert_eq!(unique.len(), ids.len(), "{ids:?}");
+    // The clashing picture got its own name, and the statement follows it.
+    let moved = paper
+        .questions
+        .iter()
+        .flat_map(|q| q.media())
+        .next()
+        .expect("media");
+    assert_ne!(moved.path, photo);
+    assert_eq!(mine.media.get(&moved.path), Some(&vec![2]));
+    assert_eq!(mine.media.get(&photo), Some(&vec![1]));
+    assert_lossless(paper);
+}

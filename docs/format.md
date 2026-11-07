@@ -74,7 +74,7 @@ reported and ignored.
 | `shuffleQuestions` | `true`/`false` (also `yes`/`no`, `oui`/`non`, `1`/`0`) | `true` |
 | `shuffleOptions` | same | `true` |
 | `showAnswerCount` | tell students how many boxes to tick | `true` |
-| `extraTime` | let students declare extra time (a third, a half, double, untimed) before they start; the copy shows what they declared | `true` |
+| `extraTime` | let students declare extra time (a third, a half, double, untimed) before they start; the copy shows what they declared. The Studio writes `false` in a new or imported paper, until the teacher allows it | `true` |
 
 ## Themes and questions
 

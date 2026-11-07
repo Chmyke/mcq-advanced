@@ -213,7 +213,7 @@ fn a_formula_that_does_not_convert_is_explained_and_shown_as_source() {
 }
 
 #[test]
-fn the_studio_and_its_preview_start_dark_with_dark_left_of_light() {
+fn the_studio_starts_dark_with_one_button_to_light() {
     let mut dom = VirtualDom::new(mcq_studio::App);
     dom.rebuild_in_place();
     let html = dioxus_ssr::render(&dom);
@@ -221,26 +221,24 @@ fn the_studio_and_its_preview_start_dark_with_dark_left_of_light() {
         html.contains("class=\"app studio\" data-theme=\"dark\""),
         "{html}"
     );
-    let dark = html
-        .find("aria-label=\"Switch to the dark theme\" aria-pressed=\"true\"")
-        .expect("dark, chosen");
-    let light = html
-        .find("aria-label=\"Switch to the light theme\" aria-pressed=\"false\"")
-        .expect("light, not chosen");
-    assert!(dark < light, "{html}");
+    assert!(
+        html.contains("aria-label=\"Switch to the light theme\""),
+        "{html}"
+    );
+    assert!(
+        !html.contains("aria-label=\"Switch to the dark theme\""),
+        "{html}"
+    );
 }
 
 #[test]
-fn the_preview_offers_dark_left_of_light() {
+fn the_preview_offers_the_light_theme_first() {
     let html = render(|s| s.select("code-sum-of-squares"));
     let preview = &html[html.find("class=\"preview\"").expect("preview")..];
-    let dark = preview
-        .find("aria-label=\"Preview in the dark theme\"")
-        .expect("dark choice");
-    let light = preview
-        .find("aria-label=\"Preview in the light theme\"")
-        .expect("light choice");
-    assert!(dark < light, "{preview}");
+    assert!(
+        preview.contains("aria-label=\"Preview in the light theme\""),
+        "{preview}"
+    );
 }
 
 #[test]
@@ -285,4 +283,24 @@ fn the_other_tips_contain_their_labels() {
             );
         }
     }
+}
+
+#[test]
+fn each_question_and_kind_gets_its_own_answer_boxes() {
+    use mcq_edit::ops::Kind;
+    use mcq_studio::editor::answer_key;
+    // A box reused for another question, or turned from checkbox to radio, is unticked by the
+    // browser behind the model: new keys give new boxes.
+    assert_ne!(
+        answer_key("q1", Kind::Single, 0),
+        answer_key("q2", Kind::Single, 0)
+    );
+    assert_ne!(
+        answer_key("q1", Kind::Single, 0),
+        answer_key("q1", Kind::Multiple, 0)
+    );
+    assert_eq!(
+        answer_key("q1", Kind::Multiple, 1),
+        answer_key("q1", Kind::Multiple, 1)
+    );
 }

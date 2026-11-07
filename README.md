@@ -4,6 +4,13 @@ Multiple-choice quizzes that teach, not only grade. A teacher writes a quiz, the
 badly written questions as they are typed, students take it on any device without an account, and
 the results tell the class what to revisit, topic by topic.
 
+**Teachers, start here, nothing to install:** the
+[five-minute tutorial](https://mickaelmancini.com/mcq-advanced/en/tutorial/)
+([en français](https://mickaelmancini.com/mcq-advanced/tutorial/)) writes a first quiz in the
+[Studio](https://mickaelmancini.com/mcq-advanced/studio/), publishes it, and says how students
+take it in the [player](https://mickaelmancini.com/mcq-advanced/player/) and send their copy
+back. The Studio's Help menu leads there too. The rest of this page is for developers.
+
 **Status: early development.** Early desktop builds for Windows and Linux can be downloaded from
 [the website](https://mickaelmancini.com/mcq-advanced/#telecharger) or the
 [GitHub releases](https://github.com/Chmyke/mcq-advanced/releases/latest), the same files with

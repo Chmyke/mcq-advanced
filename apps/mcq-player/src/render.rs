@@ -283,7 +283,7 @@ pub fn question_view(
             div { class: "question-marks",
                 IconButton {
                     class: if item.flagged { "flag on" } else { "flag" },
-                    icon: Icon::Flag, label: t.flag_short, tip: t.flag,
+                    icon: Icon::Flag, label: t.flag_short, tip: t.flag, shown: true,
                     aria_pressed: if item.flagged { "true" } else { "false" },
                     onclick: move |_| on_flag.call(()),
                 }
@@ -407,10 +407,9 @@ pub fn pace_view(gauge: &PaceGauge, t: &'static Texts) -> Element {
     let overall = if lead.abs() < half.max(1) {
         t.pace_even.to_string()
     } else if lead > 0 {
-        fill(
-            t.pace_ahead,
-            &[("d", format_duration(lead.unsigned_abs() as u32))],
-        )
+        // WHY no figure: the lead grows with every quick answer up to the whole time left, a
+        // number students read as a countdown they did not understand.
+        t.pace_ahead.to_string()
     } else {
         fill(
             t.pace_behind,
@@ -423,7 +422,7 @@ pub fn pace_view(gauge: &PaceGauge, t: &'static Texts) -> Element {
                 role: "img", "aria-label": "{question}", title: "{question}",
                 span { class: "pace-fill", style: "width: {width}%" }
             }
-            span { class: "pace-text", "{overall}" }
+            span { class: "pace-text", title: "{t.pace_hint}", "{overall}" }
         }
     }
 }
@@ -473,8 +472,10 @@ pub fn editor_link(source: &str, t: &'static Texts) -> Element {
     }
 }
 
-/// The theme picker, dark on the left and light on the right, as two icons. `labels` are their
-/// short names, `tips` what they do (each tip contains its label); `on_pick` receives true for dark.
+/// The theme switch: one button that goes to the other theme, named after it. `labels` are the
+/// short names of dark and light, `tips` what going to each does (each tip contains its label);
+/// `on_pick` receives true for dark.
+/// WHY one button: two side by side did not fit a phone's header next to the paper's title.
 pub fn theme_switch(
     dark: bool,
     labels: [&str; 2],
@@ -483,13 +484,13 @@ pub fn theme_switch(
 ) -> Element {
     let [dark_label, light_label] = labels.map(str::to_string);
     let [dark_tip, light_tip] = tips.map(str::to_string);
+    let (icon, label, tip) = if dark {
+        (Icon::Sun, light_label, light_tip)
+    } else {
+        (Icon::Moon, dark_label, dark_tip)
+    };
     rsx! {
-        div { class: "segmented theme-switch",
-            IconButton { icon: Icon::Moon, label: dark_label, tip: dark_tip, aria_pressed: "{dark}",
-                onclick: move |_| on_pick.call(true) }
-            IconButton { icon: Icon::Sun, label: light_label, tip: light_tip, aria_pressed: "{!dark}",
-                onclick: move |_| on_pick.call(false) }
-        }
+        IconButton { class: "theme-switch", icon, label, tip, onclick: move |_| on_pick.call(!dark) }
     }
 }
 

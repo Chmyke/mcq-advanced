@@ -500,9 +500,10 @@ pub fn review_screen(
     let word = appreciation(result.mark(20.0), t);
     let minutes = format_duration(session.elapsed_seconds);
     let overtime = (result.overtime_seconds > 0).then(|| {
+        // To the second, as the teacher reads it on the copy.
         crate::texts::fill(
             t.overtime_note,
-            &[("m", result.overtime_seconds.div_ceil(60).to_string())],
+            &[("d", format_duration(result.overtime_seconds))],
         )
     });
     let themes: Vec<(String, u32, &'static str, &'static str)> = result
@@ -560,13 +561,17 @@ pub fn review_screen(
                     span { "{minutes}" }
                     if let Some(over) = overtime { " ({over})" }
                 }
-                h2 { "{t.mastery}" }
-                ul { class: "theme-bars",
-                    for (k, (title, rate, label, class)) in themes.into_iter().enumerate() {
-                        li { key: "{k}",
-                            span { class: "theme-name", "{title}" }
-                            span { class: "bar", span { class: "fill {class}", style: "width: {rate}%" } }
-                            span { class: "theme-rate", "{rate} % ({label})" }
+                // With one theme, its bar would repeat the mark in other words, and its own
+                // thresholds could seem to contradict the word on the mark.
+                if !single_theme {
+                    h2 { "{t.mastery}" }
+                    ul { class: "theme-bars",
+                        for (k, (title, rate, label, class)) in themes.into_iter().enumerate() {
+                            li { key: "{k}",
+                                span { class: "theme-name", "{title}" }
+                                span { class: "bar", span { class: "fill {class}", style: "width: {rate}%" } }
+                                span { class: "theme-rate", "{rate} % ({label})" }
+                            }
                         }
                     }
                 }

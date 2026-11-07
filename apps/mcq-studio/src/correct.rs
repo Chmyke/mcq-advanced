@@ -495,7 +495,9 @@ pub fn report_view(
         .iter()
         .map(|a| anomaly_line(a, c))
         .collect();
-    let rows: Vec<(String, String, u32, u32, u32, String, String)> = report
+    // Name, mark, correct, partly correct, wrong, blank, time, receipt.
+    type MarkRow = (String, String, u32, u32, u32, u32, String, String);
+    let rows: Vec<MarkRow> = report
         .students
         .iter()
         .map(|s| {
@@ -503,6 +505,7 @@ pub fn report_view(
                 s.name.clone(),
                 decimal(f64::from(s.mark), 1, lang),
                 s.grade.correct,
+                s.grade.partial,
                 s.grade.wrong,
                 s.grade.unanswered,
                 minutes(s.elapsed_seconds),
@@ -516,6 +519,12 @@ pub fn report_view(
             if let Some(line) = reliability { p { "{line}" } }
             if report.small_cohort { p { class: "notice warn", "{c.small_cohort}" } }
             if !report.items_computed { p { class: "muted", "{c.items_not_computed}" } }
+            if report.items_computed {
+                details { class: "glossary",
+                    summary { "{c.glossary_title}" }
+                    ul { for (k, line) in c.glossary.iter().enumerate() { li { key: "{k}", "{line}" } } }
+                }
+            }
         }
         section { class: "card finding-group",
             h2 { "{c.reteach_title}" }
@@ -586,11 +595,12 @@ pub fn report_view(
                 table { class: "marks",
                     thead { tr { for (k, col) in c.columns.iter().enumerate() { th { key: "{k}", scope: "col", "{col}" } } td {} } }
                     tbody {
-                        for (name, mark, right, wrong, blank, mins, receipt) in rows {
+                        for (name, mark, right, partial, wrong, blank, mins, receipt) in rows {
                             tr { key: "{receipt}",
                                 th { scope: "row", "{name}" }
                                 td { class: "num", "{mark}" }
                                 td { class: "num", "{right}" }
+                                td { class: "num", "{partial}" }
                                 td { class: "num", "{wrong}" }
                                 td { class: "num", "{blank}" }
                                 td { class: "num", "{mins}" }

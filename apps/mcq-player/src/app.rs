@@ -80,6 +80,9 @@ pub fn App() -> Element {
     // The paper came from a `?paper=` link, so the page's address can be passed on.
     let mut shareable = use_signal(|| false);
     let mut shared = use_signal(|| None::<&'static str>);
+    // The title of a copy left unfinished on this device, for the welcome screen.
+    let mut unfinished = use_signal(|| None::<String>);
+    let mut can_share = use_signal(|| false);
     // Grades the handed-in copy with the unlocked key and opens the correction; false when the
     // key stays locked.
     let mut open_correction = move |unlock: KeyUnlock| -> bool {
@@ -128,6 +131,19 @@ pub fn App() -> Element {
             focus_question();
         }
     });
+    // Every new screen takes the focus to its title, so the keyboard and the screen reader start
+    // from its top instead of the page's; the hand-in question and its way back place it themselves.
+    let mut last_stage = use_signal(|| Stage::Welcome);
+    use_effect(move || {
+        let now = stage();
+        let before = *last_stage.peek();
+        if now != before {
+            last_stage.set(now);
+            if now != Stage::Confirm && before != Stage::Confirm {
+                focus_screen();
+            }
+        }
+    });
     use_effect(move || {
         let tag = lang().tag();
         let _ = document::eval(&format!("document.documentElement.lang = '{tag}';"));
@@ -135,6 +151,8 @@ pub fn App() -> Element {
 
     use_future(move || async move {
         dark.set(platform::remembered_dark().await);
+        can_share.set(platform::can_share_files().await);
+        unfinished.set(unfinished_copy().await);
         let options = platform::link_options().await;
         let tag = if options.lang.is_empty() {
             platform::browser_language().await
@@ -191,21 +209,23 @@ pub fn App() -> Element {
             let Some(s) = guard.as_mut() else {
                 continue;
             };
+            if let Some(seconds) = tick_seconds(&message) {
+                let before = s.elapsed_seconds;
+                s.tick(seconds);
+                if let Some(gone) = away() {
+                    away.set(Some(gone.saturating_add(seconds)));
+                }
+                let status = s.time_status(&paper.paper);
+                if status.show_pace_alert {
+                    notice.set(Some(lang().texts().pace_alert));
+                }
+                if before / 5 != s.elapsed_seconds / 5 {
+                    save(s);
+                }
+                continue;
+            }
             match message.as_str() {
                 "k:Escape" if stage() == Stage::Confirm => close_confirm(stage),
-                "tick" => {
-                    s.tick(1);
-                    if let Some(seconds) = away() {
-                        away.set(Some(seconds + 1));
-                    }
-                    let status = s.time_status(&paper.paper);
-                    if status.show_pace_alert {
-                        notice.set(Some(lang().texts().pace_alert));
-                    }
-                    if s.elapsed_seconds % 5 == 0 {
-                        save(s);
-                    }
-                }
                 "away" => {
                     s.focus_lost();
                     away.set(Some(0));
@@ -299,6 +319,9 @@ pub fn App() -> Element {
                     }
                 }
                 p { class: "muted", "{t.open_hint}" }
+                if let Some(title) = unfinished() {
+                    p { class: "notice", role: "status", {crate::texts::fill(t.in_progress, &[("title", title)])} }
+                }
                 if let Some(message) = error() { p { class: "error", role: "alert", "{message}" } }
                 p { class: "muted", "{t.privacy}" }
             }
@@ -350,10 +373,14 @@ pub fn App() -> Element {
                                 save(s);
                             }
                             resumed.set(restored.is_some());
+                            let title = paper_title(opened);
                             copy_saved.set(false);
                             erased.set(false);
                             let current = restored.unwrap_or(fresh);
                             let done = current.submitted;
+                            if !done {
+                                platform::remember_in_progress(&key, &title);
+                            }
                             session.set(Some(current));
                             stage.set(if done { Stage::Submitted } else { Stage::Intro });
                         });
@@ -432,6 +459,18 @@ pub fn App() -> Element {
             let incomplete = s.incomplete_count(&o.paper);
             let complete = answered - incomplete;
             let flagged = s.flagged_count();
+            // The incomplete questions by position, to go and finish them from the hand-in question.
+            let incomplete_at = s.incomplete_positions(&o.paper);
+            let incomplete_word = if incomplete == 1 {
+                t.incomplete_left_one
+            } else {
+                t.incomplete_left
+            };
+            let flagged_word = if flagged == 1 {
+                t.flagged_left_one
+            } else {
+                t.flagged_left
+            };
             let current = s.current;
             let question_element = s.current_item().and_then(|item| {
                 let question = o.paper.question(&item.question_id)?;
@@ -497,8 +536,20 @@ pub fn App() -> Element {
                             h2 { id: "confirm-title", tabindex: "-1", "{t.confirm_title}" }
                             p {
                                 "{unanswered} {t.unanswered_left}, "
-                                if incomplete > 0 { strong { "{incomplete} {t.incomplete_left}" } ", " }
-                                "{flagged} {t.flagged_left}."
+                                if incomplete > 0 { strong { "{incomplete} {incomplete_word}" } ", " }
+                                "{flagged} {flagged_word}."
+                            }
+                            if !incomplete_at.is_empty() {
+                                p { class: "incomplete-links",
+                                    "{t.incomplete_which} "
+                                    for i in incomplete_at {
+                                        button { key: "{i}", class: "link",
+                                            onclick: move |_| { go_to(session, i); stage.set(Stage::Exam); },
+                                            "{t.question} {i + 1}"
+                                        }
+                                        " "
+                                    }
+                                }
                             }
                             div { class: "nav",
                                 button { onclick: move |_| close_confirm(stage), "{t.keep_working}" }
@@ -509,6 +560,8 @@ pub fn App() -> Element {
                                             Some(s) => {
                                                 let copy = s.submit();
                                                 save(s);
+                                                platform::forget_in_progress();
+                                                unfinished.set(None);
                                                 copy
                                             }
                                             None => return,
@@ -589,6 +642,25 @@ pub fn App() -> Element {
                                 }
                             },
                             "{t.save_copy}"
+                        }
+                        if can_share() {
+                            button {
+                                onclick: {
+                                    let file_name = file_name.clone();
+                                    move |_| {
+                                        let bytes = sealed.read().as_ref().map(|r| b64::encode(&r.bytes));
+                                        let file_name = file_name.clone();
+                                        async move {
+                                            if let Some(bytes) = bytes
+                                                && platform::share_file(&file_name, &bytes).await == platform::Shared::Sent
+                                            {
+                                                copy_saved.set(true);
+                                            }
+                                        }
+                                    }
+                                },
+                                "{t.share_copy}"
+                            }
                         }
                         if copy_saved() { p { class: "notice", role: "status", "{saved_line}" } }
                         p { "{t.receipt}" }
@@ -705,6 +777,9 @@ pub fn App() -> Element {
         style { {STYLE} }
         div { class: "app", "data-theme": "{theme}", "data-shortcuts": if shortcuts() { "on" } else { "off" },
             style: "font-size: {text_scale}%",
+            if stage() == Stage::Exam {
+                button { class: "skip-link", onclick: move |_| skip_to_question(), "{t.skip_to_question}" }
+            }
             header { class: "top",
                 span { class: "brand", "{header_title}" }
                 div { class: "prefs",
@@ -728,6 +803,35 @@ pub fn App() -> Element {
             main { lang: paper_lang, {content} }
         }
     }
+}
+
+/// The paper's title once open, empty before.
+fn paper_title(opened: Signal<Option<Rc<Opened>>>) -> String {
+    opened
+        .read()
+        .as_ref()
+        .map(|o| o.paper.title.clone())
+        .unwrap_or_default()
+}
+
+/// The title of the copy noted unfinished on this device, while it is still there and not
+/// handed in.
+async fn unfinished_copy() -> Option<String> {
+    let (key, title) = platform::in_progress().await?;
+    let unfinished = platform::storage_get(&key)
+        .await
+        .and_then(|text| b64::decode(&text))
+        .and_then(|bytes| decode_session(&bytes).ok())
+        .is_some_and(|s| !s.submitted);
+    if !unfinished {
+        platform::forget_in_progress();
+    }
+    unfinished.then_some(title)
+}
+
+/// The seconds a `tick:<n>` message of the page carries; `None` for any other message.
+pub fn tick_seconds(message: &str) -> Option<u32> {
+    message.strip_prefix("tick:")?.parse().ok()
 }
 
 /// The sealed copy's file name, after the student.
@@ -768,6 +872,25 @@ fn focus_question() {
     let _ = document::eval(
         "setTimeout(() => { const a = document.activeElement; \
          if (!a || a === document.body) { const h = document.getElementById('q-title'); if (h) h.focus({ preventScroll: true }); } }, 0);",
+    );
+}
+
+/// The focus on the new screen's title (the question's during the exam), unless a field of the
+/// screen took it already (the name, on the identification screen).
+fn focus_screen() {
+    let _ = document::eval(
+        "setTimeout(() => { const a = document.activeElement; \
+         if (a && a !== document.body && document.querySelector('main').contains(a)) return; \
+         const h = document.getElementById('q-title') || document.getElementById('name') || document.querySelector('main h1, main h2'); \
+         if (!h) return; if (h.tagName !== 'INPUT' && !h.hasAttribute('tabindex')) h.setAttribute('tabindex', '-1'); \
+         h.focus({ preventScroll: true }); }, 0);",
+    );
+}
+
+/// Takes the keyboard straight to the question, past the header and the overview.
+fn skip_to_question() {
+    let _ = document::eval(
+        "setTimeout(() => { const h = document.getElementById('q-title'); if (h) h.focus(); }, 0);",
     );
 }
 

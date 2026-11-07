@@ -74,9 +74,11 @@ pub fn Welcome(
                 }
                 div { class: "way",
                     IconButton { icon: Icon::Correct, label: t.welcome_demo, shown: true,
+                        // WHY closed after: the task belongs to this screen, and closing it first
+                        // dropped the preparation at its first pause, leaving it unfinished.
                         onclick: move |_| async move {
-                            welcome.set(false);
                             crate::demo::open(studio, correction, notice, tour, t, lang).await;
+                            welcome.set(false);
                         },
                     }
                     p { class: "muted", "{t.welcome_demo_hint}" }

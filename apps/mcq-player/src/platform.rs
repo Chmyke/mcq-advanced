@@ -236,13 +236,83 @@ try { await navigator.clipboard.writeText(url); return 'copied'; } catch (e) { r
     }
 }
 
-/// Sends `tick` every second, `away` and `back` on focus changes, and `k:<key>` on key presses
-/// outside text fields. Single-character keys are dropped while the student turned shortcuts off.
+/// Where the unfinished copy of this device is noted, for the welcome screen.
+const IN_PROGRESS_KEY: &str = "mcq-in-progress";
+
+/// Notes that the copy saved under `key` is unfinished, with its paper's title.
+pub fn remember_in_progress(key: &str, title: &str) {
+    if script_safe(key) {
+        storage_set(
+            IN_PROGRESS_KEY,
+            &format!("{key}.{}", crate::b64::encode(title.as_bytes())),
+        );
+    }
+}
+
+pub fn forget_in_progress() {
+    storage_remove(IN_PROGRESS_KEY);
+}
+
+/// The storage key and the paper title of the unfinished copy noted on this device.
+pub async fn in_progress() -> Option<(String, String)> {
+    let value = storage_get(IN_PROGRESS_KEY).await?;
+    let (key, title) = value.split_once('.')?;
+    let title = String::from_utf8(crate::b64::decode(title)?).ok()?;
+    Some((key.to_string(), title))
+}
+
+/// True where the system's share sheet takes files (phones, mostly).
+pub async fn can_share_files() -> bool {
+    const SCRIPT: &str = r#"
+try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'copy.mcqres', { type: 'application/octet-stream' })] })); }
+catch (e) { return false; }
+"#;
+    document::eval(SCRIPT).join().await.unwrap_or(false)
+}
+
+/// Hands a file to the system's share sheet (mail, messaging, school apps). The name and the
+/// content are checked like a download's before they reach the script.
+pub async fn share_file(file_name: &str, base64: &str) -> Shared {
+    let name = self::file_name(file_name);
+    if !script_safe(base64) {
+        return Shared::Failed;
+    }
+    let script = format!(
+        "const b = Uint8Array.from(atob('{base64}'), (c) => c.charCodeAt(0)); \
+         const f = new File([b], '{name}', {{ type: 'application/octet-stream' }}); \
+         if (!navigator.canShare || !navigator.canShare({{ files: [f] }})) return ''; \
+         try {{ await navigator.share({{ files: [f], title: '{name}' }}); return 'sent'; }} \
+         catch (e) {{ return e && e.name === 'AbortError' ? 'cancelled' : ''; }}"
+    );
+    let outcome: String = document::eval(&script).join().await.unwrap_or_default();
+    match outcome.as_str() {
+        "sent" => Shared::Sent,
+        "cancelled" => Shared::Cancelled,
+        _ => Shared::Failed,
+    }
+}
+
+/// Sends `tick:<seconds>` with the whole seconds of the wall clock gone by since the last one,
+/// `away` and `back` on focus changes, and `k:<key>` on key presses outside text fields.
+/// Single-character keys are dropped while the student turned shortcuts off.
+/// WHY the wall clock: a browser slows or freezes the timers of a hidden page or a locked phone;
+/// counting beats would then hand out free time. A clock set back counts nothing.
 pub const EVENTS_SCRIPT: &str = r#"
-setInterval(() => dioxus.send('tick'), 1000);
+let last = Date.now(), carry = 0;
+const beat = () => {
+  const now = Date.now();
+  const ms = Math.max(0, now - last) + carry;
+  last = now;
+  const s = Math.floor(ms / 1000);
+  carry = ms - s * 1000;
+  if (s > 0) dioxus.send('tick:' + s);
+};
+setInterval(beat, 1000);
+// Leaving or reloading during the exam asks first; the answers stay on the device anyway.
+window.addEventListener('beforeunload', (e) => { if (document.querySelector('.exam')) { e.preventDefault(); e.returnValue = ''; } });
 let away = false;
 const leave = () => { if (!away) { away = true; dioxus.send('away'); } };
-const come = () => { if (away) { away = false; dioxus.send('back'); } };
+const come = () => { if (away) { beat(); away = false; dioxus.send('back'); } };
 document.addEventListener('visibilitychange', () => document.hidden ? leave() : come());
 window.addEventListener('blur', leave);
 window.addEventListener('focus', come);
@@ -252,8 +322,12 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const app = document.querySelector('.app');
   if (e.key.length === 1 && app && app.dataset.shortcuts === 'off') return;
-  // A focused button or box answers Space and Enter itself.
-  if ((e.key === ' ' || e.key === 'Enter') && t && ['BUTTON', 'INPUT', 'SELECT', 'A', 'SUMMARY'].includes(t.tagName)) return;
+  // A focused button or box answers Space itself, and Enter too except on an answer's box,
+  // where Enter moves on as the keyboard help says.
+  const answerBox = t && t.tagName === 'INPUT' && (t.type === 'checkbox' || t.type === 'radio') && t.closest('.options');
+  if (e.key === ' ' && t && ['BUTTON', 'INPUT', 'SELECT', 'A', 'SUMMARY'].includes(t.tagName)) return;
+  if (e.key === 'Enter' && t && !answerBox && ['BUTTON', 'INPUT', 'SELECT', 'A', 'SUMMARY'].includes(t.tagName)) return;
+  if (e.key === 'Enter' && answerBox) e.preventDefault();
   if (e.key === ' ') e.preventDefault();
   if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && t && t.type === 'radio') e.preventDefault();
   dioxus.send('k:' + e.key);

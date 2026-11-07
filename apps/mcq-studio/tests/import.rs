@@ -1,6 +1,6 @@
 //! What the Studio opens: its own papers, and the banks of other tools.
 
-use mcq_studio::actions::{is_paper_file, read_paper};
+use mcq_studio::actions::{is_paper_file, read_paper, readable_title};
 
 const SAMPLE: &str = include_str!("../../../crates/mcq-format/tests/fixtures/sample.qcm.md");
 const GIFT: &str = include_str!("../../../crates/mcq-convert/tests/fixtures/bank.gift");
@@ -26,7 +26,9 @@ fn banks_open_like_papers() {
 
     let (project, issues) =
         read_paper("bank.gift", GIFT.as_bytes().to_vec(), "fr", false).expect("gift");
-    assert_eq!(project.paper.title, "bank");
+    // Named after the file, readable: students see it as the theme of every question.
+    assert_eq!(project.paper.title, "Bank");
+    assert!(!project.paper.allow_extra_time);
     assert_eq!(
         project.paper.question("sun").expect("sun").options[0].text,
         "Vrai"
@@ -75,4 +77,15 @@ fn the_website_demo_opens_with_its_picture() {
                 .all(|i| i.severity == mcq_model::Severity::Info)
         );
     }
+}
+
+#[test]
+fn a_file_name_reads_as_a_title() {
+    assert_eq!(
+        readable_title("les_solutions-aqueuses"),
+        "Les solutions aqueuses"
+    );
+    assert_eq!(readable_title("solutions"), "Solutions");
+    assert_eq!(readable_title("élèves 2nde"), "Élèves 2nde");
+    assert_eq!(readable_title("__"), "");
 }

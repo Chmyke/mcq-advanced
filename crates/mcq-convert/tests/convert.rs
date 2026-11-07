@@ -304,6 +304,8 @@ fn bank_view(paper: &Paper, lang: &str) -> Paper {
     expected.unanswered_penalty = 0.0;
     expected.shuffle_questions = true;
     expected.show_answer_count = true;
+    // A bank carries no arrangements: none until the teacher allows them.
+    expected.allow_extra_time = false;
     expected.notes.clear();
     expected.lang = lang.to_string();
     expected.scoring = if paper.questions.iter().any(|q| q.correct_count() > 1) {

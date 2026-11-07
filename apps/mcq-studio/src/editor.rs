@@ -20,6 +20,26 @@ pub const RULES_GUIDE: &str = "https://github.com/Chmyke/mcq-advanced/blob/main/
 const WRITING_GUIDE_EN: &str = "https://mickaelmancini.com/mcq-advanced/en/guide/";
 const WRITING_GUIDE_FR: &str = "https://mickaelmancini.com/mcq-advanced/guide/";
 
+/// The website's tutorial, "my first quiz in five minutes", per interface language.
+const TUTORIAL_EN: &str = "https://mickaelmancini.com/mcq-advanced/en/tutorial/";
+const TUTORIAL_FR: &str = "https://mickaelmancini.com/mcq-advanced/tutorial/";
+
+/// The writing guide in the interface language.
+pub fn guide_link(lang: Lang) -> &'static str {
+    match lang {
+        Lang::Fr => WRITING_GUIDE_FR,
+        Lang::En => WRITING_GUIDE_EN,
+    }
+}
+
+/// The tutorial in the interface language.
+pub fn tutorial_link(lang: Lang) -> &'static str {
+    match lang {
+        Lang::Fr => TUTORIAL_FR,
+        Lang::En => TUTORIAL_EN,
+    }
+}
+
 /// The writing advice the guide explains, each at the anchor named after its code
 /// (`LENGTH_BIAS` at `#length-bias`): every warning of docs/lint-rules.md that is about writing,
 /// not reading the file. The website's check (tools/check-mcq-advanced.py) holds the same list.
@@ -56,10 +76,7 @@ pub fn rule_link(code: &str, lang: Lang) -> String {
     if !GUIDE_CODES.contains(&code) {
         return RULES_GUIDE.to_string();
     }
-    let guide = match lang {
-        Lang::Fr => WRITING_GUIDE_FR,
-        Lang::En => WRITING_GUIDE_EN,
-    };
+    let guide = guide_link(lang);
     format!("{guide}#{}", code.to_ascii_lowercase().replace('_', "-"))
 }
 
@@ -112,7 +129,8 @@ pub fn issue_list(issues: &[&Issue], t: &'static Texts, with_location: bool) -> 
                 li { key: "{k}", class: "issue {class}",
                     span { class: "issue-level", "{label}" }
                     span { "{place}{message} " }
-                    a { class: "issue-code", href: "{link}", target: "_blank", rel: "noopener", "{code}" }
+                    // The code is for whoever helps the teacher: in the tip, not in the sentence.
+                    a { class: "issue-code", href: "{link}", target: "_blank", rel: "noopener", title: "{code}", "{t.why}" }
                 }
             }
         }
@@ -291,6 +309,12 @@ fn question_list(
     }
 }
 
+/// The key of an answer row in the editor: a new row, so a new box, for another question or
+/// another kind of question.
+pub fn answer_key(question_id: &str, kind: Kind, index: usize) -> String {
+    format!("{question_id}-{kind:?}-{index}")
+}
+
 /// Another question opens at its top, not where the previous one was scrolled.
 fn to_top() {
     let _ = document::eval("setTimeout(() => window.scrollTo(0, 0), 0);");
@@ -445,8 +469,11 @@ fn question_editor(
             section { class: "answers", "aria-labelledby": "answers-title",
                 h2 { id: "answers-title", "{t.answers}" }
                 p { class: "muted hint", "{t.answers_hint}" }
+                // WHY the key names the question and its kind: a reused box that changes from
+                // checkbox to radio, or joins another question's radio group, is unchecked by the
+                // browser behind the model's back, and the next click then removes a right answer.
                 for (k, option, letter) in question.options.iter().enumerate().map(|(k, o)| (k, o, mcq_player::render::option_key(k))) {
-                    div { key: "{k}", class: if option.is_correct { "answer correct" } else { "answer" },
+                    div { key: "{answer_key(&id, kind, k)}", class: if option.is_correct { "answer correct" } else { "answer" },
                         input {
                             r#type: if kind == Kind::Multiple { "checkbox" } else { "radio" },
                             name: "correct-{id}",

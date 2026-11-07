@@ -20,6 +20,22 @@ pub struct Texts {
     /// The browser kept the clipboard to itself.
     pub paste_refused: &'static str,
     pub paste_not_paper: &'static str,
+    /// The help menu: the website's tutorial, its writing guide, and the AI prompt.
+    pub help: &'static str,
+    pub tip_help: &'static str,
+    pub help_tutorial: &'static str,
+    pub help_guide: &'static str,
+    /// Importing over a paper that has questions: `{mine}` and `{theirs}` count them.
+    pub import_choice: &'static str,
+    pub import_add: &'static str,
+    pub import_replace: &'static str,
+    pub cancel: &'static str,
+    /// After an import added to the paper; `{n}`.
+    pub imported_added: &'static str,
+    /// The themes a bank's questions went to, to rename if needed; `{themes}`.
+    pub imported_themes: &'static str,
+    /// The link from a validator message to its explanation; the code is its tip.
+    pub why: &'static str,
     pub welcome_title: &'static str,
     pub welcome_text: &'static str,
     pub welcome_write: &'static str,
@@ -176,6 +192,12 @@ pub struct Texts {
     pub settings_time: &'static str,
     pub duration: &'static str,
     pub estimated: &'static str,
+    /// How the estimate is made, and how to correct it.
+    pub estimated_hint: &'static str,
+    /// The time limit never closes a copy: said to the teacher as to the students.
+    pub duration_soft: &'static str,
+    /// The paper's language when none is written.
+    pub lang_unset: &'static str,
     pub minutes: &'static str,
     pub settings_scoring: &'static str,
     pub scoring_all_or_nothing: &'static str,
@@ -208,6 +230,8 @@ pub struct Texts {
     pub confirm_passphrase: &'static str,
     pub create_and_download: &'static str,
     pub identity_ready: &'static str,
+    /// What the fingerprint is for, under it.
+    pub fingerprint_hint: &'static str,
     pub identity_saved: &'static str,
     pub identity_download_again: &'static str,
     pub identity_kept: &'static str,
@@ -249,8 +273,32 @@ pub struct Texts {
 
 impl Texts {
     /// A validator message in the interface language.
-    pub fn issue<'a>(&self, issue: &'a Issue) -> &'a str {
-        issue.message_in(self.lang == Lang::Fr)
+    /// A message of the core as a teacher reads it: names written as code (`Q7`) are quoted
+    /// instead, as in the rest of the interface.
+    pub fn issue(&self, issue: &Issue) -> String {
+        self.quoted(issue.message_in(self.lang == Lang::Fr))
+    }
+
+    /// `text` between the language's quotation marks.
+    pub fn quote(&self, text: &str) -> String {
+        match self.lang {
+            Lang::Fr => format!("« {text} »"),
+            Lang::En => format!("“{text}”"),
+        }
+    }
+
+    /// Every `code` span of `text` between the language's quotation marks.
+    pub fn quoted(&self, text: &str) -> String {
+        text.split('`')
+            .enumerate()
+            .map(|(k, part)| {
+                if k % 2 == 1 {
+                    self.quote(part)
+                } else {
+                    part.to_string()
+                }
+            })
+            .collect()
     }
 
     /// A validator message as the editor shows it: where the core names the file's syntax
@@ -302,11 +350,11 @@ impl Texts {
                 ),
             ],
         };
-        let mut text = self.issue(issue).to_string();
+        let mut text = issue.message_in(self.lang == Lang::Fr).to_string();
         for (syntax, field) in &fields {
             text = text.replace(syntax, field);
         }
-        text
+        self.quoted(&text)
     }
 
     /// How many errors and warnings the validator reports, as a screen reader announces it.
@@ -374,7 +422,18 @@ pub static EN: Texts = Texts {
     paste: "Paste",
     tip_paste: "Paste a paper copied from an AI's answer or a text editor",
     paste_refused: "The browser did not give access to the clipboard: click an empty part of the page and press Ctrl+V.",
-    paste_not_paper: "The clipboard holds no paper the Studio can read. Give the AI the Studio's prompt first (Copy the AI prompt, on the welcome screen), then copy its whole answer, from its first --- line.",
+    paste_not_paper: "The clipboard holds no paper the Studio can read. It reads the answer of an AI given the Studio's prompt (Help menu, Copy the AI prompt), copied whole, and the Aiken format: the question on one line, then A. B. C. one answer per line, then ANSWER: B.",
+    help: "Help",
+    tip_help: "Help: getting started, writing guide, AI prompt",
+    help_tutorial: "Getting started (website)",
+    help_guide: "Writing a good quiz (website)",
+    import_choice: "Your paper has {mine} {mine:question|questions}; the file brings {theirs}. Add them after yours, or replace your paper?",
+    import_add: "Add to my paper",
+    import_replace: "Replace my paper",
+    cancel: "Cancel",
+    imported_added: "{n} {n:question added|questions added} at the end of your paper.",
+    imported_themes: "{count:Theme|Themes} of the imported questions: {themes}. Rename in Settings if needed.",
+    why: "Why?",
     welcome_title: "Write a quiz",
     welcome_text: "Four ways to start. Whatever you pick, everything stays in this browser: no account, no server.",
     welcome_write: "Write a question",
@@ -533,15 +592,18 @@ pub static EN: Texts = Texts {
     preview_phone: "Phone",
 
     settings_paper: "Paper",
-    title: "Title",
+    title: "Title of the paper",
     description: "Introduction shown to students",
-    paper_lang: "Language of the paper (en, fr...)",
+    paper_lang: "Language of the paper",
     paper_languages: "Interface languages offered to students",
     paper_languages_hint: "None ticked: no language switch, the interface follows the paper's language.",
     notes: "Author notes (never shown to students)",
     settings_time: "Time",
     duration: "Duration in minutes (0: no limit)",
     estimated: "Estimated answering time:",
+    estimated_hint: "From each question's level, plus a fifth for margin; the length of a statement, a calculation or code is not counted. A question that takes longer gets its own time in its More settings.",
+    duration_soft: "The time never closes a copy: going over is only noted on it, the mark does not change.",
+    lang_unset: "Not set",
     minutes: "min",
     settings_scoring: "Scoring",
     scoring_all_or_nothing: "All or nothing",
@@ -555,7 +617,7 @@ pub static EN: Texts = Texts {
     allow_extra_time: "Let students declare extra time (a third, a half, double, untimed); their copy shows it",
     advanced: "More settings: id and time",
     themes: "Themes",
-    theme_title: "Title",
+    theme_title: "Name of the theme",
     course_ref: "Where to revise",
     add_theme: "Theme",
     new_theme: "New theme",
@@ -573,6 +635,7 @@ pub static EN: Texts = Texts {
     confirm_passphrase: "Same passphrase again",
     create_and_download: "Create and download",
     identity_ready: "Identity ready. Fingerprint:",
+    fingerprint_hint: "The fingerprint is a short code that names your identity: students see it when they open your paper and can check it against the room sheet, so a paper signed by someone else shows.",
     identity_saved: "Your identity was saved as teacher.mcqid, usually in your Downloads folder. Put it somewhere safe (a USB key, your cloud storage): with its passphrase, it is the only key to your students' copies.",
     identity_download_again: "Download my identity again",
     identity_kept: "Your identity is kept in this browser: type its passphrase to unlock it.",
@@ -631,7 +694,18 @@ pub static FR: Texts = Texts {
     paste: "Coller",
     tip_paste: "Coller un QCM copié depuis la réponse d'une IA ou un éditeur de texte",
     paste_refused: "Le navigateur n'a pas donné accès au presse-papiers : cliquez sur une zone vide de la page et appuyez sur Ctrl+V.",
-    paste_not_paper: "Le presse-papiers ne contient pas de QCM lisible. Donnez d'abord à l'IA le prompt du Studio (Copier le prompt pour l'IA, sur l'écran d'accueil), puis copiez toute sa réponse, depuis sa première ligne ---.",
+    paste_not_paper: "Le presse-papiers ne contient pas de QCM lisible. Le Studio lit la réponse d'une IA à qui l'on a donné son prompt (menu Aide, Copier le prompt pour l'IA), copiée en entier, et le format Aiken : la question sur une ligne, puis A. B. C. une réponse par ligne, puis ANSWER: B.",
+    help: "Aide",
+    tip_help: "Aide : prise en main, guide d'écriture, prompt pour l'IA",
+    help_tutorial: "Prise en main (site)",
+    help_guide: "Écrire un bon QCM (site)",
+    import_choice: "Votre sujet compte {mine} {mine:question|questions} ; le fichier en apporte {theirs}. Les ajouter après les vôtres, ou remplacer votre sujet ?",
+    import_add: "Ajouter à mon sujet",
+    import_replace: "Remplacer mon sujet",
+    cancel: "Annuler",
+    imported_added: "{n} {n:question ajoutée|questions ajoutées} à la fin de votre sujet.",
+    imported_themes: "{count:Thème|Thèmes} des questions importées : {themes}. Renommez dans Réglages si besoin.",
+    why: "Pourquoi ?",
     welcome_title: "Écrire un QCM",
     welcome_text: "Quatre façons de commencer. Quel que soit votre choix, tout reste dans ce navigateur : ni compte, ni serveur.",
     welcome_write: "Écrire une question",
@@ -790,15 +864,18 @@ pub static FR: Texts = Texts {
     preview_phone: "Téléphone",
 
     settings_paper: "Sujet",
-    title: "Titre",
+    title: "Titre du sujet",
     description: "Introduction montrée aux étudiants",
-    paper_lang: "Langue du sujet (fr, en...)",
+    paper_lang: "Langue du sujet",
     paper_languages: "Langues d'interface proposées aux étudiants",
     paper_languages_hint: "Aucune cochée : pas de choix de langue, l'interface suit la langue du sujet.",
     notes: "Notes d'auteur (jamais montrées aux étudiants)",
     settings_time: "Temps",
     duration: "Durée en minutes (0 : sans limite)",
     estimated: "Temps de réponse estimé :",
+    estimated_hint: "D'après le niveau de chaque question, plus un cinquième de marge ; la longueur d'un énoncé, un calcul ou du code ne sont pas comptés. Une question plus longue reçoit son propre temps dans ses réglages avancés.",
+    duration_soft: "Le temps ne ferme jamais une copie : un dépassement est seulement noté dessus, la note ne change pas.",
+    lang_unset: "Non précisée",
     minutes: "min",
     settings_scoring: "Barème",
     scoring_all_or_nothing: "Tout ou rien",
@@ -812,7 +889,7 @@ pub static FR: Texts = Texts {
     allow_extra_time: "Laisser les étudiants déclarer un temps majoré (tiers-temps, moitié, double, sans limite) ; leur copie l'indique",
     advanced: "Plus de réglages : identifiant et temps",
     themes: "Thèmes",
-    theme_title: "Titre",
+    theme_title: "Nom du thème",
     course_ref: "Où réviser",
     add_theme: "Thème",
     new_theme: "Nouveau thème",
@@ -830,6 +907,7 @@ pub static FR: Texts = Texts {
     confirm_passphrase: "La même phrase, encore",
     create_and_download: "Créer et télécharger",
     identity_ready: "Identité prête. Empreinte :",
+    fingerprint_hint: "L'empreinte est un code court qui désigne votre identité : les élèves la voient en ouvrant votre sujet et la comparent à la fiche de salle, ce qui trahit un sujet signé par quelqu'un d'autre.",
     identity_saved: "Votre identité est enregistrée sous teacher.mcqid, en général dans vos Téléchargements. Rangez-la en lieu sûr (clé USB, stockage en ligne) : avec sa phrase de passe, elle seule ouvre les copies de vos élèves.",
     identity_download_again: "Télécharger à nouveau mon identité",
     identity_kept: "Votre identité est gardée dans ce navigateur : tapez sa phrase de passe pour la déverrouiller.",
@@ -917,6 +995,9 @@ pub struct CorrectTexts {
     pub summary: &'static str,
     pub reliability: &'static str,
     pub reliability_levels: [&'static str; 4],
+    /// Under the class figures: the words of the analysis, in plain language.
+    pub glossary_title: &'static str,
+    pub glossary: [&'static str; 3],
     pub small_cohort: &'static str,
     pub items_not_computed: &'static str,
     pub reteach_title: &'static str,
@@ -956,7 +1037,7 @@ pub struct CorrectTexts {
     pub extra_time: &'static str,
     pub untimed: &'static str,
     pub marks_title: &'static str,
-    pub columns: [&'static str; 7],
+    pub columns: [&'static str; 8],
     pub open_sheet: &'static str,
     pub open_timeline: &'static str,
     pub timeline_title: &'static str,
@@ -1002,7 +1083,7 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
     load_package: "Load the package (.mcqpack)",
     use_published: "Use the paper published in this session",
     add_copies: "Add copies (.mcqres)",
-    drop_hint: "You can also drop the package and the copies anywhere on the page.",
+    drop_hint: "All the copies at once: select them together in their folder (Ctrl+A), or drop the whole lot anywhere on the page, the package with them.",
     waiting: "{n} {n:file|files} waiting for your identity.",
     package_ready: "Paper: {title}",
     copies_in: "{n} {n:copy|copies} opened.",
@@ -1020,8 +1101,14 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
         "fair",
         "good",
     ],
+    glossary_title: "What do these figures mean?",
+    glossary: [
+        "D, from -1 to 1: how much better the strongest copies do on a question than the weakest. Near 0, the question hardly separates them; below 0, the strongest miss it more, often the sign of a doubtful key.",
+        "Reliability (KR-20), from 0 to 1: whether the questions measure the same thing together. From 0.7, the marks can support a decision.",
+        "A wrong option is one of the answers offered that are not right (also called a distractor).",
+    ],
     small_cohort: "Fewer than 30 copies: the figures below are trends to confirm, not verdicts.",
-    items_not_computed: "Fewer than 8 copies: discrimination and reliability are not computed.",
+    items_not_computed: "Fewer than 8 copies: D and reliability are not computed.",
     reteach_title: "1 · To teach again",
     reteach: "{theme}: {rate} % success, {share} % of the class not there yet",
     reteach_doubtful: "Check first: {n} {n:question of this theme has|questions of this theme have} a doubtful key or were reported by students ({ids}); the notion may be fine.",
@@ -1029,13 +1116,13 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
     thin_theme: "{theme} has only {n} {n:question|questions}: its rate is not usable.",
     traps_title: "2 · Shared confusions",
     trap: "{rate} % chose «{option}» ({question})",
-    traps_none: "No distractor drew a quarter of the answers.",
+    traps_none: "No wrong option drew a quarter of the answers.",
     review_title: "3 · Questions to review",
     key_doubt_rival: "{question} · key or wording to check: the strongest students prefer «{rival}»",
-    key_doubt: "{question} · discriminates the wrong way (D = {d}): probably ambiguous",
+    key_doubt: "{question} · the strongest students miss it more than the others (D = {d}): probably ambiguous",
     reported: "{question} · reported as unclear or wrong by {n} {n:student|students}: reread the statement and the key",
     too_hard: "{question} · missed by {pct} % of the class",
-    dead: "{question} · {n} {n:distractor|distractors} never chosen",
+    dead: "{question} · {n} {n:wrong option|wrong options} never chosen",
     too_easy: "{question} · succeeded by everyone",
     weak: "{question} · separates strong and weak students poorly (D = {d})",
     review_none: "No question needs rewriting.",
@@ -1059,7 +1146,14 @@ pub static CORRECT_EN: CorrectTexts = CorrectTexts {
     untimed: "{name}: extra time without limit declared, to check against your list of arrangements",
     marks_title: "5 · Marks",
     columns: [
-        "Name", "Mark /20", "Correct", "Wrong", "Blank", "Time", "Receipt",
+        "Name",
+        "Mark /20",
+        "Correct",
+        "Partly correct",
+        "Wrong",
+        "Blank",
+        "Time",
+        "Receipt",
     ],
     open_sheet: "Sheet",
     open_timeline: "Timeline",
@@ -1110,7 +1204,7 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     load_package: "Charger le paquet (.mcqpack)",
     use_published: "Utiliser le sujet publié dans cette session",
     add_copies: "Ajouter des copies (.mcqres)",
-    drop_hint: "Vous pouvez aussi glisser le paquet et les copies n'importe où sur la page.",
+    drop_hint: "Toutes les copies d'un coup : sélectionnez-les ensemble dans leur dossier (Ctrl+A), ou glissez le lot entier n'importe où sur la page, le paquet avec.",
     waiting: "{n} {n:fichier|fichiers} en attente de votre identité.",
     package_ready: "Sujet : {title}",
     copies_in: "{n} {n:copie ouverte|copies ouvertes}.",
@@ -1128,8 +1222,14 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
         "correcte",
         "bonne",
     ],
+    glossary_title: "Que veulent dire ces chiffres ?",
+    glossary: [
+        "D, de -1 à 1 : à quel point les meilleures copies réussissent mieux la question que les plus faibles. Proche de 0, la question les sépare mal ; sous 0, les meilleurs la ratent davantage, souvent le signe d'un corrigé douteux.",
+        "Fiabilité (KR-20), de 0 à 1 : les questions mesurent-elles ensemble la même chose ? À partir de 0,7, les notes peuvent appuyer une décision.",
+        "Une mauvaise réponse est une des options proposées qui ne sont pas justes (on dit aussi « distracteur »).",
+    ],
     small_cohort: "Moins de 30 copies : les chiffres ci-dessous sont des tendances à confirmer, pas des verdicts.",
-    items_not_computed: "Moins de 8 copies : discrimination et fiabilité ne sont pas calculées.",
+    items_not_computed: "Moins de 8 copies : D et fiabilité ne sont pas calculés.",
     reteach_title: "1 · À réenseigner",
     reteach: "{theme} : {rate} % de réussite, {share} % de la classe non acquis",
     reteach_doubtful: "À vérifier d'abord : {n} {n:question de ce thème a un corrigé douteux ou a été signalée|questions de ce thème ont un corrigé douteux ou ont été signalées} par des élèves ({ids}) ; la notion est peut-être acquise.",
@@ -1137,13 +1237,13 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
     thin_theme: "{theme} n'a que {n} {n:question|questions} : son taux n'est pas exploitable.",
     traps_title: "2 · Idées fausses partagées",
     trap: "{rate} % ont choisi «{option}» ({question})",
-    traps_none: "Aucun distracteur n'a attiré le quart des réponses.",
+    traps_none: "Aucune mauvaise réponse n'a attiré le quart des réponses.",
     review_title: "3 · Questions à revoir",
     key_doubt_rival: "{question} · corrigé ou énoncé à vérifier : les meilleurs préfèrent «{rival}»",
-    key_doubt: "{question} · discrimine à l'envers (D = {d}) : probablement ambiguë",
+    key_doubt: "{question} · les meilleurs la ratent plus que les autres (D = {d}) : probablement ambiguë",
     reported: "{question} · signalée floue ou erronée par {n} {n:élève|élèves} : relire l'énoncé et le corrigé",
     too_hard: "{question} · ratée par {pct} % de la classe",
-    dead: "{question} · {n} {n:distracteur jamais choisi|distracteurs jamais choisis}",
+    dead: "{question} · {n} {n:mauvaise réponse jamais choisie|mauvaises réponses jamais choisies}",
     too_easy: "{question} · réussie par tout le monde",
     weak: "{question} · sépare mal les forts et les faibles (D = {d})",
     review_none: "Aucune question ne demande de réécriture.",
@@ -1170,6 +1270,7 @@ pub static CORRECT_FR: CorrectTexts = CorrectTexts {
         "Nom",
         "Note /20",
         "Justes",
+        "En partie justes",
         "Fausses",
         "Sans réponse",
         "Durée",

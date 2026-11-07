@@ -69,14 +69,15 @@ pub fn import(source: &str, options: &ImportOptions) -> Imported {
                     format!("`{name}` est une description, pas une question."),
                 )
             } else {
+                let (kind_en, kind_fr) = kind_words(kind);
                 (
                     format!(
-                        "`{name}` is of type `{kind}`: only single, multiple and true or false \
-                         questions come in."
+                        "`{name}` is {kind_en} (Moodle type {kind}): only single, multiple and \
+                         true or false questions come in."
                     ),
                     format!(
-                        "`{name}` est de type `{kind}` : seules les questions à choix unique, à \
-                         choix multiples et vrai ou faux sont importées."
+                        "`{name}` est {kind_fr} (type Moodle {kind}) : seules les questions à \
+                         choix unique, à choix multiples et vrai ou faux sont importées."
                     ),
                 )
             };
@@ -837,5 +838,23 @@ fn report_settings(paper: &Paper, issues: &mut Vec<Issue>) {
             "Moodle donne un crédit partiel aux questions à choix multiples ; ce sujet les note en \
              tout ou rien.",
         ));
+    }
+}
+
+/// A Moodle question type as a teacher names it, in English and French.
+fn kind_words(kind: &str) -> (&'static str, &'static str) {
+    match kind {
+        "shortanswer" => ("a short answer question", "une question à réponse courte"),
+        "numerical" => (
+            "a numerical answer question",
+            "une question à réponse numérique",
+        ),
+        "essay" => ("an essay question", "une question à développement"),
+        "matching" => ("a matching question", "une question d'appariement"),
+        "cloze" | "ddwtos" | "gapselect" => ("a fill-in question", "une question à trous"),
+        "calculated" | "calculatedsimple" | "calculatedmulti" => {
+            ("a calculated question", "une question calculée")
+        }
+        _ => ("another kind of question", "un autre genre de question"),
     }
 }

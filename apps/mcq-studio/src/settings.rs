@@ -20,12 +20,34 @@ fn number(text: &str) -> f32 {
         .unwrap_or(0.0)
 }
 
-/// Each language in its own words, as language pickers show them.
-fn endonym(tag: &str) -> &'static str {
-    match tag {
-        "fr" => "Français",
-        _ => "English",
+/// The languages a paper is most often written in, each in its own words as language pickers
+/// show them.
+const PAPER_LANGUAGES: [(&str, &str); 8] = [
+    ("fr", "Français"),
+    ("en", "English"),
+    ("de", "Deutsch"),
+    ("es", "Español"),
+    ("it", "Italiano"),
+    ("pt", "Português"),
+    ("nl", "Nederlands"),
+    ("ca", "Català"),
+];
+
+/// Each language in its own words; a tag outside the list as written.
+fn endonym(tag: &str) -> &str {
+    PAPER_LANGUAGES
+        .iter()
+        .find(|(t, _)| *t == tag)
+        .map_or(tag, |(_, name)| name)
+}
+
+/// The choices of the paper's language: the usual ones, and the paper's own when it is another.
+fn language_choices(current: &str) -> Vec<String> {
+    let mut tags: Vec<String> = PAPER_LANGUAGES.iter().map(|(t, _)| t.to_string()).collect();
+    if !current.is_empty() && !tags.iter().any(|t| t == current) {
+        tags.push(current.to_string());
     }
+    tags
 }
 
 /// Ticks or unticks one language; languages this Studio has no box for stay as written.
@@ -68,8 +90,13 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                 textarea { id: "p-description", rows: "3", value: "{paper.description}",
                     oninput: move |e| studio.write().edit_paper(|p| p.description = e.value().replace('\n', " ")) }
                 label { r#for: "p-lang", "{t.paper_lang}" }
-                input { id: "p-lang", r#type: "text", class: "short", value: "{paper.lang}",
-                    oninput: move |e| studio.write().edit_paper(|p| p.lang = e.value().trim().to_string()) }
+                select { id: "p-lang",
+                    onchange: move |e| studio.write().edit_paper(|p| p.lang = e.value()),
+                    option { value: "", selected: paper.lang.is_empty(), "{t.lang_unset}" }
+                    for tag in language_choices(&paper.lang) {
+                        option { key: "{tag}", value: "{tag}", lang: "{tag}", selected: tag == paper.lang, "{endonym(&tag)}" }
+                    }
+                }
                 div { role: "group", "aria-labelledby": "p-languages", "aria-describedby": "p-languages-hint",
                     p { id: "p-languages", class: "group-label", "{t.paper_languages}" }
                     for tag in INTERFACE_LANGUAGES {
@@ -91,6 +118,8 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
                 input { id: "p-duration", r#type: "number", min: "0", class: "short", value: "{paper.duration_minutes}",
                     oninput: move |e| studio.write().edit_paper(|p| p.duration_minutes = e.value().trim().parse().unwrap_or(0)) }
                 p { class: "muted", "{t.estimated} {estimated} {t.minutes}" }
+                p { class: "muted small-text", "{t.estimated_hint}" }
+                if paper.duration_minutes > 0 { p { class: "muted small-text", "{t.duration_soft}" } }
             }
             fieldset { class: "card",
                 legend { "{t.settings_scoring}" }
@@ -163,7 +192,18 @@ pub fn settings_space(mut studio: Signal<Studio>, t: &'static Texts) -> Element 
 
 #[cfg(test)]
 mod tests {
-    use super::{number, offer_language};
+    use super::{endonym, language_choices, number, offer_language};
+
+    #[test]
+    fn the_paper_language_is_picked_and_an_unusual_one_kept() {
+        assert_eq!(endonym("fr"), "Français");
+        assert_eq!(endonym("eo"), "eo");
+        assert!(language_choices("").iter().all(|t| !t.is_empty()));
+        let tags = language_choices("eo");
+        assert_eq!(tags.last().map(String::as_str), Some("eo"));
+        assert_eq!(tags.iter().filter(|t| *t == "fr").count(), 1);
+        assert_eq!(language_choices("fr").len(), language_choices("").len());
+    }
 
     #[test]
     fn ticking_languages_keeps_the_others() {

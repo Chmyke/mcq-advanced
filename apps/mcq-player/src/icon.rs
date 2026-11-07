@@ -21,6 +21,7 @@ pub enum Icon {
     Download,
     FileNew,
     Flag,
+    Help,
     Image,
     Keyboard,
     Mic,
@@ -47,7 +48,7 @@ pub enum Icon {
 }
 
 impl Icon {
-    pub const ALL: [Icon; 35] = [
+    pub const ALL: [Icon; 36] = [
         Icon::ArrowDown,
         Icon::ArrowLeft,
         Icon::ArrowRight,
@@ -60,6 +61,7 @@ impl Icon {
         Icon::Download,
         Icon::FileNew,
         Icon::Flag,
+        Icon::Help,
         Icon::Image,
         Icon::Keyboard,
         Icon::Mic,
@@ -108,6 +110,9 @@ impl Icon {
                 "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 11v6M9 14h6"
             }
             Icon::Flag => "M5 21V4M5 4h12l-2.5 4.5L17 13H5",
+            Icon::Help => {
+                "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"
+            }
             Icon::Image => {
                 "M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM7.5 9a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0M21 15l-5-5L5 20"
             }

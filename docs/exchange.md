@@ -56,6 +56,9 @@ The file Moodle writes when it exports a question bank.
 Images on answers and external links have no place in an option: their text alternative is kept
 and the report says so. A question worth more than one point in Moodle is worth one here.
 
+Every bank, whatever its format, says nothing of arrangements: an imported paper lets no student
+declare extra time (`extraTime: false`) until the teacher allows it, as a new paper of the Studio.
+
 ### Export
 
 `mcq export` writes one category per paper (with its description) and one per theme (its id

@@ -285,18 +285,20 @@ fn welcome_screen_renders() {
 }
 
 #[test]
-fn the_player_starts_dark_with_dark_left_of_light() {
+fn the_player_starts_dark_with_one_button_to_light() {
     let mut dom = VirtualDom::new(mcq_player::App);
     dom.rebuild_in_place();
     let html = dioxus_ssr::render(&dom);
     assert!(html.contains("data-theme=\"dark\""), "{html}");
-    let dark = html
-        .find("aria-label=\"Switch to the dark theme\" aria-pressed=\"true\"")
-        .expect("dark, chosen");
-    let light = html
-        .find("aria-label=\"Switch to the light theme\" aria-pressed=\"false\"")
-        .expect("light, not chosen");
-    assert!(dark < light, "{html}");
+    // One button, named after the theme it goes to: it fits a phone's header.
+    assert!(
+        html.contains("aria-label=\"Switch to the light theme\""),
+        "{html}"
+    );
+    assert!(
+        !html.contains("aria-label=\"Switch to the dark theme\""),
+        "{html}"
+    );
 }
 
 #[test]
@@ -797,4 +799,15 @@ fn the_correction_opens_with_save_and_share_first() {
         )
     });
     assert!(!nothing.contains("result-actions"), "{nothing}");
+}
+
+#[test]
+fn the_clock_counts_the_seconds_the_page_measured() {
+    use mcq_player::app::tick_seconds;
+    assert_eq!(tick_seconds("tick:1"), Some(1));
+    // A page woken after a minute in the background counts the minute at once.
+    assert_eq!(tick_seconds("tick:61"), Some(61));
+    assert_eq!(tick_seconds("tick"), None);
+    assert_eq!(tick_seconds("tick:-3"), None);
+    assert_eq!(tick_seconds("k:ArrowRight"), None);
 }

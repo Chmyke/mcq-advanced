@@ -93,6 +93,19 @@ impl Studio {
         self.space = space;
     }
 
+    /// Adds an imported paper's questions after this one's and opens the first of them; this
+    /// paper's settings stay. Returns how many questions came.
+    pub fn append(&mut self, project: Project) -> usize {
+        let added = self.project.append(project);
+        self.read_issues.clear();
+        self.refresh_media_urls();
+        if let Some(id) = added.first() {
+            self.select(id);
+        }
+        self.touch();
+        added.len()
+    }
+
     /// Nothing written yet: replacing it loses nothing.
     pub fn is_blank(&self) -> bool {
         self.project.media.is_empty() && self.project.paper.questions.iter().all(is_untouched)

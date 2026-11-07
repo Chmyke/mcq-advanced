@@ -1,9 +1,11 @@
 /* MCQ Advanced Studio, on top of the player's stylesheet: same variables, same light and dark. */
 .app.studio { font-size: .9375rem; }
-.studio-top { position: sticky; top: 0; z-index: 2; flex-wrap: wrap; }
+/* The tool bar and the status under it stay in view: a notice is never left above the page. */
+.studio-bar { position: sticky; top: 0; z-index: 2; }
+.studio-top { flex-wrap: wrap; }
 .studio-top .prefs { flex-wrap: wrap; }
 .studio-main { max-width: 90rem; margin: 0 auto; padding: .75rem 1rem 4rem; }
-.status-line { min-height: 1.6rem; display: flex; gap: 1rem; align-items: center; justify-content: center; font-size: .9em; padding: .2rem 1rem; }
+.status-line { background: var(--bg); border-bottom: 1px solid var(--border); min-height: 1.6rem; display: flex; gap: 1rem; align-items: center; justify-content: center; font-size: .9em; padding: .2rem 1rem; }
 .status-line .saved { margin-left: auto; }
 
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; }
@@ -142,7 +144,9 @@ details.advanced { margin: .6rem 0 0; }
 details.advanced > summary { cursor: pointer; color: var(--muted); }
 
 @media (max-width: 900px) {
-  .studio-top { position: static; }
+  /* The tool bar scrolls away on a small screen; the status alone stays at the top. */
+  .studio-bar { display: contents; }
+  .status-line { position: sticky; top: 0; z-index: 2; }
   .write { grid-template-columns: 1fr; }
   .question-list { position: static; max-height: 40vh; }
   .theme-row, .two-columns, .code-meta { grid-template-columns: 1fr; }
@@ -179,3 +183,14 @@ details.advanced > summary { cursor: pointer; color: var(--muted); }
 .tour-steps button.link { font-weight: 600; padding: 0; }
 .tour-steps button.link[aria-pressed="true"] { text-decoration: underline; }
 @media (min-width: 70rem) { .tour-steps { grid-template-columns: 1fr 1fr; column-gap: 2.5rem; } }
+
+/* A question with several answers, asked in a dialog of the page (add or replace on import). */
+.choice-dialog { max-width: 34rem; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.choice-dialog::backdrop { background: rgb(0 0 0 / .45); }
+.choice-dialog .nav { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: flex-end; }
+/* Links in a menu look like its buttons. */
+.menu-list a { color: var(--text); text-decoration: none; border-radius: 6px; padding: .45rem .7rem; }
+.menu-list a:hover { background: var(--accent-soft); }
+.issue-code { font-family: inherit; }
+details.glossary { margin-top: .5rem; }
+details.glossary > summary { cursor: pointer; color: var(--muted); }

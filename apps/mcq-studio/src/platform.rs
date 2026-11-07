@@ -245,6 +245,44 @@ pub async fn confirm(message: &str) -> bool {
     eval.join::<bool>().await.unwrap_or(false)
 }
 
+/// Asks a question with several answers in a dialog of the page, the first one highlighted;
+/// returns the index of the answer, or `None` when the dialog is closed (Escape).
+/// The texts go through the eval channel and into `textContent`: never parsed as markup.
+pub async fn choose(message: &str, answers: &[&str]) -> Option<usize> {
+    const SCRIPT: &str = r#"
+const [m, answers] = await dioxus.recv();
+const d = document.createElement('dialog');
+d.className = 'choice-dialog card';
+const p = document.createElement('p');
+p.textContent = m;
+const row = document.createElement('div');
+row.className = 'nav';
+d.append(p, row);
+const picked = new Promise((ok) => {
+  answers.forEach((text, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = text;
+    if (i === 0) b.className = 'primary';
+    b.addEventListener('click', () => { ok(i); d.close(); });
+    row.append(b);
+  });
+  d.addEventListener('close', () => ok(-1));
+});
+(document.querySelector('.app') || document.body).append(d);
+d.showModal();
+row.firstChild.focus();
+const i = await picked;
+d.remove();
+return i;
+"#;
+    let eval = document::eval(SCRIPT);
+    let answers: Vec<String> = answers.iter().map(|a| a.to_string()).collect();
+    eval.send((message.to_string(), answers)).ok()?;
+    let picked: i64 = eval.join().await.ok()?;
+    usize::try_from(picked).ok()
+}
+
 /// Prints the page; the print stylesheet shows the room sheet only.
 pub fn print() {
     let _ = document::eval("window.print();");

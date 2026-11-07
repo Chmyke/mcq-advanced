@@ -61,8 +61,32 @@ try {
         Write-Output '== motion'
         & node (Join-Path $tools 'motion-check.mjs') 2>&1 | ForEach-Object { "$_" }
         if ($LASTEXITCODE -ne 0) { $failed += 'motion' }
+        # The two apps driven as a teacher and a student would, in their own debug builds.
+        if (Get-Command wasm-bindgen -ErrorAction SilentlyContinue) {
+            Write-Output '== web check'
+            $web = Join-Path $root 'target/web-check'
+            $ok = $true
+            foreach ($app in @('studio', 'player')) {
+                & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $tools 'build-web.ps1') -App $app -Debug -Out (Join-Path $web $app) 2>&1 | Where-Object { "$_" -match 'error|failed' } | ForEach-Object { "$_" }
+                if ($LASTEXITCODE -ne 0) { $ok = $false }
+            }
+            # A practice package of the fictional demo, signed by a throwaway identity.
+            $id = Join-Path $web 'check.mcqid'
+            if (Test-Path -LiteralPath $id) { Remove-Item -LiteralPath $id }
+            'web-check-passphrase' | & cargo run --quiet -p mcq-cli -- identity new $id 2>&1 | Out-Null
+            'web-check-passphrase' | & cargo run --quiet -p mcq-cli -- publish (Join-Path $root 'examples/demo/fr.qcm.md') --identity $id --out (Join-Path $web 'player/check.mcqpack') --practice 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) { $ok = $false }
+            if ($ok) {
+                & node (Join-Path $tools 'web-check.mjs') $web 2>&1 | ForEach-Object { "$_" }
+                if ($LASTEXITCODE -ne 0) { $failed += 'web check' }
+            } else {
+                $failed += 'web check'
+            }
+        } else {
+            Write-Output 'web check: skipped (needs wasm-bindgen)'
+        }
     } else {
-        Write-Output 'layout, motion: skipped (needs Node and Microsoft Edge)'
+        Write-Output 'layout, motion, web check: skipped (needs Node and Microsoft Edge)'
     }
 
     # Real papers never enter the repository. When a private list of their folders exists, every

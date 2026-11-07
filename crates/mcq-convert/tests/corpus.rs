@@ -46,6 +46,7 @@ fn bank_view(paper: &Paper) -> Paper {
     expected.unanswered_penalty = 0.0;
     expected.shuffle_questions = true;
     expected.show_answer_count = true;
+    expected.allow_extra_time = false;
     expected.notes.clear();
     expected.scoring = if paper.questions.iter().any(|q| q.correct_count() > 1) {
         Scoring::Partial

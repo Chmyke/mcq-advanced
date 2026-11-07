@@ -6,10 +6,9 @@
 // Writes <output>/<lang>/01-open.webp ... 05-publish.webp for each language; nothing else.
 // No dependency: Node's own http server and WebSocket, Edge's DevTools protocol.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { extname, join, normalize, resolve, sep } from 'node:path';
-import { EDGE, launch, sleep } from './edge.mjs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { EDGE, launch, serve, sleep, steps } from './edge.mjs';
 
 const [site, out] = process.argv.slice(2).map((p) => p && resolve(p));
 if (!site || !out) {
@@ -44,61 +43,19 @@ const LESSONS = {
   },
 };
 
-const TYPES = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.wasm': 'application/wasm',
-  '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.txt': 'text/plain',
-};
-
-function serve(root) {
-  const server = createServer((request, response) => {
-    let path = decodeURIComponent(new URL(request.url, 'http://x').pathname);
-    if (path.endsWith('/')) path += 'index.html';
-    const file = normalize(join(root, path));
-    if (!file.startsWith(root + sep) || !existsSync(file)) {
-      response.writeHead(404).end();
-      return;
-    }
-    response.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream' });
-    response.end(readFileSync(file));
-  });
-  return new Promise((ok) => server.listen(0, '127.0.0.1', () => ok(server)));
-}
-
-// A page driven step by step; `run` evaluates JavaScript in it and returns the value.
+// A page driven step by step, plus a screenshot of a part of it.
 function driver(send) {
-  const run = async (expression) => {
-    const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    if (exceptionDetails) throw new Error(`${exceptionDetails.text}: ${expression}`);
-    return result.value;
-  };
-  const waitFor = async (expression, what) => {
-    for (let i = 0; i < 150; i++) {
-      if (await run(`!!(${expression})`)) return;
-      await sleep(100);
-    }
-    throw new Error(`Not on screen: ${what}`);
-  };
-  const click = async (expression, what) => {
-    await waitFor(expression, what);
-    await run(`(${expression}).click()`);
-    await sleep(250);
-  };
-  const type = async (expression, text, what) => {
-    await waitFor(expression, what);
-    await run(`(${expression}).focus()`);
-    await send('Input.insertText', { text });
-    await sleep(120);
-  };
+  const page = steps(send);
   // The box around what the shot shows (one element, or several from the first to the last), a
   // little margin around it, within the page; the whole window without an expression.
   const shoot = async (file, expression) => {
     // From the top: a sticky bar would otherwise cover what is below it.
-    await run('document.activeElement && document.activeElement.blur(); scrollTo(0, 0)');
+    await page.run('document.activeElement && document.activeElement.blur(); scrollTo(0, 0)');
     await sleep(300);
     let clip = { x: 0, y: 0, width: WIDTH, height: HEIGHT };
     if (expression) {
-      await waitFor(expression, file);
-      clip = await run(`(() => { const shown = [].concat(${expression}).map((e) => e.getBoundingClientRect());
+      await page.waitFor(expression, file);
+      clip = await page.run(`(() => { const shown = [].concat(${expression}).map((e) => e.getBoundingClientRect());
         const left = Math.min(...shown.map((r) => r.left)), top = Math.min(...shown.map((r) => r.top));
         const right = Math.max(...shown.map((r) => r.right)), bottom = Math.max(...shown.map((r) => r.bottom));
         const m = 16, x = Math.max(0, left + scrollX - m), y = Math.max(0, top + scrollY - m);
@@ -108,7 +65,7 @@ function driver(send) {
     writeFileSync(file, Buffer.from(data, 'base64'));
     console.log(file);
   };
-  return { run, waitFor, click, type, shoot };
+  return { ...page, shoot };
 }
 
 async function tutorial(base, lang) {

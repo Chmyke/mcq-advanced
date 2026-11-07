@@ -167,70 +167,78 @@ pub fn App() -> Element {
         style { {STYLE} }
         style { {STUDIO_STYLE} }
         div { class: "app studio", "data-theme": "{theme}",
-            header { class: "top studio-top",
-                div { class: "brand", "{t.brand}" span { class: "muted", " · {title}" } }
-                nav { class: "spaces segmented", "aria-label": "{t.brand}",
-                    for (s, icon, label, tip) in tabs {
-                        IconButton {
-                            key: "{label}",
-                            icon, label, tip, shown: true,
-                            aria_pressed: "{space == s}",
-                            onclick: move |_| {
-                                // A notice belongs to the space it came from.
-                                if studio.peek().space != s {
-                                    notice.set(None);
-                                }
-                                studio.write().space = s;
-                            },
+            div { class: "studio-bar",
+                header { class: "top studio-top",
+                    div { class: "brand", "{t.brand}" span { class: "muted", " · {title}" } }
+                    nav { class: "spaces segmented", "aria-label": "{t.brand}",
+                        for (s, icon, label, tip) in tabs {
+                            IconButton {
+                                key: "{label}",
+                                icon, label, tip, shown: true,
+                                aria_pressed: "{space == s}",
+                                onclick: move |_| {
+                                    // A notice belongs to the space it came from.
+                                    if studio.peek().space != s {
+                                        notice.set(None);
+                                    }
+                                    studio.write().space = s;
+                                },
+                            }
                         }
                     }
-                }
-                div { class: "prefs",
-                    IconButton { icon: Icon::FileNew, label: t.new_paper, tip: t.tip_new, shown: true,
-                        onclick: move |_| async move {
-                            let blank = studio.read().is_blank();
-                            if blank || platform::confirm(t.confirm_replace).await {
-                                let code = if lang() == Lang::Fr { "fr" } else { "en" };
-                                studio.write().replace(Project::starter(t.new_paper_title, code), Vec::new());
-                            }
-                        },
-                    }
-                    IconFile { icon: Icon::Open, label: t.import, tip: t.tip_import, accept: actions::PAPER_FILES, shown: true,
-                        onchange: move |e: FormEvent| async move {
-                            if let Some(file) = e.files().into_iter().next()
-                                && let Ok(bytes) = file.read_bytes().await
-                            {
-                                actions::open_paper(studio, notice, t, &file.name(), bytes.to_vec()).await;
-                            }
-                        },
-                    }
-                    IconButton { icon: Icon::Paste, label: t.paste, tip: t.tip_paste, shown: true,
-                        onclick: move |_| async move {
-                            match platform::read_clipboard().await {
-                                Some(text) => actions::open_pasted(studio, notice, t, &text).await,
-                                None => notice.set(Some(t.paste_refused.to_string())),
-                            }
-                        },
-                    }
-                    IconMenu { icon: Icon::Download, label: t.export, tip: t.tip_export, shown: true,
-                        button { onclick: move |_| actions::export_qcmz(studio), "{t.export_qcmz}" }
-                        button { onclick: move |_| actions::export_source(studio), "{t.export_source}" }
-                        button { onclick: move |_| actions::export_student(studio), "{t.export_student}" }
-                        button { onclick: move |_| actions::export_moodle(studio, notice, t), "{t.export_moodle}" }
-                    }
-                    {render::theme_switch(dark(), [t.theme_dark, t.theme_light], [t.tip_theme_dark, t.tip_theme_light],
-                        EventHandler::new(move |pick| { dark.set(pick); platform::remember_dark(pick); }))}
-                }
-            }
-            div { class: "status-line",
-                // Only the notices are announced, not the "saved" mark after every keystroke.
-                span { role: "status",
-                    if let Some(message) = notice() {
-                        span { "{message}" }
-                        IconButton { class: "link", icon: Icon::Close, label: t.close, onclick: move |_| notice.set(None) }
+                    div { class: "prefs",
+                        IconButton { icon: Icon::FileNew, label: t.new_paper, tip: t.tip_new, shown: true,
+                            onclick: move |_| async move {
+                                let blank = studio.read().is_blank();
+                                if blank || platform::confirm(t.confirm_replace).await {
+                                    let code = if lang() == Lang::Fr { "fr" } else { "en" };
+                                    studio.write().replace(Project::starter(t.new_paper_title, code), Vec::new());
+                                }
+                            },
+                        }
+                        IconFile { icon: Icon::Open, label: t.import, tip: t.tip_import, accept: actions::PAPER_FILES, shown: true,
+                            onchange: move |e: FormEvent| async move {
+                                if let Some(file) = e.files().into_iter().next()
+                                    && let Ok(bytes) = file.read_bytes().await
+                                {
+                                    actions::open_paper(studio, notice, t, &file.name(), bytes.to_vec()).await;
+                                }
+                            },
+                        }
+                        IconButton { icon: Icon::Paste, label: t.paste, tip: t.tip_paste, shown: true,
+                            onclick: move |_| async move {
+                                match platform::read_clipboard().await {
+                                    Some(text) => actions::open_pasted(studio, notice, t, &text).await,
+                                    None => notice.set(Some(t.paste_refused.to_string())),
+                                }
+                            },
+                        }
+                        IconMenu { icon: Icon::Download, label: t.export, tip: t.tip_export, shown: true,
+                            button { onclick: move |_| actions::export_qcmz(studio), "{t.export_qcmz}" }
+                            button { onclick: move |_| actions::export_source(studio), "{t.export_source}" }
+                            button { onclick: move |_| actions::export_student(studio), "{t.export_student}" }
+                            button { onclick: move |_| actions::export_moodle(studio, notice, t), "{t.export_moodle}" }
+                        }
+                        // Always within reach, unlike the welcome screen that offers the prompt first.
+                        IconMenu { icon: Icon::Help, label: t.help, tip: t.tip_help, shown: true,
+                            a { href: crate::editor::tutorial_link(t.lang), target: "_blank", rel: "noopener", "{t.help_tutorial}" }
+                            a { href: crate::editor::guide_link(t.lang), target: "_blank", rel: "noopener", "{t.help_guide}" }
+                            button { onclick: move |_| async move { crate::welcome::copy_ai_prompt(notice, t).await }, "{t.copy_prompt}" }
+                        }
+                        {render::theme_switch(dark(), [t.theme_dark, t.theme_light], [t.tip_theme_dark, t.tip_theme_light],
+                            EventHandler::new(move |pick| { dark.set(pick); platform::remember_dark(pick); }))}
                     }
                 }
-                if saved() { span { class: "muted saved", "{t.saved_locally}" } }
+                div { class: "status-line",
+                    // Only the notices are announced, not the "saved" mark after every keystroke.
+                    span { role: "status",
+                        if let Some(message) = notice() {
+                            span { "{message}" }
+                            IconButton { class: "link", icon: Icon::Close, label: t.close, onclick: move |_| notice.set(None) }
+                        }
+                    }
+                    if saved() { span { class: "muted saved", "{t.saved_locally}" } }
+                }
             }
             if tour() { Tour { studio, t } }
             if ready() && welcome() && space == Space::Write && studio.read().is_blank() {

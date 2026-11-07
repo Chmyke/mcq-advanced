@@ -192,7 +192,13 @@ figcaption { color: var(--muted); font-size: .9em; }
   .app main { padding: .5rem .75rem 3rem; }
   .question, .card { padding: 1rem; }
   .prefs button { padding: .2rem .45rem; }
+  /* The paper's title on its own line, whole, above the preferences. */
+  .top { flex-wrap: wrap; gap: .4rem; }
+  .top .brand { flex: 1 1 100%; white-space: normal; }
 }
+/* First stop of the keyboard during the exam: straight to the question, past the header. */
+.skip-link { position: absolute; left: -9999px; top: .5rem; z-index: 50; }
+.skip-link:focus { left: 1rem; }
 
 /* Choice between a few views (review filters). */
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; flex-wrap: wrap; }

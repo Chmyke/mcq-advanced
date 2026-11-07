@@ -1,10 +1,12 @@
 # Builds a web app (the player or the Studio) into target/web/<app>: a static folder for any web
 # server or for GitHub Pages. Needs wasm-bindgen at the version of Cargo.lock.
-# Run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 [-App player|studio] [-Debug]
+# Run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 [-App player|studio] [-Debug] [-Out <folder>]
+# -Out puts the build elsewhere than target/web/<app> (the web check builds its own).
 # Keep this file pure ASCII.
 param(
     [ValidateSet('player', 'studio')][string]$App = 'player',
-    [switch]$Debug
+    [switch]$Debug,
+    [string]$Out
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -22,7 +24,7 @@ if ($have -ne $wanted) { throw "wasm-bindgen $have is installed, Cargo.lock need
 $package = "mcq-$App"
 $module = "mcq_$App"
 $profile = if ($Debug) { 'debug' } else { 'release' }
-$out = Join-Path $root "target/web/$App"
+$out = if ($Out) { $Out } else { Join-Path $root "target/web/$App" }
 # A failed build leaves no folder behind that could be published by mistake.
 if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Recurse -Force }
 try {
@@ -44,4 +46,4 @@ try {
     throw
 }
 $size = (Get-Item -LiteralPath (Join-Path $out "$($module)_bg.wasm")).Length
-Write-Output ("Web {0}: target/web/{0} ({1:N2} MiB program)" -f $App, ($size / 1MB))
+Write-Output ("Web {0}: {1} ({2:N2} MiB program)" -f $App, $out, ($size / 1MB))

@@ -9,7 +9,7 @@ pub mod qcmz;
 
 use std::collections::BTreeMap;
 
-use mcq_model::{Issue, Location, MediaKind, Paper, Severity, Theme};
+use mcq_model::{Block, Issue, Location, MediaKind, Paper, Severity, Theme};
 
 /// One media file above this size gets a warning: students download every file of the paper.
 pub const HEAVY_MEDIA_BYTES: usize = 5 * 1024 * 1024;
@@ -33,6 +33,9 @@ impl Project {
         let mut paper = Paper::new();
         paper.title = title.to_string();
         paper.lang = lang.to_string();
+        // WHY: an arrangement is the teacher's decision; a new paper lets no student declare one
+        // until the teacher ticks it.
+        paper.allow_extra_time = false;
         paper.themes.push(Theme {
             id: "theme-1".to_string(),
             title: if lang.starts_with("fr") {
@@ -146,6 +149,66 @@ impl Project {
         }
         self.media.insert(path.clone(), data);
         Some(path)
+    }
+
+    /// Adds the questions of `other` at the end of this paper.
+    /// A theme titled like one of this paper's (case and spaces aside) joins it; the others come
+    /// after this paper's themes. A question or media id already used here is renamed, and the
+    /// statements follow. This paper's settings stay as they are. Returns the ids the added
+    /// questions have here, in order.
+    pub fn append(&mut self, other: Project) -> Vec<String> {
+        let Project { paper, media } = other;
+        let mut renamed_media = BTreeMap::new();
+        for (path, data) in media {
+            let name = path.strip_prefix(MEDIA_FOLDER).unwrap_or(&path).to_string();
+            if let Some(new_path) = self.add_media(&name, data)
+                && new_path != path
+            {
+                renamed_media.insert(path, new_path);
+            }
+        }
+        let same = |a: &str, b: &str| a.trim().to_lowercase() == b.trim().to_lowercase();
+        let mut themes = BTreeMap::new();
+        for theme in paper.themes {
+            let id = match self
+                .paper
+                .themes
+                .iter()
+                .find(|t| same(&t.title, &theme.title))
+            {
+                Some(existing) => existing.id.clone(),
+                None => {
+                    let id = ops::add_theme(&mut self.paper, &theme.title);
+                    if let Some(added) = self.paper.themes.iter_mut().find(|t| t.id == id) {
+                        added.course_ref = theme.course_ref;
+                        added.notes = theme.notes;
+                    }
+                    id
+                }
+            };
+            themes.insert(theme.id, id);
+        }
+        let mut added = Vec::with_capacity(paper.questions.len());
+        for mut question in paper.questions {
+            if let Some(id) = themes.get(&question.theme_id) {
+                question.theme_id = id.clone();
+            }
+            if self.paper.question(&question.id).is_some() {
+                question.id = ops::next_question_id(&self.paper, &question.theme_id);
+            }
+            question.line = 0;
+            ops::renumber_options(&mut question);
+            for block in &mut question.body {
+                if let Block::Media(m) = block
+                    && let Some(path) = renamed_media.get(&m.path)
+                {
+                    m.path = path.clone();
+                }
+            }
+            added.push(question.id.clone());
+            ops::insert_in_theme(&mut self.paper, question);
+        }
+        added
     }
 
     /// Forgets the files no statement uses any more.

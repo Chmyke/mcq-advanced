@@ -107,6 +107,9 @@ impl Builder {
         let mut paper = Paper::new();
         paper.title = options.title.trim().to_string();
         paper.lang = options.lang.trim().to_ascii_lowercase();
+        // A bank says nothing of arrangements: none until the teacher allows them, as for a new
+        // paper.
+        paper.allow_extra_time = false;
         Self {
             paper,
             media: BTreeMap::new(),

@@ -238,7 +238,8 @@ pub fn move_question_to(paper: &mut Paper, id: &str, theme_id: &str, before: Opt
 
 /// After the last question of its theme; in an empty theme, before the questions of the themes
 /// that follow it, since the file lists questions under their themes in theme order.
-fn insert_in_theme(paper: &mut Paper, question: Question) {
+/// Puts a question after the last one of its theme, or where its theme starts.
+pub fn insert_in_theme(paper: &mut Paper, question: Question) {
     let at = match paper
         .questions
         .iter()

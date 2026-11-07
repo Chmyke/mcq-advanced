@@ -92,6 +92,7 @@ pub fn IdentityCard(identity: Signal<Option<Rc<Identity>>>, t: &'static Texts) -
             p { class: "muted", "{t.identity_hint}" }
             if let Some(fingerprint) = ready {
                 p { class: "notice", "{t.identity_ready} " strong { class: "mono", "{fingerprint}" } }
+                p { class: "muted small-text", "{t.fingerprint_hint}" }
                 if let Some(file) = created_file() {
                     div { class: "notice warn",
                         p { "{t.identity_saved}" }

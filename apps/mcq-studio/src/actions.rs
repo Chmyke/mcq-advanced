@@ -114,7 +114,7 @@ fn read_text(
     let source = Source::detect(name, &text).ok_or_else(|| "unknown format".to_string())?;
     let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
     let options = ImportOptions {
-        title: stem.to_string(),
+        title: readable_title(stem),
         lang: lang.to_string(),
     };
     let imported = mcq_convert::import(source, &text, &options);
@@ -124,7 +124,31 @@ fn read_text(
 /// Import warnings shown in the notice; the others are counted.
 const REPORTED: usize = 4;
 
-/// Replaces the current paper, after asking when something would be lost.
+/// A file name as a title: `les_solutions-aqueuses` gives `Les solutions aqueuses`.
+/// WHY: a bank without categories puts its questions in a theme named after the paper, and the
+/// students read that theme on every question.
+pub fn readable_title(stem: &str) -> String {
+    let words: Vec<&str> = stem
+        .split(['_', '-', ' '])
+        .filter(|w| !w.is_empty())
+        .collect();
+    let text = words.join(" ");
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => text,
+    }
+}
+
+/// What to do with a paper read from a file or the clipboard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Opening {
+    Replace,
+    Append,
+}
+
+/// Opens a paper: in place of a blank draft, or, when the draft holds questions, added after
+/// them or in their place as the teacher picks.
 pub async fn open_paper(
     mut studio: Signal<Studio>,
     mut notice: Signal<Option<String>>,
@@ -133,6 +157,8 @@ pub async fn open_paper(
     bytes: Vec<u8>,
 ) {
     let lang = studio.read().project.paper.lang.clone();
+    // A bank names its themes after its categories or the file: worth saying where they went.
+    let bank = !bytes.starts_with(b"PK") && !name.to_ascii_lowercase().ends_with(".md");
     let (project, issues) = match read_paper(name, bytes, &lang, t.lang == Lang::Fr) {
         Ok(read) => read,
         Err(e) => {
@@ -141,23 +167,64 @@ pub async fn open_paper(
         }
     };
     // Nothing to lose over a blank draft or a demo paper as it was opened.
-    let replaceable = {
+    let (replaceable, mine) = {
         let s = studio.read();
-        s.is_blank() || crate::demo::is_untouched_demo(&s.project)
+        (
+            s.is_blank() || crate::demo::is_untouched_demo(&s.project),
+            s.project.paper.questions.len(),
+        )
     };
-    if !replaceable && !platform::confirm(t.confirm_replace).await {
-        return;
-    }
+    let opening = if replaceable {
+        Opening::Replace
+    } else {
+        let question = crate::texts::fill(
+            t.import_choice,
+            &[
+                ("mine", mine.to_string()),
+                ("theirs", project.paper.questions.len().to_string()),
+            ],
+        );
+        match platform::choose(&question, &[t.import_add, t.import_replace, t.cancel]).await {
+            Some(0) => Opening::Append,
+            Some(1) => Opening::Replace,
+            _ => return,
+        }
+    };
     // The import report says what stayed behind; it belongs to no question of the paper.
     let (report, issues): (Vec<_>, Vec<_>) = issues
         .into_iter()
         .partition(|i| i.code.starts_with("IMPORT_"));
-    let said: Vec<&str> = report
+    let said: Vec<String> = report
         .iter()
         .filter(|i| i.severity == Severity::Warning)
         .map(|i| t.issue(i))
         .collect();
-    let mut text = t.imported.to_string();
+    let themes: Vec<String> = project
+        .paper
+        .themes
+        .iter()
+        .map(|th| t.quote(&th.title))
+        .collect();
+    let mut text = match opening {
+        Opening::Replace => {
+            studio.write().replace(project, issues);
+            t.imported.to_string()
+        }
+        Opening::Append => {
+            let added = studio.write().append(project);
+            crate::texts::fill(t.imported_added, &[("n", added.to_string())])
+        }
+    };
+    if bank && !themes.is_empty() {
+        text.push(' ');
+        text.push_str(&crate::texts::fill(
+            t.imported_themes,
+            &[
+                ("count", themes.len().to_string()),
+                ("themes", themes.join(", ")),
+            ],
+        ));
+    }
     for message in said.iter().take(REPORTED) {
         text.push(' ');
         text.push_str(message);
@@ -165,7 +232,6 @@ pub async fn open_paper(
     if said.len() > REPORTED {
         text.push_str(&format!(" (+{})", said.len() - REPORTED));
     }
-    studio.write().replace(project, issues);
     notice.set(Some(text));
 }
 
@@ -237,7 +303,7 @@ pub fn export_moodle(
     let exported = moodle::export(&s.project, &code);
     let name = format!("{}.xml", qcmz::file_stem(&s.project));
     platform::download(&name, &b64::encode(exported.xml.as_bytes()));
-    let said: Vec<&str> = exported.issues.iter().map(|i| t.issue(i)).collect();
+    let said: Vec<String> = exported.issues.iter().map(|i| t.issue(i)).collect();
     if !said.is_empty() {
         notice.set(Some(said.join(" ")));
     }
