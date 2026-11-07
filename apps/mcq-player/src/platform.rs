@@ -295,6 +295,19 @@ pub async fn in_progress() -> Option<(String, String)> {
     Some((key.to_string(), title))
 }
 
+/// The saved sessions of one paper on this device, whatever the name they were taken under, as
+/// stored (base 64). The prefix is hex only.
+pub async fn saved_sessions(paper_id: &[u8; 16]) -> Vec<String> {
+    let prefix = format!("mcq-session-{}-", hex(paper_id));
+    let script = format!(
+        "try {{ const out = []; for (let i = 0; i < localStorage.length; i++) {{ \
+         const k = localStorage.key(i); \
+         if (k && k.startsWith('{prefix}') && !k.endsWith('-at')) out.push(localStorage.getItem(k) || ''); }} \
+         return out; }} catch (e) {{ return []; }}"
+    );
+    document::eval(&script).join().await.unwrap_or_default()
+}
+
 /// True where the system's share sheet takes files (phones, mostly).
 pub async fn can_share_files() -> bool {
     const SCRIPT: &str = r#"

@@ -226,7 +226,10 @@ fn practice_and_correction_show_the_answers_after_hand_in() {
             EventHandler::new(|_| {}),
         )
     });
-    assert!(html.contains("6.67 / 20"), "one of three right: {html}");
+    assert!(
+        html.contains("6.7 / 20"),
+        "one of three right, to the tenth: {html}"
+    );
     assert!(
         html.contains("Ripening reveals the yellow pigments."),
         "{html}"
@@ -247,7 +250,6 @@ fn overview_marks_current_answered_and_flagged() {
         session.next();
         render::segments(
             &session,
-            &opened.paper,
             None,
             Lang::En.texts(),
             EventHandler::new(|_: usize| {}),
@@ -434,7 +436,7 @@ fn the_correction_opens_on_the_mistakes_one_at_a_time() {
         )
     });
     let guide = &html[html.find("review-guide").expect("guide")..];
-    assert!(html.contains("6,67 / 20"), "{html}");
+    assert!(html.contains("6,7 / 20"), "to the tenth: {html}");
     assert!(!html.contains("Imprimer"), "nothing to print: {html}");
     assert!(html.contains("À reprendre"), "the word on the mark: {html}");
     assert!(html.contains("1 Juste"), "{html}");
@@ -511,11 +513,16 @@ fn the_exam_markup_is_handed_to_the_motion_check() {
         let item = session.current_item().expect("item").clone();
         let question = opened.paper.question(&item.question_id).expect("q");
         rsx! {
-            {render::segments(&session, &opened.paper, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
+            {render::segments(&session, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
             {render::question_view(question, &item, 0, 3, opened.content(), Lang::Fr.texts(), EventHandler::new(|_: String| {}), EventHandler::new(|()| {}), EventHandler::new(|()| {}))}
+            {render::exam_nav(1, 3, 1, Lang::Fr.texts(), nav())}
         }
     });
     assert!(html.contains("class=\"option"), "{html}");
+    assert!(
+        html.contains("class=\"exam-nav\""),
+        "the bottom bar, for the layout check: {html}"
+    );
     let file = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("player-exam.html");
     std::fs::write(&file, html).expect("write the motion fixture");
 }
@@ -550,7 +557,7 @@ fn the_exam_shows_segments_and_a_calm_pace_gauge_with_letter_keys() {
         let item = session.current_item().expect("item").clone();
         let question = opened.paper.question(&item.question_id).expect("q");
         rsx! {
-            {render::segments(&session, &opened.paper, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
+            {render::segments(&session, Some(gauge.time_fraction), Lang::Fr.texts(), EventHandler::new(|_: usize| {}))}
             {render::pace_view(&gauge, Lang::Fr.texts())}
             {render::question_view(question, &item, 0, 3, opened.content(), Lang::Fr.texts(), EventHandler::new(|_: String| {}), EventHandler::new(|()| {}), EventHandler::new(|()| {}))}
         }
@@ -726,7 +733,6 @@ fn overview_shows_a_reported_glyph_apart_from_the_flag_colour() {
         session.toggle_flag();
         render::segments(
             &session,
-            &opened.paper,
             None,
             Lang::En.texts(),
             EventHandler::new(|_: usize| {}),
@@ -808,4 +814,208 @@ fn the_clock_counts_the_seconds_the_page_measured() {
     assert_eq!(tick_seconds("tick"), None);
     assert_eq!(tick_seconds("tick:-3"), None);
     assert_eq!(tick_seconds("k:ArrowRight"), None);
+}
+
+fn nav() -> render::ExamNav {
+    render::ExamNav {
+        previous: EventHandler::new(|()| {}),
+        next_flagged: EventHandler::new(|()| {}),
+        finish: EventHandler::new(|()| {}),
+        next: EventHandler::new(|()| {}),
+    }
+}
+
+#[test]
+fn intro_says_in_one_sentence_whether_several_answers_may_be_right() {
+    let some = render(|| {
+        let opened = opened();
+        render::intro(
+            &opened.paper,
+            &opened.formulas,
+            &opened.header,
+            Lang::Fr.texts(),
+            EventHandler::new(|()| {}),
+            false,
+            no_extra_time(),
+        )
+    });
+    assert!(
+        some.contains("Ce sujet contient des questions à plusieurs bonnes réponses."),
+        "{some}"
+    );
+    assert!(!some.contains("une seule bonne réponse"), "{some}");
+    let single = render(|| {
+        let opened = opened();
+        let mut paper = opened.paper.clone();
+        paper.questions.retain(|q| !q.is_multiple());
+        assert!(
+            !paper.questions.is_empty(),
+            "the sample keeps single-answer questions"
+        );
+        render::intro(
+            &paper,
+            &opened.formulas,
+            &opened.header,
+            Lang::Fr.texts(),
+            EventHandler::new(|()| {}),
+            false,
+            no_extra_time(),
+        )
+    });
+    assert!(
+        single.contains("Toutes les questions ont une seule bonne réponse."),
+        "{single}"
+    );
+}
+
+/// A multiple-answer question with one box ticked, the count announced or not: the bar, the
+/// progress and the hand-in question all take it as answered.
+#[test]
+fn a_multiple_answer_question_with_a_box_ticked_is_answered_whatever_the_count() {
+    for announced in [true, false] {
+        let opened = opened();
+        let mut paper = opened.paper.clone();
+        paper.show_answer_count = announced;
+        let mut session = Session::new(&paper, opened.header.paper_id, "Alex Example");
+        let at = session
+            .items
+            .iter()
+            .position(|i| i.question_id == "code-sum-of-squares")
+            .expect("q");
+        session.go_to(at);
+        let first = session.items[at].option_order[0].clone();
+        session.toggle(&paper, &first);
+        assert_eq!(session.answered_count(), 1);
+        let s1 = session.clone();
+        let bar = render(move || {
+            render::segments(
+                &s1,
+                None,
+                Lang::Fr.texts(),
+                EventHandler::new(|_: usize| {}),
+            )
+        });
+        let s2 = session.clone();
+        let summary = render(move || {
+            render::hand_in_summary(&s2, Lang::Fr.texts(), EventHandler::new(|_: usize| {}))
+        });
+        assert!(!bar.contains("incompl"), "{bar}");
+        assert!(
+            bar.contains(&format!("Question {}, répondue\"", at + 1)),
+            "{bar}"
+        );
+        assert!(!summary.contains("incompl"), "{summary}");
+        assert!(
+            summary.contains("2 sans réponse, 0 marquées à revoir."),
+            "{summary}"
+        );
+        assert!(
+            !summary.contains(&format!(">Question {}</button>", at + 1)),
+            "{summary}"
+        );
+    }
+}
+
+#[test]
+fn the_hand_in_question_lists_unanswered_and_flagged_questions_as_links() {
+    let html = render(|| {
+        let opened = opened();
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        let first = session.items[0].option_order[0].clone();
+        session.toggle(&opened.paper, &first);
+        session.toggle_flag();
+        render::hand_in_summary(&session, Lang::Fr.texts(), EventHandler::new(|_: usize| {}))
+    });
+    assert!(
+        html.contains("2 sans réponse, 1 marquée à revoir."),
+        "{html}"
+    );
+    let (unanswered, flagged) = html.split_once("flagged-links").expect("flagged list");
+    assert!(unanswered.contains("Sans réponse :"), "{html}");
+    assert!(unanswered.contains(">Question 2</button>"), "{html}");
+    assert!(unanswered.contains(">Question 3</button>"), "{html}");
+    assert!(!unanswered.contains(">Question 1</button>"), "{html}");
+    assert!(flagged.contains("À revoir :"), "{html}");
+    assert!(flagged.contains(">Question 1</button>"), "{html}");
+    // Nothing left to list: the counts alone.
+    let done = render(|| {
+        let opened = opened();
+        let mut session = Session::new(&opened.paper, opened.header.paper_id, "Alex Example");
+        for i in 0..session.items.len() {
+            session.go_to(i);
+            let option = session.items[i].option_order[0].clone();
+            session.toggle(&opened.paper, &option);
+        }
+        render::hand_in_summary(&session, Lang::En.texts(), EventHandler::new(|_: usize| {}))
+    });
+    assert!(
+        done.contains("0 unanswered, 0 flagged for review."),
+        "{done}"
+    );
+    assert!(!done.contains("<button"), "{done}");
+}
+
+#[test]
+fn the_bottom_bar_names_each_button_for_icon_only_screens() {
+    let html = render(|| render::exam_nav(1, 3, 1, Lang::Fr.texts(), nav()));
+    for name in [
+        "Question précédente",
+        "Prochaine à revoir",
+        "Terminer",
+        "Question suivante",
+    ] {
+        assert!(
+            html.contains(&format!("aria-label=\"{name}\"")),
+            "{name}: {html}"
+        );
+    }
+    assert!(html.contains("id=\"finish\""), "{html}");
+    assert_eq!(html.matches("data-icon=\"shown\"").count(), 4, "{html}");
+    let faults = mcq_player::icon::contract_faults(&html);
+    assert!(faults.is_empty(), "{faults:#?}");
+    // Without a flagged question, no jump; on the last one, finish leads.
+    let last = render(|| render::exam_nav(2, 3, 0, Lang::En.texts(), nav()));
+    assert!(!last.contains("Next flagged"), "{last}");
+    assert!(last.contains("end primary"), "{last}");
+}
+
+#[test]
+fn the_identification_screen_offers_to_resume_without_naming_anyone() {
+    use mcq_crypto::OpeningKind;
+    let open = render(|| render::resume_notice(OpeningKind::Open, Lang::Fr.texts()));
+    assert!(
+        open.contains(
+            "Une copie est en cours sur cet appareil : retapez votre nom pour la reprendre."
+        ),
+        "{open}"
+    );
+    let coded = render(|| render::resume_notice(OpeningKind::Code, Lang::Fr.texts()));
+    assert!(coded.contains("retapez votre nom et le code"), "{coded}");
+}
+
+#[test]
+fn only_an_unfinished_copy_of_this_paper_counts_as_in_progress() {
+    use mcq_player::app::unfinished_among;
+    let opened = opened();
+    let id = opened.header.paper_id;
+    let stored = |s: &Session| mcq_player::b64::encode(&mcq_engine::encode_session(s));
+    let mut session = Session::new(&opened.paper, id, "Alex Example");
+    let running = stored(&session);
+    session.submit();
+    let handed_in = stored(&session);
+    assert!(unfinished_among(std::slice::from_ref(&running), &id));
+    assert!(unfinished_among(&[handed_in.clone(), running.clone()], &id));
+    assert!(!unfinished_among(&[handed_in], &id));
+    assert!(!unfinished_among(&["garbage".to_string()], &id));
+    assert!(!unfinished_among(&[running], &[0; 16]), "another paper");
+    assert!(!unfinished_among(&[], &id));
+}
+
+#[test]
+fn the_mark_is_shown_to_the_tenth_with_the_language_separator() {
+    use mcq_player::review::mark_text;
+    assert_eq!(mark_text(12.666_667, Lang::Fr.texts()), "12,7");
+    assert_eq!(mark_text(12.666_667, Lang::En.texts()), "12.7");
+    assert_eq!(mark_text(20.0, Lang::Fr.texts()), "20,0");
+    assert_eq!(mark_text(15.96, Lang::Fr.texts()), "16,0");
 }

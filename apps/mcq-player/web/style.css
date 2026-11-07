@@ -102,6 +102,20 @@ button[data-icon="tip"], .file[data-icon="tip"] { padding: .35rem .5rem; min-wid
   [data-icon].next > .glyph { order: 0; }
   [data-icon] > .label, [data-icon="shown"] > .label { display: block; font-size: .7rem; font-weight: 400; line-height: 1.1; }
 }
+/* The exam's bottom bar keeps its words down to 400px, then shows icons alone: each button keeps
+   its name for screen readers (aria-label) and its tip on hover. */
+.exam-nav [data-icon="shown"] > .label { display: inline; }
+/* On a phone the words go small under the icons, so the four buttons fit side by side. */
+@media (max-width: 560px) {
+  .exam-nav-inner { padding: .45rem .75rem; gap: .35rem; }
+  .exam-nav-middle { gap: .35rem; }
+  .exam-nav [data-icon] { flex-direction: column; gap: .1rem; padding: .3rem .55rem; }
+  .exam-nav [data-icon].next > .glyph { order: 0; }
+  .exam-nav [data-icon] > .label { font-size: .7rem; font-weight: 400; line-height: 1.1; }
+}
+@media (max-width: 400px) {
+  .exam-nav [data-icon] > .label { display: none; }
+}
 
 .fingerprint { border: 1px dashed var(--border); border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; }
 .fingerprint strong { display: block; font-size: 1.3em; margin: .2em 0; }
@@ -224,7 +238,6 @@ figcaption { color: var(--muted); font-size: .9em; }
 .segment::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 12px; box-sizing: border-box; border-radius: 3px; border: 1px solid var(--field-border); background: transparent; transition: background-color .2s ease, transform .2s ease; }
 .segment:hover::before { transform: scaleY(1.4); }
 .segment.answered::before { background: var(--accent); border-color: var(--accent); }
-.segment.answered.incomplete::before { background: linear-gradient(to right, var(--accent) 50%, transparent 50%); }
 .segment.flagged::before { background: var(--warn); border-color: var(--warn); }
 .segment.current::before { background: var(--accent); border-color: var(--text); border-width: 2px; transform: scaleY(1.5); }
 .segment.current.flagged::before { background: var(--warn); }

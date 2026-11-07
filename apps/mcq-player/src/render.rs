@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use dioxus::prelude::*;
-use mcq_crypto::PackageHeader;
+use mcq_crypto::{OpeningKind, PackageHeader};
 use mcq_engine::{PaceGauge, Session, SessionItem, TimeStatus, format_duration};
 use mcq_grade::GuessAdvice;
 use mcq_model::{Block, CodeBlock, CodeTokens, MediaKind, Paper, Question, Scoring, TimeExtension};
@@ -330,24 +330,19 @@ fn cell_class(session: &Session, i: usize, item: &SessionItem) -> &'static str {
 /// One segment per question, coloured by state, and a cursor where the time stands.
 pub fn segments(
     session: &Session,
-    paper: &Paper,
     time_fraction: Option<f64>,
     t: &'static Texts,
     on_go: EventHandler<usize>,
 ) -> Element {
+    // WHY no "incomplete" state: a multiple-answer question with a box ticked is answered, so
+    // the bar never hints at how many answers are right.
     let parts: Vec<(usize, &'static str, bool, String)> = session
         .items
         .iter()
         .enumerate()
         .map(|(i, item)| {
-            let incomplete = paper.show_answer_count
-                && paper
-                    .question(&item.question_id)
-                    .is_some_and(|q| q.is_incomplete(item.selected.len()));
             let answered = if item.selected.is_empty() {
                 t.state_unanswered
-            } else if incomplete {
-                t.state_incomplete
             } else {
                 t.state_answered
             };
@@ -358,11 +353,7 @@ pub fn segments(
             if item.reported {
                 name = format!("{name}, {}", t.state_reported);
             }
-            let class = match (cell_class(session, i, item), incomplete) {
-                ("answered", true) => "answered incomplete",
-                (class, _) => class,
-            };
-            (i, class, item.reported, name)
+            (i, cell_class(session, i, item), item.reported, name)
         })
         .collect();
     let cursor = time_fraction.map(|f| format!("{:.2}", (f * 100.0).clamp(0.0, 100.0)));
@@ -383,6 +374,111 @@ pub fn segments(
             if let Some(left) = cursor { span { class: "time-cursor", "aria-hidden": "true", style: "left: {left}%" } }
         }
     }
+}
+
+/// What the hand-in question says before the copy goes: how many questions are unanswered and
+/// flagged, then their numbers, each a way back to it. A question with a box ticked counts as
+/// answered, whatever the paper announces: nothing hints at how many answers are right.
+pub fn hand_in_summary(
+    session: &Session,
+    t: &'static Texts,
+    on_go: EventHandler<usize>,
+) -> Element {
+    let unanswered = positions(session, |i| i.selected.is_empty());
+    let flagged = positions(session, |i| i.flagged);
+    let flagged_word = if flagged.len() == 1 {
+        t.flagged_left_one
+    } else {
+        t.flagged_left
+    };
+    let counts = format!(
+        "{} {}, {} {flagged_word}.",
+        unanswered.len(),
+        t.unanswered_left,
+        flagged.len()
+    );
+    let lists = [
+        ("unanswered-links", t.unanswered_which, unanswered),
+        ("flagged-links", t.flagged_which, flagged),
+    ];
+    rsx! {
+        p { "{counts}" }
+        for (class, which, list) in lists {
+            if !list.is_empty() {
+                p { key: "{class}", class: "{class}",
+                    "{which} "
+                    for i in list {
+                        button { key: "{i}", class: "link", onclick: move |_| on_go.call(i),
+                            "{t.question} {i + 1}"
+                        }
+                        " "
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The session's positions, from 0, of the questions that match.
+fn positions(session: &Session, matches: impl Fn(&SessionItem) -> bool) -> Vec<usize> {
+    session
+        .items
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| matches(item))
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// What the bottom bar of the exam does.
+#[derive(Clone, Copy, PartialEq)]
+pub struct ExamNav {
+    pub previous: EventHandler<()>,
+    pub next_flagged: EventHandler<()>,
+    pub finish: EventHandler<()>,
+    pub next: EventHandler<()>,
+}
+
+/// The bar fixed to the bottom of the window, so the buttons never move with the question's
+/// length: previous, the next flagged question when there is one, finish, next. Each button is
+/// an icon with its name; the stylesheet drops the words on the narrowest screens.
+pub fn exam_nav(
+    current: usize,
+    total: usize,
+    flagged: usize,
+    t: &'static Texts,
+    on: ExamNav,
+) -> Element {
+    let last = current + 1 == total;
+    rsx! {
+        div { class: "exam-nav",
+            div { class: "exam-nav-inner",
+                IconButton { disabled: current == 0, icon: Icon::ArrowLeft, label: t.previous, tip: t.previous_tip, shown: true,
+                    onclick: move |_| on.previous.call(()) }
+                div { class: "exam-nav-middle",
+                    if flagged > 0 {
+                        IconButton { class: "jump", icon: Icon::Flag, label: t.flagged_short, tip: t.next_flagged, shown: true,
+                            onclick: move |_| on.next_flagged.call(()) }
+                    }
+                    IconButton { id: "finish", class: if last { "end primary" } else { "end" }, icon: Icon::Send, label: t.finish, shown: true,
+                        onclick: move |_| on.finish.call(()) }
+                }
+                IconButton { class: "primary next", disabled: last, icon: Icon::ArrowRight, label: t.next, tip: t.next_tip, shown: true,
+                    onclick: move |_| on.next.call(()) }
+            }
+        }
+    }
+}
+
+/// On the identification screen, when a copy of this paper is unfinished on this device: how to
+/// take it back. The name is never shown, so the next student on a shared computer learns nothing.
+pub fn resume_notice(opening: OpeningKind, t: &'static Texts) -> Element {
+    let text = if opening == OpeningKind::Open {
+        t.resume_here
+    } else {
+        t.resume_here_code
+    };
+    rsx! { p { class: "notice resume", role: "status", "{text}" } }
 }
 
 /// The pace, calmly: a gauge for the question on screen (its figures on hover and for screen
@@ -557,6 +653,12 @@ pub fn intro(
         GuessAdvice::AnswerWhenYouHaveAnIdea => t.advice_with_idea,
         GuessAdvice::TickOnlyWhenYouHaveAnIdea => t.advice_tick_only,
     };
+    // One sentence, never a count: the student knows whether to look for several answers.
+    let kinds = if paper.questions.iter().any(Question::is_multiple) {
+        t.some_multiple
+    } else {
+        t.all_single
+    };
     let description = markdown::block(&paper.description, formulas);
     rsx! {
         section { class: "intro card",
@@ -569,6 +671,7 @@ pub fn intro(
                 dt { "{t.duration}" } dd { "{duration}" }
                 dt { "{t.scoring}" } dd { "{scoring} {costs}" }
             }
+            p { "{kinds}" }
             p { "{advice}" }
             if paper.duration_minutes > 0 && paper.allow_extra_time {
                 fieldset { class: "extra-time",

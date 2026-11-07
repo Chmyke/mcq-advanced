@@ -164,12 +164,18 @@ pub struct Texts {
     pub erase_copy: &'static str,
     pub erase_hint: &'static str,
     pub erased: &'static str,
-    pub incomplete_left: &'static str,
-    /// The same, for a single question.
-    pub incomplete_left_one: &'static str,
     pub flagged_left_one: &'static str,
-    /// Before the links to the incomplete questions, in the hand-in question.
-    pub incomplete_which: &'static str,
+    /// Before the links to the unanswered questions, in the hand-in question.
+    pub unanswered_which: &'static str,
+    /// Before the links to the questions flagged for review, in the hand-in question.
+    pub flagged_which: &'static str,
+    /// On the intro screen: whether some question has several right answers, never how many.
+    pub some_multiple: &'static str,
+    pub all_single: &'static str,
+    /// On the identification screen when a copy of this paper is unfinished on this device;
+    /// the name is never shown. With and without an opening code to type again.
+    pub resume_here: &'static str,
+    pub resume_here_code: &'static str,
     /// The first stop of the keyboard during the exam.
     pub skip_to_question: &'static str,
     /// On the welcome screen when a copy was left unfinished on this device; `{title}`.
@@ -178,7 +184,7 @@ pub struct Texts {
     pub pace_hint: &'static str,
     /// The phone's share sheet with the copy file attached.
     pub share_copy: &'static str,
-    pub state_incomplete: &'static str,
+    /// The status of a multiple-answer question ticked right but short, in the correction.
     pub incomplete: &'static str,
     pub end_code: &'static str,
     pub end_code_hint: &'static str,
@@ -348,15 +354,17 @@ pub static EN: Texts = Texts {
     erase_copy: "Erase my answers from this device",
     erase_hint: "On a shared computer, once your copy is sent. Your correction will no longer open here.",
     erased: "Your answers are erased from this device.",
-    incomplete_left: "incomplete",
-    incomplete_left_one: "incomplete",
     flagged_left_one: "flagged for review",
-    incomplete_which: "Incomplete:",
+    unanswered_which: "Unanswered:",
+    flagged_which: "Flagged for review:",
+    some_multiple: "This paper has questions with several right answers.",
+    all_single: "Every question has a single right answer.",
+    resume_here: "A copy is in progress on this device: type your name again to resume it.",
+    resume_here_code: "A copy is in progress on this device: type your name and the code again to resume it.",
     skip_to_question: "Go to the question",
     in_progress: "A copy of \"{title}\" is unfinished on this device. Open the same file again, with the same name, to resume it.",
     pace_hint: "The time planned for the questions you answered, against the time you took.",
-    share_copy: "Send my copy",
-    state_incomplete: "incomplete",
+    share_copy: "Share my copy",
     incomplete: "Incomplete",
     end_code: "End code",
     end_code_hint: "Your teacher gives it once every copy is in.",
@@ -522,15 +530,17 @@ pub static FR: Texts = Texts {
     erase_copy: "Effacer mes réponses de cet appareil",
     erase_hint: "Sur un ordinateur partagé, une fois votre copie envoyée. Votre correction ne s'ouvrira plus ici.",
     erased: "Vos réponses sont effacées de cet appareil.",
-    incomplete_left: "incomplètes",
-    incomplete_left_one: "incomplète",
     flagged_left_one: "marquée à revoir",
-    incomplete_which: "Incomplètes :",
+    unanswered_which: "Sans réponse :",
+    flagged_which: "À revoir :",
+    some_multiple: "Ce sujet contient des questions à plusieurs bonnes réponses.",
+    all_single: "Toutes les questions ont une seule bonne réponse.",
+    resume_here: "Une copie est en cours sur cet appareil : retapez votre nom pour la reprendre.",
+    resume_here_code: "Une copie est en cours sur cet appareil : retapez votre nom et le code pour la reprendre.",
     skip_to_question: "Aller à la question",
     in_progress: "Une copie de « {title} » est en cours sur cet appareil. Rouvrez le même fichier, avec le même nom, pour la reprendre.",
     pace_hint: "Le temps prévu pour les questions déjà répondues, comparé au temps que vous y avez passé.",
-    share_copy: "Envoyer ma copie",
-    state_incomplete: "incomplète",
+    share_copy: "Partager ma copie",
     incomplete: "Incomplet",
     end_code: "Code de fin",
     end_code_hint: "Votre enseignant le donne quand toutes les copies sont rendues.",

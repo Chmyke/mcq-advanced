@@ -83,6 +83,18 @@ pub fn App() -> Element {
     // The title of a copy left unfinished on this device, for the welcome screen.
     let mut unfinished = use_signal(|| None::<String>);
     let mut can_share = use_signal(|| false);
+    // A copy of the opened paper is unfinished on this device, under some name.
+    let mut resumable = use_signal(|| false);
+    use_effect(move || {
+        let paper_id = loaded.read().as_ref().map(|l| l.header.paper_id);
+        resumable.set(false);
+        if let Some(id) = paper_id {
+            spawn(async move {
+                let saved = platform::saved_sessions(&id).await;
+                resumable.set(unfinished_among(&saved, &id));
+            });
+        }
+    });
     // Grades the handed-in copy with the unlocked key and opens the correction; false when the
     // key stays locked.
     let mut open_correction = move |unlock: KeyUnlock| -> bool {
@@ -391,6 +403,7 @@ pub fn App() -> Element {
                         p { class: "muted", "{t.fingerprint_hint}" }
                     }
                     if package.header.practice { p { class: "notice", "{t.practice_notice}" } }
+                    if resumable() { {render::resume_notice(opening, t)} }
                     label { r#for: "name", "{t.your_name}" }
                     input {
                         id: "name", r#type: "text", autocomplete: "name", autofocus: true,
@@ -455,22 +468,7 @@ pub fn App() -> Element {
             let gauge = s.pace(&o.paper);
             let total = s.items.len();
             let answered = s.answered_count();
-            let unanswered = total - answered;
-            let incomplete = s.incomplete_count(&o.paper);
-            let complete = answered - incomplete;
             let flagged = s.flagged_count();
-            // The incomplete questions by position, to go and finish them from the hand-in question.
-            let incomplete_at = s.incomplete_positions(&o.paper);
-            let incomplete_word = if incomplete == 1 {
-                t.incomplete_left_one
-            } else {
-                t.incomplete_left
-            };
-            let flagged_word = if flagged == 1 {
-                t.flagged_left_one
-            } else {
-                t.flagged_left
-            };
             let current = s.current;
             let question_element = s.current_item().and_then(|item| {
                 let question = o.paper.question(&item.question_id)?;
@@ -513,9 +511,9 @@ pub fn App() -> Element {
                     h1 { class: "sr-only", "{o.paper.title}" }
                     div { class: "status-bar",
                         {render::clock(&status, s.elapsed_seconds, t)}
-                        span { class: "progress", "{complete} / {total} {t.answered}" }
+                        span { class: "progress", "{answered} / {total} {t.answered}" }
                     }
-                    {render::segments(&s, &o.paper, gauge.map(|g| g.time_fraction), t, EventHandler::new(move |i: usize| go_to(session, i)))}
+                    {render::segments(&s, gauge.map(|g| g.time_fraction), t, EventHandler::new(move |i: usize| go_to(session, i)))}
                     if let Some(gauge) = gauge { {render::pace_view(&gauge, t)} }
                     // Always in the page, so screen readers announce what appears inside it.
                     div { class: "live", role: "status",
@@ -534,23 +532,7 @@ pub fn App() -> Element {
                     if stage() == Stage::Confirm {
                         div { class: "confirm card", role: "dialog", "aria-labelledby": "confirm-title",
                             h2 { id: "confirm-title", tabindex: "-1", "{t.confirm_title}" }
-                            p {
-                                "{unanswered} {t.unanswered_left}, "
-                                if incomplete > 0 { strong { "{incomplete} {incomplete_word}" } ", " }
-                                "{flagged} {flagged_word}."
-                            }
-                            if !incomplete_at.is_empty() {
-                                p { class: "incomplete-links",
-                                    "{t.incomplete_which} "
-                                    for i in incomplete_at {
-                                        button { key: "{i}", class: "link",
-                                            onclick: move |_| { go_to(session, i); stage.set(Stage::Exam); },
-                                            "{t.question} {i + 1}"
-                                        }
-                                        " "
-                                    }
-                                }
-                            }
+                            {render::hand_in_summary(&s, t, EventHandler::new(move |i: usize| { go_to(session, i); stage.set(Stage::Exam); }))}
                             div { class: "nav",
                                 button { onclick: move |_| close_confirm(stage), "{t.keep_working}" }
                                 button { class: "primary",
@@ -582,24 +564,12 @@ pub fn App() -> Element {
                         }
                     }
                     {question_element}
-                    // Fixed to the bottom of the window: the buttons never move with the question's length.
-                    div { class: "exam-nav",
-                        div { class: "exam-nav-inner",
-                            IconButton { disabled: current == 0, icon: Icon::ArrowLeft, label: t.previous, tip: t.previous_tip, shown: true,
-                                onclick: move |_| go(Session::previous) }
-                            div { class: "exam-nav-middle",
-                                if flagged > 0 {
-                                    IconButton { class: "jump", icon: Icon::Flag, label: t.flagged_short, tip: t.next_flagged,
-                                        onclick: move |_| go(|s| { s.next_flagged(); }) }
-                                }
-                                button { id: "finish", class: if current + 1 == total { "end primary" } else { "end" },
-                                    onclick: move |_| open_confirm(stage), "{t.finish}"
-                                }
-                            }
-                            IconButton { class: "primary next", disabled: current + 1 == total, icon: Icon::ArrowRight, label: t.next, tip: t.next_tip, shown: true,
-                                onclick: move |_| go(Session::next) }
-                        }
-                    }
+                    {render::exam_nav(current, total, flagged, t, render::ExamNav {
+                        previous: EventHandler::new(move |()| go(Session::previous)),
+                        next_flagged: EventHandler::new(move |()| go(|s| { s.next_flagged(); })),
+                        finish: EventHandler::new(move |()| open_confirm(stage)),
+                        next: EventHandler::new(move |()| go(Session::next)),
+                    })}
                 }
             }
         }
@@ -823,6 +793,15 @@ async fn unfinished_copy() -> Option<String> {
         platform::forget_in_progress();
     }
     unfinished.then_some(title)
+}
+
+/// True when one of the sessions saved for `paper_id` (as stored, base 64) is not handed in.
+pub fn unfinished_among(saved: &[String], paper_id: &[u8; 16]) -> bool {
+    saved.iter().any(|text| {
+        b64::decode(text)
+            .and_then(|bytes| decode_session(&bytes).ok())
+            .is_some_and(|s| s.paper_id == *paper_id && !s.submitted)
+    })
 }
 
 /// The seconds a `tick:<n>` message of the page carries; `None` for any other message.
