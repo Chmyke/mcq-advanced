@@ -134,7 +134,11 @@ async function player(page, base, send, dialogs) {
   expect(await page.run(FOCUSED) === 'name', 'player: the identification screen does not focus the name');
   await page.type("document.getElementById('name')", 'Web Check', 'the name field');
   await page.click("document.querySelector('form.identify button[type=submit]')", 'open the paper');
-  // The paper is French: so is the interface from here on.
+  // The paper is French: so is the interface from here on. Its intro says, in one sentence, that
+  // some questions have several right answers.
+  await page.waitFor("document.querySelector('.intro')", 'the intro screen');
+  expect(await page.run("document.querySelector('.intro').textContent.includes('plusieurs bonnes réponses')"),
+    'player: the intro does not say that some questions have several right answers');
   await page.click("document.querySelector('main button.primary')", 'start');
   await page.waitFor("document.getElementById('q-title')", 'the first question');
   await sleep(300);
@@ -147,16 +151,20 @@ async function player(page, base, send, dialogs) {
   expect(await page.run(NUMBER) === '2',
     'player: Enter on an answer box does not move to the next question');
 
-  // Question 5 asks for two answers: one ticked leaves it incomplete, and the hand-in question
-  // says so in the singular, with a way back to it.
+  // Question 5 asks for two answers: one ticked makes it answered like any other, never a hint at
+  // how many are right. The hand-in question lists the unanswered ones, each a way back to it.
   await page.click("document.querySelectorAll('.exam-segments button')[4]", 'question 5 in the overview');
   await page.click("document.querySelector('.options input[type=checkbox]')", 'one box of question 5');
+  expect((await page.run("document.querySelector('.progress').textContent")).startsWith('1 / 6'),
+    'player: the progress does not count question 5 as answered');
   await page.click("document.getElementById('finish')", 'finish');
   const confirm = await page.run("document.querySelector('.confirm').textContent");
-  expect(confirm.includes('1 incomplète,'), `player: the hand-in question miscounts: ${confirm}`);
-  await page.click("document.querySelector('.incomplete-links button')", 'the incomplete question');
-  expect(await page.run(NUMBER) === '5',
-    'player: the link of the hand-in question does not lead to the incomplete question');
+  expect(confirm.includes('5 sans réponse,') && !confirm.includes('incompl'), `player: the hand-in question miscounts: ${confirm}`);
+  const listed = await page.run("[...document.querySelectorAll('.unanswered-links button')].map((b) => b.textContent).join(',')");
+  expect(listed === 'Question 1,Question 2,Question 3,Question 4,Question 6', `player: the unanswered questions listed are ${listed}`);
+  await page.click("document.querySelectorAll('.unanswered-links button')[2]", 'question 3 in the hand-in question');
+  expect(await page.run(NUMBER) === '3',
+    'player: the link of the hand-in question does not lead to the unanswered question');
 
   // A page asleep for two minutes (a locked phone) counts them as soon as it wakes.
   const before = await page.run(REMAINING);
@@ -173,6 +181,13 @@ async function player(page, base, send, dialogs) {
   await page.waitFor("document.querySelector('.welcome .notice')", 'the unfinished copy notice');
   expect(await page.run("document.querySelector('.welcome .notice').textContent.includes('unfinished')"),
     'player: the welcome screen does not mention the unfinished copy');
+
+  // The same paper again: the identification screen offers to resume, without naming anyone.
+  await send('Page.navigate', { url: `${base}/player/?lang=en&paper=check.mcqpack` });
+  await page.waitFor("document.querySelector('.identify .resume')", 'the copy in progress notice');
+  const resume = await page.run("document.querySelector('.identify .resume').textContent");
+  expect(resume.includes('type your name again') && !resume.includes('Web Check'),
+    `player: the copy in progress notice reads: ${resume}`);
 }
 
 const server = await serve(site);

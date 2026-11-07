@@ -2,6 +2,8 @@
 // and fails when two pieces of a theme line overlap: the name, its bar, its success rate. On a phone
 // the rate must sit under the name. The markup is the real one, written by the player's render test
 // `the_correction_markup_is_handed_to_the_layout_check`; the stylesheet is the player's own.
+// The exam's bottom bar (`the_exam_markup_is_handed_to_the_motion_check`) shows icons alone up to
+// 400px, icons and words above, and always fits the window.
 // Then the Studio's bar and question list, from its own render test (see `studio` below).
 // Run (after `cargo test`): node tools/layout-check.mjs [screenshot.png]
 // The optional screenshot shows the theme lines at phone width with the longest names tried.
@@ -16,10 +18,23 @@ const fixture = join(root, 'target', 'tmp', 'player-review.html');
 const shot = process.argv[2] && resolve(process.argv[2]);
 if (!existsSync(fixture)) throw new Error(`No ${fixture}: run cargo test first.`);
 const review = readFileSync(fixture, 'utf8');
+const examFixture = join(root, 'target', 'tmp', 'player-exam.html');
+if (!existsSync(examFixture)) throw new Error(`No ${examFixture}: run cargo test first.`);
+const exam = readFileSync(examFixture, 'utf8');
 const css = readFileSync(join(root, 'apps', 'mcq-player', 'web', 'style.css'), 'utf8');
-const page = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
+const wrap = (markup) => `<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head>
-<body><div class="app" data-theme="light"><main>${review}</main></div></body></html>`;
+<body><div class="app" data-theme="light"><main>${markup}</main></div></body></html>`;
+const page = wrap(review);
+// The narrowest width where the bottom bar still writes its buttons' names.
+const ICONS_ONLY = 400;
+const NAV_WIDTHS = [320, 360, 400, 401, 414, 480, 560, 768, 1280];
+// Each button of the bar: whether its words show, and whether it stays inside the window.
+const NAV = `(() => [...document.querySelectorAll('.exam-nav button')].map((b) => {
+  const r = b.getBoundingClientRect(), label = b.querySelector('.label');
+  return { name: b.getAttribute('aria-label'), words: !!label && getComputedStyle(label).display !== 'none',
+    left: r.left, right: r.right };
+}))()`;
 
 const PHONE = 560;
 const WIDTHS = [320, 375, 414, 560, 768, 1280];
@@ -153,6 +168,23 @@ try {
       }
     }
   }
+
+  // The exam's bottom bar.
+  await send('Page.setDocumentContent', { frameId: frameTree.frame.id, html: wrap(exam) });
+  if ((await run("document.querySelectorAll('.exam-nav button').length")) < 4) throw new Error('No bottom bar in the exam fixture.');
+  for (const width of NAV_WIDTHS) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
+    for (const button of await run(NAV)) {
+      const where = `${width}px, bottom bar, "${button.name}"`;
+      if (!button.name) failures.push(`${where}: no accessible name`);
+      if (width <= ICONS_ONLY && button.words) failures.push(`${where}: words shown, icon alone expected`);
+      if (width > ICONS_ONLY && !button.words) failures.push(`${where}: words hidden`);
+      if (button.left < -0.5 || button.right > width + 0.5) failures.push(`${where}: leaves the window`);
+    }
+    const scroll = await run('document.documentElement.scrollWidth');
+    if (scroll > width) failures.push(`${width}px: the exam page scrolls sideways (${scroll}px)`);
+  }
+
   await studio(send, run, frameTree.frame.id);
 } finally {
   await close();
@@ -161,4 +193,4 @@ if (failures.length > 0) {
   for (const f of failures) console.log(`layout: ${f}`);
   process.exit(1);
 }
-console.log(`layout: theme lines OK at ${WIDTHS.join(', ')} px; Studio bar and question list OK at ${STUDIO_WIDTHS.join(', ')} px`);
+console.log(`layout: theme lines OK at ${WIDTHS.join(', ')} px; exam bar OK at ${NAV_WIDTHS.join(', ')} px; Studio bar and question list OK at ${STUDIO_WIDTHS.join(', ')} px`);

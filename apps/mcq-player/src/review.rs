@@ -238,8 +238,15 @@ fn level_number(level: Level) -> u32 {
     }
 }
 
-fn mark_text(result: &GradeResult, t: &Texts) -> String {
-    format!("{:.2}", result.mark(20.0)).replace('.', t.decimal)
+/// The mark out of 20, to the tenth as the teacher reads it: the word on it follows the same
+/// figure, so 15.96 reads 16.0 and "Solid".
+pub fn mark_on_20(result: &GradeResult) -> f32 {
+    (result.mark(20.0) * 10.0).round() / 10.0
+}
+
+/// A mark to the tenth, with the language's decimal separator: 12.7, or 12,7 in French.
+pub fn mark_text(mark: f32, t: &Texts) -> String {
+    format!("{:.1}", (mark * 10.0).round() / 10.0).replace('.', t.decimal)
 }
 
 /// The student's revision sheet in Markdown: where they stand, each mistake with the right
@@ -251,12 +258,12 @@ pub fn revision_markdown(
     t: &Texts,
 ) -> String {
     let mut out = String::new();
-    let mark = mark_text(result, t);
+    let mark = mark_text(mark_on_20(result), t);
     out.push_str(&format!("# {} : {}\n\n", t.sheet_title, full.title));
     out.push_str(&format!(
         "{} · {mark} / 20 · {}\n\n",
         session.student_name,
-        appreciation(result.mark(20.0), t)
+        appreciation(mark_on_20(result), t)
     ));
     out.push_str(&format!("## {}\n\n", t.sheet_where));
     out.push_str(&format!(
@@ -494,8 +501,8 @@ pub fn review_screen(
     content: Content<'_>,
     on: EventHandler<ReviewAction>,
 ) -> Element {
-    let mark = mark_text(result, t);
-    let word = appreciation(result.mark(20.0), t);
+    let mark = mark_text(mark_on_20(result), t);
+    let word = appreciation(mark_on_20(result), t);
     let minutes = format_duration(session.elapsed_seconds);
     let overtime = (result.overtime_seconds > 0).then(|| {
         // To the second, as the teacher reads it on the copy.

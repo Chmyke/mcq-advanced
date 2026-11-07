@@ -247,24 +247,6 @@ fn a_closed_page_counts_its_time_as_a_window_exit() {
 }
 
 #[test]
-fn a_multiple_answer_ticked_short_is_incomplete_when_the_count_is_announced() {
-    let mut p = paper(2, 2);
-    p.shuffle_options = false;
-    let mut s = Session::new(&p, [1; 16], "Alex Example");
-    let first = s
-        .items
-        .iter()
-        .position(|i| i.question_id == p.questions[0].id)
-        .expect("the multiple question");
-    s.go_to(first);
-    let option = s.items[first].option_order[0].clone();
-    s.toggle(&p, &option);
-    assert_eq!(s.incomplete_count(&p), 1);
-    p.show_answer_count = false;
-    assert_eq!(s.incomplete_count(&p), 0, "the student could not know");
-}
-
-#[test]
 fn true_or_false_keeps_its_order_when_options_are_shuffled() {
     let mut p = paper(1, 2);
     p.questions[0].options.truncate(2);
